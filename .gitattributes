@@ -1,0 +1,4 @@
+# Sha-locked canonical reference surface (VA-T1) — pin to LF so its bytes (and the
+# verified sha256 fe473eed3364505824639d3ef0c9fd0059f2d1ae164ae22976fc3268aed33f2a)
+# are never altered by line-ending conversion on any platform.
+frontend/theo-frontend-reference.jsx text eol=lf

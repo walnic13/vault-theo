@@ -25,10 +25,10 @@ This folder holds Vault Theo's governance standards, adapted from the establishe
 | `THEO_ARCHITECTURE_AND_STRUCTURE.md` (foundation) | **pending byte-preserving delivery** of the canonical pack |
 | `THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md` | **v0.1 landed** (pass 2) |
 | `CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md` / `..._FRONTEND_GOVERNOR_STANDARD.md` | **v0.1 landed (lean)** (pass 2) |
-| `CODEX_THEO_BACKEND_REVIEW_STANDARD.md` / `..._FRONTEND_REVIEW_STANDARD.md` | planned (next pass) |
-| `THEO_GOLDEN_HANDLER_STANDARD.md` / `THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` | planned |
-| `THEO_EXECUTION_ORCHESTRATION_STANDARD.md` | planned |
-| `THEO_FEATURE_LIFECYCLE_MAP_STANDARD.md` | planned |
+| `CODEX_THEO_BACKEND_REVIEW_STANDARD.md` / `..._FRONTEND_REVIEW_STANDARD.md` | **v0.1 landed (lean)** (pass 3) |
+| `THEO_GOLDEN_HANDLER_STANDARD.md` / `THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` | **v0.1 landed** (pass 3) |
+| `THEO_EXECUTION_ORCHESTRATION_STANDARD.md` | planned (next pass) |
+| `THEO_FEATURE_LIFECYCLE_MAP_STANDARD.md` | planned (next pass) |
 | `../spec/THEO_API_SPEC.md` / `THEO_AZURE_POSTGRES_SCHEMA.md` / `THEO_TOOL_MANIFEST.md` | authored in Phase 1B |
 | `THEO_PHASE_1A_FRONTEND_PLAN.md` / `THEO_PHASE_1B_BACKEND_PLAN.md` | authored per the handover pack |
 
@@ -44,8 +44,8 @@ Exit `0` = PASS, `1` = FAIL (violations printed), `2` = usage. It parses `govern
 1. ✅ Backend conformance standard + mechanical lint (pass 1).
 2. ✅ Frontend conformance standard (pass 2).
 3. ✅ Governor standards — backend + frontend, lean (pass 2).
-4. Codex review standards (backend + frontend).
-5. Golden Handler / Golden Component standards.
+4. ✅ Codex review standards — backend + frontend, lean (pass 3).
+5. ✅ Golden Handler / Golden Component standards (pass 3).
 6. Execution Orchestration + Lifecycle Map.
 7. Spec docs (`../spec/`) — authored through Phase 1B.
 

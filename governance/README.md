@@ -23,9 +23,9 @@ This folder holds Vault Theo's governance standards, adapted from the establishe
 | `THEO_GROUNDING_CONFORMANCE_STANDARD.md` (backend) | **v0.1 landed** (this pass) |
 | `../tools/lint_microstep_submission.mjs` (mechanical lint, T24/T25) | **v0.1 landed** (this pass; parses this folder's conformance §4A) |
 | `THEO_ARCHITECTURE_AND_STRUCTURE.md` (foundation) | **pending byte-preserving delivery** of the canonical pack |
-| `THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md` | planned (next pass) |
-| `CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md` / `..._FRONTEND_GOVERNOR_STANDARD.md` | planned |
-| `CODEX_THEO_BACKEND_REVIEW_STANDARD.md` / `..._FRONTEND_REVIEW_STANDARD.md` | planned |
+| `THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md` | **v0.1 landed** (pass 2) |
+| `CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md` / `..._FRONTEND_GOVERNOR_STANDARD.md` | **v0.1 landed (lean)** (pass 2) |
+| `CODEX_THEO_BACKEND_REVIEW_STANDARD.md` / `..._FRONTEND_REVIEW_STANDARD.md` | planned (next pass) |
 | `THEO_GOLDEN_HANDLER_STANDARD.md` / `THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` | planned |
 | `THEO_EXECUTION_ORCHESTRATION_STANDARD.md` | planned |
 | `THEO_FEATURE_LIFECYCLE_MAP_STANDARD.md` | planned |
@@ -41,9 +41,9 @@ Exit `0` = PASS, `1` = FAIL (violations printed), `2` = usage. It parses `govern
 
 ## Build sequence (remaining)
 
-1. ✅ Backend conformance standard + mechanical lint (this pass).
-2. Frontend conformance standard.
-3. Governor standards (backend + frontend).
+1. ✅ Backend conformance standard + mechanical lint (pass 1).
+2. ✅ Frontend conformance standard (pass 2).
+3. ✅ Governor standards — backend + frontend, lean (pass 2).
 4. Codex review standards (backend + frontend).
 5. Golden Handler / Golden Component standards.
 6. Execution Orchestration + Lifecycle Map.

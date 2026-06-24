@@ -14,6 +14,10 @@ dist-ssr
 !.env.example
 *.local
 
+# Local-only Claude Code bootstrap + scratch (NEVER commit)
+CLAUDE.local.md
+.local/
+
 # Editor / OS
 .vscode/*
 !.vscode/extensions.json

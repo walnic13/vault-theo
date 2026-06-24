@@ -3,7 +3,7 @@
 Scope: Vault Theo data layer (the `theo_` section of the shared `vaultgpt` Azure Postgres instance). **Data truth** owner.
 Filename / location: `spec/THEO_AZURE_POSTGRES_SCHEMA.md`.
 
-> **Status: v0.1 SKELETON — header only; DDL finalized in Phase 1B.** This document fixes the `theo_` conventions, the RLS baseline, and the structural table set so 1A can build against contracts shaped to it and 1B has a settled target. The concrete `CREATE TABLE` / policy / function DDL is authored **DEPLOYED** here step-by-step through Phase 1B (architecture §8.4). The content below is relocated from `governance/THEO_ARCHITECTURE_AND_STRUCTURE.md` §5 and **MUST be reconciled against that document once its canonical byte-preserving copy lands** (the foundation doc is currently pending delivery; §5 is the interim authority). No DDL is invented here.
+> **Status: v0.1 SKELETON — header only; DDL finalized in Phase 1B.** This document fixes the `theo_` conventions, the RLS baseline, and the structural table set so 1A can build against contracts shaped to it and 1B has a settled target. The concrete `CREATE TABLE` / policy / function DDL is authored **DEPLOYED** here step-by-step through Phase 1B (architecture §8.4). The content below is relocated from `governance/THEO_ARCHITECTURE_AND_STRUCTURE.md` §5 and **has been reconciled against the now-landed canonical architecture doc** (delivered byte-preserving; the §5.1 conventions, §5.2 RLS baseline, and §5.3 table set match). No DDL is invented here.
 
 ---
 

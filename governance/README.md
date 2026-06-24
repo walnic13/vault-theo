@@ -22,7 +22,7 @@ This folder holds Vault Theo's governance standards, adapted from the establishe
 |----------|--------|
 | `THEO_GROUNDING_CONFORMANCE_STANDARD.md` (backend) | **v0.1 landed** (this pass) |
 | `../tools/lint_microstep_submission.mjs` (mechanical lint, T24/T25) | **v0.1 landed** (this pass; parses this folder's conformance §4A) |
-| `THEO_ARCHITECTURE_AND_STRUCTURE.md` (foundation) | **pending byte-preserving delivery** of the canonical pack |
+| `THEO_ARCHITECTURE_AND_STRUCTURE.md` (foundation, VA-T2) + `../frontend/theo-frontend-reference.jsx` (VA-T1) + `THEO_1A_FRONTEND_HANDOVER.md` (VA-T3) | **landed byte-preserving** (jsx sha256 verified `fe473eed…f2a`) |
 | `THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md` | **v0.1 landed** (pass 2) |
 | `CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md` / `..._FRONTEND_GOVERNOR_STANDARD.md` | **v0.1 landed (lean)** (pass 2) |
 | `CODEX_THEO_BACKEND_REVIEW_STANDARD.md` / `..._FRONTEND_REVIEW_STANDARD.md` | **v0.1 landed (lean)** (pass 3) |
@@ -52,6 +52,6 @@ Exit `0` = PASS, `1` = FAIL (violations printed), `2` = usage. It parses `govern
 6. ✅ Execution Orchestration + Lifecycle Map (pass 4).
 7. ✅ Spec docs (`../spec/`) — **v0.1 skeletons** scaffolded (schema header, API contract surface, tool manifest); DDL / deployed contracts authored through Phase 1B. (Content/truth docs, not a governance pass; the schema skeleton is reconciled against the canonical architecture doc on byte-preserving delivery.)
 
-**Governance regime complete** as of pass 4: conformance (BE+FE), Governors (BE+FE), Codex review (BE+FE), ChatGPT informal review (advisory), Golden Handler/Component, Execution Orchestration, Lifecycle Map, mechanical lint, bootstrap. Remaining work is Phase-1B-authored spec docs + byte-preserving delivery of the canonical reference pack (VA-T1/T2/T3).
+**Governance regime complete** as of pass 4: conformance (BE+FE), Governors (BE+FE), Codex review (BE+FE), ChatGPT informal review (advisory), Golden Handler/Component, Execution Orchestration, Lifecycle Map, mechanical lint, bootstrap. The canonical reference pack (VA-T1/T2/T3) has **landed byte-preserving** (jsx sha256 verified). Remaining work is the Phase-1A frontend build and the Phase-1B-authored spec docs.
 
 The conformance standard's references to standards not yet authored are **forward references** until each lands.

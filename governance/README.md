@@ -30,7 +30,9 @@ This folder holds Vault Theo's governance standards, adapted from the establishe
 | `THEO_GOLDEN_HANDLER_STANDARD.md` / `THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` | **v0.1 landed** (pass 3) |
 | `THEO_EXECUTION_ORCHESTRATION_STANDARD.md` | **v0.1 landed** (pass 4) |
 | `THEO_FEATURE_LIFECYCLE_MAP_STANDARD.md` | **v0.1 landed (pointer-only)** (pass 4) |
-| `../spec/THEO_API_SPEC.md` / `THEO_AZURE_POSTGRES_SCHEMA.md` / `THEO_TOOL_MANIFEST.md` | authored in Phase 1B |
+| `../spec/THEO_AZURE_POSTGRES_SCHEMA.md` (data truth) | **v0.1 skeleton landed**; DDL finalized in 1B |
+| `../spec/THEO_API_SPEC.md` (contract truth) | **v0.1 skeleton landed**; deployed contracts finalized in 1B |
+| `../spec/THEO_TOOL_MANIFEST.md` (Reporting-API pointer) | **v0.1 skeleton landed** (empty authorized set) |
 | `THEO_PHASE_1A_FRONTEND_PLAN.md` / `THEO_PHASE_1B_BACKEND_PLAN.md` | authored per the handover pack |
 
 ## Mechanical lint usage
@@ -48,7 +50,7 @@ Exit `0` = PASS, `1` = FAIL (violations printed), `2` = usage. It parses `govern
 4. ✅ Codex review standards — backend + frontend, lean (pass 3).
 5. ✅ Golden Handler / Golden Component standards (pass 3).
 6. ✅ Execution Orchestration + Lifecycle Map (pass 4).
-7. Spec docs (`../spec/`) — authored through Phase 1B (content/truth docs, not a governance pass).
+7. ✅ Spec docs (`../spec/`) — **v0.1 skeletons** scaffolded (schema header, API contract surface, tool manifest); DDL / deployed contracts authored through Phase 1B. (Content/truth docs, not a governance pass; the schema skeleton is reconciled against the canonical architecture doc on byte-preserving delivery.)
 
 **Governance regime complete** as of pass 4: conformance (BE+FE), Governors (BE+FE), Codex review (BE+FE), ChatGPT informal review (advisory), Golden Handler/Component, Execution Orchestration, Lifecycle Map, mechanical lint, bootstrap. Remaining work is Phase-1B-authored spec docs + byte-preserving delivery of the canonical reference pack (VA-T1/T2/T3).
 

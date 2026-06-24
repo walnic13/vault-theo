@@ -308,19 +308,20 @@ function check(text, repoRoot) {
     }
   }
 
-  // C11: Pass 1 VEP structural obligations (§10A Vision Reconciliation Gate, §10B Gap Register).
+  // C11: Theo Pass 1 VEP structural obligations — §4A.1 P2 Architecture & boundary
+  // reconciliation; Gap Register/Disclosure (Theo Backend Governor §8 / Conformance §4A.1 P2.5).
+  // (Theo uses §4A.1 P2 architecture-&-boundary reconciliation, NOT a Reporting §10A vision gate.)
   // Applies when Pass is "Pass 1" and Sub-phase Track is a plan-authoring row (P1-P8).
   if (gcr && gcr.pass === "Pass 1" && gcr.subphaseTrack && /^P[1-8]$/.test(gcr.subphaseTrack.trim())) {
-    const hasGapRegisterHeading = /^\s*#{1,6}\s+Gap Register\b/m.test(text) || /\bGap Register\b/.test(text);
+    const hasGapRegisterHeading = /\bGap Register\b/.test(text) || /\bGap Disclosure\b/.test(text);
     const hasNoGapsCert = /\bNO-GAPS\b/.test(text);
     if (!hasGapRegisterHeading && !hasNoGapsCert) {
-      fail("C11", "Pass 1 VEP turn (§10B) requires a 'Gap Register' subsection or a verbatim 'NO-GAPS' certification. Neither found.");
+      fail("C11", "Pass 1 VEP turn requires a 'Gap Register' / 'Gap Disclosure' subsection or a verbatim 'NO-GAPS' certification (Theo Backend Governor §8; Conformance §4A.1 P2.5). Neither found.");
     }
 
-    const hasVisionGate = /Vision Reconciliation/i.test(text);
-    const hasOutOfScope = /§10A\.3/.test(text);
-    if (!hasVisionGate && !hasOutOfScope) {
-      fail("C11", "Pass 1 VEP turn (§10A) requires a 'Vision Reconciliation' section or an explicit §10A.3 out-of-scope citation. Neither found.");
+    const hasArchReconciliation = /Architecture (?:&|and) boundary reconciliation/i.test(text);
+    if (!hasArchReconciliation) {
+      fail("C11", "Pass 1 VEP turn requires an 'Architecture & boundary reconciliation' section (Conformance §4A.1 P2). Not found.");
     }
   }
 

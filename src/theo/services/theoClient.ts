@@ -1,0 +1,61 @@
+// THE single service / contracts boundary (FE Governor §6.2; 1A handover §2.3).
+// Every backend-bound call routes through here. In 1A: chat → mock gateway; projects /
+// artifacts / settings → in-memory store seeded from the reference. In 1B each method is
+// swapped for a real `theo_*` API call with NO surface change. NO browser storage
+// (1A handover §2.5) — module memory only.
+import type {
+  Artifact, GatewayRequest, GatewayResponse, KDraft, NpDraft, Project, Settings,
+} from "../types";
+import { INIT_PROJECTS } from "../data";
+import { parseArtifacts, remapToIds, upsert } from "../lib/artifacts";
+import { sendMessage as gatewaySend } from "./gateway.mock";
+
+let projects: Project[] = INIT_PROJECTS.map((p) => ({ ...p, knowledge: p.knowledge.slice() }));
+let artifacts: Artifact[] = [];
+let settings: Settings = { styleKey: "normal", custom: "" };
+
+export const theoClient = {
+  // ── Chat (the one network-bound call; mocked in 1A) ──────────────────────
+  sendMessage(req: GatewayRequest): Promise<GatewayResponse> {
+    return gatewaySend(req);
+  },
+
+  // Parse [[ARTIFACT]] blocks out of a reply, upsert them (versioned by reused title),
+  // and return the display text (artifact sentinels remapped to artifact ids) + the id to open.
+  ingestReply(reply: string): { display: string; openId: string | null } {
+    const { clean, blocks } = parseArtifacts(reply);
+    const ids: string[] = [];
+    blocks.forEach((b) => { const r = upsert(artifacts, b); artifacts = r.next; ids.push(r.id); });
+    const display = remapToIds(clean, ids);
+    return { display: display || "(no response)", openId: ids.length ? ids[ids.length - 1] : null };
+  },
+
+  // ── Projects (in-memory in 1A; theo_projects / theo_project_knowledge in 1B) ──
+  listProjects(): Project[] { return projects.slice(); },
+  createProject(d: NpDraft): Project[] {
+    const id = "p" + Date.now().toString(36);
+    projects = [{ id, name: d.name.trim(), desc: d.desc.trim() || "New project.", instructions: d.instructions.trim(), knowledge: [], updated: "just now" }, ...projects];
+    return projects.slice();
+  },
+  patchInstructions(id: string, instructions: string): Project[] {
+    projects = projects.map((p) => (p.id === id ? { ...p, instructions } : p));
+    return projects.slice();
+  },
+  addKnowledge(id: string, k: KDraft): Project[] {
+    projects = projects.map((p) => p.id === id
+      ? { ...p, knowledge: [...p.knowledge, { id: "k" + Date.now().toString(36), title: k.title.trim(), content: k.content.trim() }] }
+      : p);
+    return projects.slice();
+  },
+  removeKnowledge(id: string, kid: string): Project[] {
+    projects = projects.map((p) => p.id === id ? { ...p, knowledge: p.knowledge.filter((k) => k.id !== kid) } : p);
+    return projects.slice();
+  },
+
+  // ── Artifacts (in-memory in 1A; theo_artifacts + theo_artifact_versions in 1B) ──
+  listArtifacts(): Artifact[] { return artifacts.slice(); },
+
+  // ── Settings (in-memory in 1A; theo_user_settings in 1B) ──
+  readSettings(): Settings { return { ...settings }; },
+  writeSettings(s: Settings): void { settings = { ...s }; },
+};

@@ -26,6 +26,7 @@ This folder holds Vault Theo's governance standards, adapted from the establishe
 | `THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md` | **v0.1 landed** (pass 2) |
 | `CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md` / `..._FRONTEND_GOVERNOR_STANDARD.md` | **v0.1 landed (lean)** (pass 2) |
 | `CODEX_THEO_BACKEND_REVIEW_STANDARD.md` / `..._FRONTEND_REVIEW_STANDARD.md` | **v0.1 landed (lean)** (pass 3) |
+| `CHATGPT_THEO_INFORMAL_REVIEW_STANDARD.md` (out-of-pipeline advisor) | **v0.1 landed** (pass 4) |
 | `THEO_GOLDEN_HANDLER_STANDARD.md` / `THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` | **v0.1 landed** (pass 3) |
 | `THEO_EXECUTION_ORCHESTRATION_STANDARD.md` | **v0.1 landed** (pass 4) |
 | `THEO_FEATURE_LIFECYCLE_MAP_STANDARD.md` | **v0.1 landed (pointer-only)** (pass 4) |
@@ -49,6 +50,6 @@ Exit `0` = PASS, `1` = FAIL (violations printed), `2` = usage. It parses `govern
 6. ✅ Execution Orchestration + Lifecycle Map (pass 4).
 7. Spec docs (`../spec/`) — authored through Phase 1B (content/truth docs, not a governance pass).
 
-**Governance regime complete** as of pass 4: conformance (BE+FE), Governors (BE+FE), Codex review (BE+FE), Golden Handler/Component, Execution Orchestration, Lifecycle Map, mechanical lint, bootstrap. Remaining work is Phase-1B-authored spec docs + byte-preserving delivery of the canonical reference pack (VA-T1/T2/T3).
+**Governance regime complete** as of pass 4: conformance (BE+FE), Governors (BE+FE), Codex review (BE+FE), ChatGPT informal review (advisory), Golden Handler/Component, Execution Orchestration, Lifecycle Map, mechanical lint, bootstrap. Remaining work is Phase-1B-authored spec docs + byte-preserving delivery of the canonical reference pack (VA-T1/T2/T3).
 
 The conformance standard's references to standards not yet authored are **forward references** until each lands.

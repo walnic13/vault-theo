@@ -33,7 +33,8 @@ This folder holds Vault Theo's governance standards, adapted from the establishe
 | `../spec/THEO_AZURE_POSTGRES_SCHEMA.md` (data truth) | **v0.1 skeleton landed**; DDL finalized in 1B |
 | `../spec/THEO_API_SPEC.md` (contract truth) | **v0.1 skeleton landed**; deployed contracts finalized in 1B |
 | `../spec/THEO_TOOL_MANIFEST.md` (Reporting-API pointer) | **v0.1 skeleton landed** (empty authorized set) |
-| `THEO_PHASE_1A_FRONTEND_PLAN.md` / `THEO_PHASE_1B_BACKEND_PLAN.md` | authored per the handover pack |
+| `THEO_PHASE_1A_FRONTEND_PLAN.md` | **v0.1 landed (living)** — governed 1A scope + pass sequence (F-P1 authority) |
+| `THEO_PHASE_1B_BACKEND_PLAN.md` | authored through Phase 1B |
 
 ## Mechanical lint usage
 

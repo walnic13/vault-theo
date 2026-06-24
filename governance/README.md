@@ -27,8 +27,8 @@ This folder holds Vault Theo's governance standards, adapted from the establishe
 | `CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md` / `..._FRONTEND_GOVERNOR_STANDARD.md` | **v0.1 landed (lean)** (pass 2) |
 | `CODEX_THEO_BACKEND_REVIEW_STANDARD.md` / `..._FRONTEND_REVIEW_STANDARD.md` | **v0.1 landed (lean)** (pass 3) |
 | `THEO_GOLDEN_HANDLER_STANDARD.md` / `THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` | **v0.1 landed** (pass 3) |
-| `THEO_EXECUTION_ORCHESTRATION_STANDARD.md` | planned (next pass) |
-| `THEO_FEATURE_LIFECYCLE_MAP_STANDARD.md` | planned (next pass) |
+| `THEO_EXECUTION_ORCHESTRATION_STANDARD.md` | **v0.1 landed** (pass 4) |
+| `THEO_FEATURE_LIFECYCLE_MAP_STANDARD.md` | **v0.1 landed (pointer-only)** (pass 4) |
 | `../spec/THEO_API_SPEC.md` / `THEO_AZURE_POSTGRES_SCHEMA.md` / `THEO_TOOL_MANIFEST.md` | authored in Phase 1B |
 | `THEO_PHASE_1A_FRONTEND_PLAN.md` / `THEO_PHASE_1B_BACKEND_PLAN.md` | authored per the handover pack |
 
@@ -46,7 +46,9 @@ Exit `0` = PASS, `1` = FAIL (violations printed), `2` = usage. It parses `govern
 3. ✅ Governor standards — backend + frontend, lean (pass 2).
 4. ✅ Codex review standards — backend + frontend, lean (pass 3).
 5. ✅ Golden Handler / Golden Component standards (pass 3).
-6. Execution Orchestration + Lifecycle Map.
-7. Spec docs (`../spec/`) — authored through Phase 1B.
+6. ✅ Execution Orchestration + Lifecycle Map (pass 4).
+7. Spec docs (`../spec/`) — authored through Phase 1B (content/truth docs, not a governance pass).
+
+**Governance regime complete** as of pass 4: conformance (BE+FE), Governors (BE+FE), Codex review (BE+FE), Golden Handler/Component, Execution Orchestration, Lifecycle Map, mechanical lint, bootstrap. Remaining work is Phase-1B-authored spec docs + byte-preserving delivery of the canonical reference pack (VA-T1/T2/T3).
 
 The conformance standard's references to standards not yet authored are **forward references** until each lands.

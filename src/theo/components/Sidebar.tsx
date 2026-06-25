@@ -16,10 +16,14 @@ export interface SidebarProps {
   onNewChat: () => void;
   workspaceName: string;
   productName: string;
+  // Pass C (hosted-nav fit): when hosted in the Origin 1/10 slot, the aside fills the slot
+  // (width:100%) instead of the fixed 270/58 standalone rail — VA-T2 §3A.2 / VA-T3 §4. Set by
+  // TheoSurface only in the portaled branch; absent/false standalone (VA-T1 270 rail preserved).
+  fluid?: boolean;
 }
 
 export function Sidebar(props: SidebarProps) {
-  const { collapsed, onToggleCollapse, view, onNavigate, nav, search, onSearch, recents, onSelectRecent, onNewChat, workspaceName, productName } = props;
+  const { collapsed, onToggleCollapse, view, onNavigate, nav, search, onSearch, recents, onSelectRecent, onNewChat, workspaceName, productName, fluid } = props;
   const railW = collapsed ? 58 : 270;
 
   const navBtn = (item: NavItem) => {
@@ -36,7 +40,7 @@ export function Sidebar(props: SidebarProps) {
   };
 
   return (
-    <aside className="vo-aside" style={{ width: railW, flexShrink: 0, background: C.sidebar, borderRight: `1px solid ${C.line}`, display: "flex", flexDirection: "column", transition: "width .18s" }}>
+    <aside className="vo-aside" style={{ width: fluid ? "100%" : railW, maxWidth: "100%", boxSizing: "border-box", flexShrink: 0, background: C.sidebar, borderRight: `1px solid ${C.line}`, display: "flex", flexDirection: "column", transition: "width .18s" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between", padding: "14px 12px 8px" }}>
         {!collapsed && (<div style={{ display: "flex", alignItems: "center", gap: 9, overflow: "hidden" }}>
           <Burst size={20} /><span style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap" }}>{workspaceName}</span><span style={{ color: C.ink3, fontSize: 12.5 }}>· {productName}</span>

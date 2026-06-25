@@ -6,5 +6,8 @@
       "/api/*",
       "/*.{png,jpg,jpeg,gif,svg,ico,webp,css,js,mjs,woff,woff2,ttf,eot,map,json,txt,xml}"
     ]
+  },
+  "globalHeaders": {
+    "Access-Control-Allow-Origin": "*"
   }
 }

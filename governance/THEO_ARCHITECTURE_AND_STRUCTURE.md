@@ -113,6 +113,25 @@ Theo awareness of the active app is **context-only**. Origin broadcasts the **an
 
 ---
 
+## 3A. Origin Host & Mount Model (Theo-in-Origin)
+
+Theo is hosted **inside the Vault Origin shell** (§1.2), not as a standalone destination. The standalone `vault-theo` SWA is a development harness; the production surface is Theo mounted in Origin. This model is BINDING.
+
+### 3A.1 Default landing surface
+At the Origin root (no app open), **Theo is the landing surface**: Theo's main view occupies the Origin 9/10 content panel, replacing the prior static welcome placeholder.
+
+### 3A.2 Theo navigation as a permanent shell section
+Theo's navigation (Chats / Projects / Artifacts / Customize, search, recents) mounts as a **permanent, collapsible section in the Origin 1/10 left panel**, positioned **below the Vault Files section and above the Vault Origin Apps section**, collapsible like the other shell sections.
+
+### 3A.3 App selection
+When a product is opened from Vault Origin Apps, that app's sidebar mounts **below the Theo section** (still above Vault Origin Apps), and the app takes over the 9/10 content panel as its landing page.
+
+### 3A.4 In-app Theo access (VS Code idiom)
+While an app owns the 9/10, Theo remains reachable via an **"Open Theo" control at the top of the 9/10**; activating it opens Theo's chat as a **resizable right-hand split panel** within the 9/10 (the app on the left, Theo on the right).
+
+### 3A.5 Mount mechanism (BINDING)
+Theo mounts **in-shell via Module Federation** — never an iframe, never a separate embedded site (Vault Origin App Host Contract §1A). Theo exposes its mountable surfaces (navigation section + main/chat view) as federated module(s) the Origin shell consumes, receiving the shell `AppHostContext`. The model call still routes through the Theo gateway (§2); hosting in Origin changes neither the gateway nor the context-only app-context contract (§3).
+
 ## 4. The Tool-Dispatch Model
 
 ### 4.1 Anchoring principle

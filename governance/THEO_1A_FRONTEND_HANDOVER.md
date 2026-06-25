@@ -99,9 +99,13 @@ Every surface is **built and fully interactive in 1A.** This table marks what is
 
 ## 4. Origin-side additive work (`vault-origin`)
 
-- Add the **context-broadcast**: when an app opens or the active anchor changes on the Origin surface, pass `{ app_key, app_context }` to the Theo surface (props / context / event — your call, kept additive).
-- Add the **Theo surface mount point** within the Origin shell.
-- Nothing else. No refactor of existing Origin behaviour.
+Theo is hosted **inside the Origin shell** as the default landing surface, not a standalone destination (architecture §3A). The additive `vault-origin` work is:
+
+- **Theo navigation section (1/10):** a permanent, collapsible Theo section in the Origin left panel, **below Vault Files and above Vault Origin Apps**, holding Theo's navigation (Chats / Projects / Artifacts / Customize, search, recents).
+- **Theo landing surface (9/10):** Theo's main view as the Origin root landing content (replacing the static welcome placeholder). When an app is opened, the app takes the 9/10 and its sidebar stacks below the Theo section.
+- **In-app Theo panel:** an "Open Theo" control at the top of the 9/10 that opens Theo's chat as a resizable **right-hand split panel** while an app owns the 9/10 (the VS Code idiom).
+- **Context-broadcast (in-process):** Origin passes `{ app_key, app_context }` to the mounted Theo surface via the shell `AppHostContext` (in-process props), never cross-origin `postMessage` (App Host Contract §1A). `app_key` reflects the active app (`NULL` = Origin-level general chat); `app_context` is the opaque anchor. Context-only — 1A does not fetch app data (§2.4).
+- **Mount mechanism:** in-shell Module Federation (no iframe); the Origin shell consumes the Theo federated surface(s). No refactor of existing Origin behaviour beyond these additive mounts.
 
 ---
 

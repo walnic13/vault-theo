@@ -37,7 +37,7 @@ Phase 1A is delivered in governed passes. Each pass runs the full loop: Pass-1 F
 | Pass | Microstep | Scope (VA-T3 refs) | Touches | Status |
 |------|-----------|--------------------|---------|--------|
 | **Pass A** | Productionise the shell | Lift + componentize into `TheoShell` (faithful); single service/contracts module; **mocked gateway** abstraction (no direct browser→model call); no browser storage; SWAP BLOCK Theo-branded (surgical). VA-T3 §2.1/§2.2/§2.3/§2.5/§5 | `vault-theo` only | **VEP in Codex Pass-2 review** (Codex Governance/Theo-1A-Pass-A-Productionise-Shell-Pass-1-VEP) |
-| **Pass B** | App-context layer | App-context chip in the chat header (`{app_key, app_context}`, carried on the conversation; presentational, no app-data fetch); **+ additive `vault-origin`** context-broadcast wiring + Theo surface mount point. VA-T3 §2.4/§4 | `vault-theo` + `vault-origin` (additive) | Planned |
+| **Pass B** | Theo-in-Origin mount + app-context | Mount Theo **inside the Origin shell** (architecture §3A; VA-T3 §4): Theo nav as a permanent collapsible 1/10 section (below Vault Files, above Vault Origin Apps); Theo main as the Origin 9/10 landing surface; app-sidebar stacking; in-app right-hand Theo panel via a 9/10 "Open Theo" toggle (VS Code idiom); in-shell **Module Federation** (no iframe, App Host Contract §1A) — decompose the Pass-A `TheoShell` into mountable nav + main surfaces and expose them as federated module(s). App-context: Origin broadcasts `{app_key, app_context}` in-process via `AppHostContext`; Theo carries it on the conversation and surfaces the anchor (presentational, no app-data fetch). VA-T3 §2.4/§4; architecture §3A | `vault-theo` + `vault-origin` (additive) | Planned |
 | **Pass C** | Acceptance & polish | Keyboard/focus a11y polish; assemble Pass-3 Visual Acceptance Evidence; confirm 1A "done" against §5 (VA-T3 §7). | `vault-theo` | Planned |
 
 **Sourcing rule (F-P1):** a Pass-1 Frontend VEP MUST cite its pass row here. New passes are added to this table by a Role-C update before their VEP is authored; a pass is never inferred.
@@ -55,8 +55,9 @@ All 1A surfaces build against **mocked contracts** behind the single service mod
 5. The **app-context chip** receives `{app_key, app_context}` from Origin and displays the anchor; value carried on the conversation.
 6. No browser storage; no Tailwind conversion; no Reporting changes.
 7. SWAP BLOCK intact and centralised.
+8. Theo is **mounted in the Origin shell** per architecture §3A: nav as a permanent collapsible 1/10 section (below Vault Files, above Vault Origin Apps), main as the Origin 9/10 landing surface, an in-app right-hand Theo panel, via in-shell Module Federation (no iframe).
 
-These map across the passes: Pass A delivers 1, 2, 3, 4, 6, 7; Pass B delivers 5; Pass C confirms the whole and produces Visual Acceptance Evidence.
+These map across the passes: Pass A delivers 1, 2, 3, 4, 6, 7; Pass B delivers 5 and 8; Pass C confirms the whole and produces Visual Acceptance Evidence.
 
 ## §6 Boundaries / guardrails (BINDING — VA-T3 §6; FE Governor §6)
 

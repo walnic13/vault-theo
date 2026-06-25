@@ -7,7 +7,7 @@ import { stripArtifactRefs } from "./lib/artifacts";
 import { buildSystemPrompt, greeting } from "./lib/prompt";
 import { MODEL } from "./swapBlock";
 import { RECENTS, STYLES } from "./data";
-import type { Artifact, KDraft, Message, NpDraft, OpenArtifact, Project, Settings, StyleKey, View } from "./types";
+import type { AppContext, Artifact, KDraft, Message, NpDraft, OpenArtifact, Project, Settings, StyleKey, View } from "./types";
 
 export function useTheoState() {
   const seeded: Settings = theoClient.readSettings();
@@ -30,6 +30,11 @@ export function useTheoState() {
   const [npOpen, setNpOpen] = useState(false);
   const [np, setNp] = useState<NpDraft>({ name: "", desc: "", instructions: "" });
   const [kdraft, setKdraft] = useState<KDraft>({ title: "", content: "" });
+  const [appContext, setAppContext] = useState<AppContext>(() => theoClient.getAppContext());
+
+  // Pass B: ingest the inbound app-context anchor (from the Origin shell, in-process) and carry it
+  // on the conversation (in-memory). Presentational — no app-data fetch (VA-T3 §2.4).
+  function ingestAppContext(ctx: AppContext) { setAppContext(ctx); theoClient.setAppContext(ctx); }
 
   const detail = projects.find((p) => p.id === detailId) ?? null;
   const chatProject = projects.find((p) => p.id === chatProjectId) ?? null;
@@ -87,10 +92,10 @@ export function useTheoState() {
   return {
     // state
     view, collapsed, search, projects, artifacts, detail, chatProject, art, openArt, messages, draft, loading, error,
-    styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle,
+    styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
     // setters / handlers
     go, toggleCollapse: () => setCollapsed((v) => !v), setSearch, setDraft, newChat, startInProject, openProject,
-    clearChatProject: () => setChatProjectId(null), send,
+    clearChatProject: () => setChatProjectId(null), send, ingestAppContext,
     toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, setKdraft, addKnowledge, removeKnowledge,
     selectStyle: setStyleKey, setCustom, save, copyArt,
     selectVersion: (v: number) => setOpenArt(openArt ? { id: openArt.id, v } : null),

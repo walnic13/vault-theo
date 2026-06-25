@@ -1,4 +1,4 @@
-// Sidebar — VA-T1 L297–328. Presentational; state + handlers come from TheoShell.
+// Sidebar — VA-T1 L297–328. Presentational; state + handlers come from TheoSurface (Pass B).
 import { C, SANS } from "../theme";
 import { Burst, IcCompose, IcSearch, IcPanel } from "./icons";
 import type { NavItem, View } from "../types";

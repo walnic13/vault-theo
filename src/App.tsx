@@ -1,6 +1,8 @@
-// Vault Theo — root. Renders the productionised Theo shell (Phase 1A, Pass A).
-import TheoShell from "./theo/TheoShell";
+// Vault Theo — root. Renders the federated Theo surface (Phase 1A, Pass B). Standalone here
+// (vault-theo-dev harness); in Origin, `theoApp/TheoSurface` is consumed via Module Federation
+// and handed the shell AppHostContext + mount slots.
+import TheoSurface from "./theo/TheoSurface";
 
 export default function App() {
-  return <TheoShell />;
+  return <TheoSurface />;
 }

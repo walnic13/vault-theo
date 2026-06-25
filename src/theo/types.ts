@@ -31,3 +31,9 @@ export interface GatewayRequest { model: string; max_tokens: number; system: str
 export interface GatewayResponse { content: { type: string; text?: string }[] }
 
 export interface Settings { styleKey: StyleKey; custom: string }
+
+// App-context (Pass B) — the anchor Origin broadcasts to the hosted Theo surface in-process
+// (App Host §6A; VA-T3 §2.4; API Spec §2.5). app_key = active app (null = Origin-level general
+// chat); app_context = opaque jsonb anchor (e.g. { workpaper_id, period_id }). Carried on the
+// conversation in 1A (in-memory); 1B → theo_conversations.app_key / app_context. Context-only.
+export interface AppContext { app_key: string | null; app_context: Record<string, unknown> | null }

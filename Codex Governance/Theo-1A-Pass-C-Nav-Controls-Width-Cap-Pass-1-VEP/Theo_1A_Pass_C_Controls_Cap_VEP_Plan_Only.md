@@ -7,8 +7,9 @@
 ## GROUNDING CONFORMANCE RECEIPT
 Role: Claude Code
 Turn-type: Pass 1 — Frontend Verified Evidence Pack
-Turn issued against HEAD: `ccb4a5443ec76124416df3beee36d7b7452af7f7` (vault-theo, `development`)
-Grounding mode: Full Baseline Grounding (Conformance §4, Claude Code | Pass 1 — Frontend Verified Evidence Pack)
+Turn issued against HEAD: `9cbcd706c3c59c5e6ff3291724c145f5ee434b1a` (vault-theo, `development`)
+Grounding mode: Delta Grounding — Codex-rejection correction (Conformance §4 "Pass 1 — Codex-rejection correction / delta-evidence pack")
+Delta scope (Conformance §3 rule 7): rejected prior artifact = this VEP at `9cbcd70`; inbound Codex verdict = **REJECTED on T20** (CCT TC-1 prop cell said "`SidebarProps` unchanged" without listing the TypeScript interface); affected section = **CCT TC-1 prop/input cell** (the full `SidebarProps` interface is now listed verbatim). All other rows, sub-phases, grounding, and the Rule Anchor Table are unchanged from the Full-Baseline pack (carried forward).
 
 | # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor |
 | - | ------------------------------- | ------------------------------ | --------------- |
@@ -75,7 +76,7 @@ Format: Golden Pack §3 (Rule Anchor 7). `no any`; required-before-optional.
 
 | # | Component (ownership; ACTIVE/NEW) | Prop / input interface (TypeScript) | Visual authority | Data / contract dependency | Impl eligibility |
 | - | --- | --- | --- | --- | --- |
-| TC-1 | `Sidebar` (Theo surface; **ACTIVE**, modify) | `SidebarProps` **unchanged** (incl. `fluid?: boolean` from `ccb4a54`). Internal change only: when `fluid`, the **New chat `<button>`** and the **Search container `<div>`** add `maxWidth: 246` (`box-sizing:border-box`); when `fluid` false/absent, unchanged. No prop added or removed. | VA-T1 New chat L305–308 + Search L310–314 (intrinsic 246px in the 270 rail) | none (presentational; state/handlers from `TheoSurface`) | PROCEED |
+| TC-1 | `Sidebar` (Theo surface; **ACTIVE**, modify) | `interface SidebarProps { collapsed: boolean; onToggleCollapse: () => void; view: View; onNavigate: (v: View) => void; nav: NavItem[]; search: string; onSearch: (s: string) => void; recents: string[]; onSelectRecent: (r: string) => void; onNewChat: () => void; workspaceName: string; productName: string; fluid?: boolean }` — **unchanged** (the `fluid?: boolean` optional landed in `ccb4a54`; no prop added, removed, or retyped this pass). Internal change only: when `fluid` truthy, the **New chat `<button>`** and the **Search container `<div>`** add `maxWidth: 246` (`boxSizing: "border-box"`); when `fluid` false/absent, both render unchanged. | VA-T1 New chat L305–308 + Search L310–314 (intrinsic 246px in the 270 rail) | none (presentational; state/handlers from `TheoSurface`) | PROCEED |
 
 **Infra:** none. No `vite.config.ts`, federation, dependency, contract, or new-file change. `TheoSurface` untouched.
 

@@ -1,5 +1,5 @@
 // ProjectDetail — VA-T1 L404–431. Owns its scroll container (identical pixels). The header
-// back button is shared chrome in TheoShell (allowed split delta).
+// back button is shared chrome in TheoMain (allowed split delta).
 import { C, SANS } from "../theme";
 import { IcDoc, IcTrash } from "./icons";
 import { InputBox } from "./ui";

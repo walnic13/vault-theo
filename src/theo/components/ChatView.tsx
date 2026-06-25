@@ -1,5 +1,5 @@
 // ChatView — chat scroll content + composer (VA-T1 L348–377, L479–492). The view-switched
-// 54px header bar is shared chrome rendered by TheoShell (identical pixels; allowed split delta).
+// 54px header bar is shared chrome rendered by TheoMain (identical pixels; allowed split delta).
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { C, SANS, SERIF } from "../theme";

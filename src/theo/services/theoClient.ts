@@ -4,7 +4,7 @@
 // swapped for a real `theo_*` API call with NO surface change. NO browser storage
 // (1A handover §2.5) — module memory only.
 import type {
-  Artifact, GatewayRequest, GatewayResponse, KDraft, NpDraft, Project, Settings,
+  AppContext, Artifact, GatewayRequest, GatewayResponse, KDraft, NpDraft, Project, Settings,
 } from "../types";
 import { INIT_PROJECTS } from "../data";
 import { parseArtifacts, remapToIds, upsert } from "../lib/artifacts";
@@ -13,6 +13,7 @@ import { sendMessage as gatewaySend } from "./gateway.mock";
 let projects: Project[] = INIT_PROJECTS.map((p) => ({ ...p, knowledge: p.knowledge.slice() }));
 let artifacts: Artifact[] = [];
 let settings: Settings = { styleKey: "normal", custom: "" };
+let appContext: AppContext = { app_key: null, app_context: null };
 
 export const theoClient = {
   // ── Chat (the one network-bound call; mocked in 1A) ──────────────────────
@@ -58,4 +59,9 @@ export const theoClient = {
   // ── Settings (in-memory in 1A; theo_user_settings in 1B) ──
   readSettings(): Settings { return { ...settings }; },
   writeSettings(s: Settings): void { settings = { ...s }; },
+
+  // ── App-context (Pass B; in-memory carry in 1A; theo_conversations.app_key/app_context in 1B) ──
+  // Presentational anchor only — Origin broadcasts it in-process; Theo never fetches app data here.
+  getAppContext(): AppContext { return { ...appContext }; },
+  setAppContext(ctx: AppContext): void { appContext = { ...ctx }; },
 };

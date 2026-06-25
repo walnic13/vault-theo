@@ -1,0 +1,86 @@
+// TheoSurface — Pass B federated root (VA-T4; VA-T2 §3A.5). The single Module-Federation-exposed
+// surface (`theoApp/TheoSurface`). It owns the one `useTheoState` tree and renders two mountable
+// regions — the nav (Sidebar → Origin 1/10 section) and the main view (TheoMain → Origin 9/10
+// landing / right panel). When the Origin shell provides DOM slots it PORTALS each region into its
+// slot (one state tree, no cross-mount sync — §3A.5); standalone (vault-theo-dev harness) it renders
+// the faithful Pass-A inline layout. App-context arrives in-process via the `appContext` prop
+// (App Host §6A / VA-T3 §4 — never postMessage); context-only, no app-data fetch.
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
+import { C, SANS } from "./theme";
+import { WORKSPACE_NAME, PRODUCT_NAME } from "./swapBlock";
+import { NAV } from "./data";
+import { Sidebar } from "./components/Sidebar";
+import { TheoMain } from "./components/TheoMain";
+import { DevContextInjector } from "./components/DevContextInjector";
+import { useTheoState } from "./useTheoState";
+import type { AppContext } from "./types";
+
+const STYLE_BLOCK = `
+  * { box-sizing: border-box; }
+  textarea::placeholder, input::placeholder { color: ${C.ink3}; }
+  .vo-scroll::-webkit-scrollbar { width: 10px; }
+  .vo-scroll::-webkit-scrollbar-thumb { background: ${C.line2}; border-radius: 8px; border: 3px solid transparent; background-clip: padding-box; }
+  .vo-row:hover { background: rgba(0,0,0,0.04); }
+  .vo-nav:hover { background: rgba(0,0,0,0.04); }
+  .vo-send:hover:not(:disabled) { background: ${C.coralDk}; }
+  .vo-new:hover { background: ${C.coralDk}; }
+  .vo-chip:hover { background: ${C.coralSoft}; border-color: ${C.coral}; }
+  .vo-card:hover { border-color: ${C.coral}; box-shadow: 0 4px 18px rgba(40,38,31,.07); }
+  .vo-ghost:hover { background: rgba(0,0,0,0.04); }
+  button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid ${C.coral}; outline-offset: 2px; }
+  textarea:focus, input:focus { outline: none; }
+  @keyframes vo-bounce { 0%,80%,100%{transform:translateY(0);opacity:.4} 40%{transform:translateY(-4px);opacity:1} }
+  @media (prefers-reduced-motion: reduce){ * { animation: none !important; transition: none !important; } }
+  @media (max-width: 720px){ .vo-aside{ display:none !important; } .vo-panel{ position:absolute !important; inset:0 !important; width:100% !important; flex:none !important; z-index:20; } }
+`;
+
+export interface TheoSurfaceProps {
+  // Inbound app-context from the Origin shell (in-process; App Host §6A). Absent ⇒ standalone/none.
+  appContext?: AppContext;
+  // Shell-provided DOM slots for the hosted mount. When both present, nav + main are portaled into
+  // them (Origin 1/10 + 9/10). When absent, TheoSurface renders the standalone inline layout.
+  navSlot?: HTMLElement | null;
+  mainSlot?: HTMLElement | null;
+}
+
+export default function TheoSurface({ appContext, navSlot, mainSlot }: TheoSurfaceProps) {
+  const t = useTheoState();
+  const { ingestAppContext } = t;
+
+  // Sync inbound app-context into state (context-only; no fetch — VA-T3 §2.4).
+  useEffect(() => {
+    if (appContext) ingestAppContext(appContext);
+  }, [appContext, ingestAppContext]);
+
+  const nav = (
+    <Sidebar
+      collapsed={t.collapsed} onToggleCollapse={t.toggleCollapse} view={t.view} onNavigate={t.go} nav={NAV}
+      search={t.search} onSearch={t.setSearch} recents={t.recents} onSelectRecent={() => t.go("chats")}
+      onNewChat={t.newChat} workspaceName={WORKSPACE_NAME} productName={PRODUCT_NAME}
+    />
+  );
+
+  // Hosted: Origin provides the 1/10 nav slot + 9/10 main slot. Portal each region in; one state tree.
+  if (navSlot && mainSlot) {
+    return (
+      <>
+        <style>{STYLE_BLOCK}</style>
+        {createPortal(nav, navSlot)}
+        {createPortal(<TheoMain t={t} mode="panel" />, mainSlot)}
+      </>
+    );
+  }
+
+  // Standalone (vault-theo-dev harness): faithful Pass-A inline layout + DEV-only context injector.
+  return (
+    <div style={{ height: "100vh", width: "100%", display: "flex", fontFamily: SANS, color: C.ink, background: C.bg, overflow: "hidden" }}>
+      <style>{STYLE_BLOCK}</style>
+      {nav}
+      <main style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <TheoMain t={t} mode="full" />
+      </main>
+      {import.meta.env.DEV && <DevContextInjector onInject={ingestAppContext} />}
+    </div>
+  );
+}

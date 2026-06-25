@@ -8,7 +8,8 @@
 Role: Claude Code
 Turn-type: Pass 1 — Frontend Verified Evidence Pack
 Turn issued against HEAD: `c19d12a3699c345707858a9715787942084b4872` (vault-theo, `development`)
-Grounding mode: Full Baseline Grounding
+Grounding mode: Delta Grounding — Codex-rejection correction (Conformance §4 "Pass 1 — Codex-rejection correction / delta-evidence pack")
+Delta scope (Conformance §3 rule 7): rejected prior artifact = this VEP at commit `fb2c14a` (PR #7); inbound Codex verdict = **REJECTED on T20** (CCT rows TC-5/TC-6 VA-id column = `n/a`); affected sections = CCT rows TC-5 and TC-6 (VA-id citations added), grounded this turn against VA-T3 §2.3/§2.4 + Golden Pack §3. All other rows, sub-phases, and grounding are unchanged from the Full-Baseline pack (carried forward).
 
 | # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
 | - | ------------------------------- | ------------------------------ | --------------- |
@@ -49,6 +50,9 @@ Cross-repo note: the Origin-side hosting (App Host Contract §6A) is **vault-ori
 | 10 | Claude Code Theo FE Governor Standard | §6 (5) | "Accept `{ app_key, app_context }` from Origin, carry it on the conversation, and surface it via the header chip idiom — context-only; 1A does not fetch app data" | CCT TC-4 (chip, no fetch) |
 | 11 | Claude Code Theo FE Governor Standard | §6 (6) | "`vault-origin` changes are additive (context-broadcast + Theo mount point) only." | §F-P2.5 Gap G-1 (Origin work paired/additive) |
 | 12 | Theo FE Conformance Standard | §6 T26 | "no `localStorage`/`sessionStorage`; no Tailwind/CSS-in-JS conversion of the reference surface in 1A" | §F-P6 guardrails |
+| 13 | Theo Golden Component Pack Standard | §3 | "A row missing any of the three locked surfaces is invalid (T20)." | CCT — every row (incl. TC-5/TC-6) now carries a VA-id citation |
+| 14 | VA-T3 Handover | §2.4 | "Persist it onto the conversation model (1A: in-memory; 1B: `theo_conversations.app_key` / `app_context`)." | CCT TC-5 VA-id citation |
+| 15 | VA-T3 Handover | §2.3 | "route them through a single contracts/services module" | CCT TC-6 VA-id citation |
 
 ---
 
@@ -95,8 +99,8 @@ Format: Golden Pack §3. `no any`; required-before-optional; `on<Event>`; discri
 | TC-2 | `TheoNav` (Theo surface; ACTIVE refactor of `Sidebar`) | current `SidebarProps` (collapsed/onToggleCollapse/view/onNavigate/nav/search/onSearch/recents/onSelectRecent/onNewChat/workspaceName/productName) — unchanged; rendered into the 1/10 slot when hosted | VA-T1 L297–328 (Sidebar); VA-T2 §3A.2 | none (presentational; fed by TC-1) | PROCEED |
 | TC-3 | `TheoMain` (Theo surface; ACTIVE extract of `TheoShell` main) | `interface TheoMainProps { t: ReturnType<typeof useTheoState>; mode: "full" \| "panel" }` — the view-switched header + active view + `ArtifactPanel` + `renderAssistant`; `mode:"panel"` = the in-app right-docked presentation | VA-T1 main region; VA-T2 §3A.1/§3A.4 | none (presentational; fed by TC-1) | PROCEED |
 | TC-4 | App-context chip (Theo surface; **NEW/GREENFIELD**; in `TheoMain` chat header) | consumes `t.appContext`; renders the VA-T1 L337 pill when `app_key !== null` (non-removable in 1A); label via TC-7 | VA-T1 L337 chip idiom; VA-T3 §2.4 | `t.appContext` (TC-5) | PROCEED |
-| TC-5 | `useTheoState` (ACTIVE; extend) | add `appContext: AppContext` (state) + `ingestAppContext(ctx: AppContext): void` (syncs the TC-1 prop → state + `theoClient.setAppContext`); carried on the conversation, **not** fetched | n/a | TC-6; API Spec §2.5 | PROCEED |
-| TC-6 | `services/theoClient.ts` (ACTIVE; extend) | `getAppContext(): AppContext` · `setAppContext(ctx: AppContext): void` (module-memory; default `{app_key:null, app_context:null}`) | n/a (service module) | API Spec §2.5 (`1A-contract` in-memory; `1B` → `theo_conversations`) | PROCEED |
+| TC-5 | `useTheoState` (ACTIVE; extend) | add `appContext: AppContext` (state) + `ingestAppContext(ctx: AppContext): void` (syncs the TC-1 prop → state + `theoClient.setAppContext`); carried on the conversation, **not** fetched | VA-T3 §2.4 (app-context layer — "Persist it onto the conversation model (1A: in-memory)") | TC-6; API Spec §2.5 | PROCEED |
+| TC-6 | `services/theoClient.ts` (ACTIVE; extend) | `getAppContext(): AppContext` · `setAppContext(ctx: AppContext): void` (module-memory; default `{app_key:null, app_context:null}`) | VA-T3 §2.3 (single contracts/services module) + §2.4 (app-context carry) | API Spec §2.5 (`1A-contract` in-memory; `1B` → `theo_conversations`) | PROCEED |
 | TC-7 | `lib/appContext.ts` (**NEW/GREENFIELD**) | `appContextLabel(ctx: AppContext): string \| null` → e.g. `"Corporate Reporting · Workpaper"`; `null` when `app_key===null`; degrades to app name when `app_context` empty | VA-T3 §2.4 (label example) | pure | PROCEED |
 | TC-8 | Dev context injector (**NEW/GREENFIELD**; `import.meta.env.DEV` only) | standalone-only control calling `ingestAppContext` with a sample `{app_key:"reporting", app_context:{workpaper_id:"…"}}`; excluded from production | Plan §3 Pass B; VA-T3 §4 | TC-5 | PROCEED |
 

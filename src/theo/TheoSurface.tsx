@@ -35,6 +35,16 @@ const STYLE_BLOCK = `
   @media (max-width: 720px){ .vo-aside{ display:none !important; } .vo-panel{ position:absolute !important; inset:0 !important; width:100% !important; flex:none !important; z-index:20; } }
 `;
 
+// The dev context-injector shows in the standalone harness when running `vite dev`
+// (import.meta.env.DEV) OR when `?devctx` is present on the deployed dev-SWA harness (which
+// serves a production build where DEV is false). It is never rendered in the Origin mount
+// (that uses the portal branch), so it stays excluded from the real product.
+function showDevInjector(): boolean {
+  if (import.meta.env.DEV) return true;
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).has("devctx");
+}
+
 export interface TheoSurfaceProps {
   // Inbound app-context from the Origin shell (in-process; App Host §6A). Absent ⇒ standalone/none.
   appContext?: AppContext;
@@ -80,7 +90,7 @@ export default function TheoSurface({ appContext, navSlot, mainSlot }: TheoSurfa
       <main style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         <TheoMain t={t} mode="full" />
       </main>
-      {import.meta.env.DEV && <DevContextInjector onInject={ingestAppContext} />}
+      {showDevInjector() && <DevContextInjector onInject={ingestAppContext} />}
     </div>
   );
 }

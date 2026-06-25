@@ -1,8 +1,9 @@
 // DEV-only app-context injector (Pass B; GREENFIELD). Simulates Origin's in-process
 // app-context broadcast (App Host §6A / VA-T3 §4) so the standalone vault-theo-dev SWA can
-// exercise the app-context chip WITHOUT the Origin host. Rendered only under import.meta.env.DEV
-// by TheoSurface; excluded from the production surface. Mirrors the idiom of Origin's
-// DevFolderPickTest. No browser storage; no fetch.
+// exercise the app-context chip WITHOUT the Origin host. Rendered by TheoSurface only in the
+// standalone harness branch — under `vite dev`, or via `?devctx` on the deployed dev SWA (a
+// production build). Never in the Origin mount (portal branch), so it stays out of the real
+// product. Mirrors the idiom of Origin's DevFolderPickTest. No browser storage; no fetch.
 import { useState } from "react";
 import { C, SANS } from "../theme";
 import type { AppContext } from "../types";

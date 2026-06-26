@@ -8,7 +8,7 @@ import type {
 } from "../types";
 import { INIT_PROJECTS } from "../data";
 import { parseArtifacts, remapToIds, upsert } from "../lib/artifacts";
-import { sendMessage as gatewaySend } from "./gateway.mock";
+import { sendMessage as gatewaySend } from "./gateway.live";
 
 let projects: Project[] = INIT_PROJECTS.map((p) => ({ ...p, knowledge: p.knowledge.slice() }));
 let artifacts: Artifact[] = [];

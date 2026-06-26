@@ -5,6 +5,21 @@ const FOUNDRY_DEPLOYMENT = process.env.THEO_FOUNDRY_DEPLOYMENT;
 const ANTHROPIC_VERSION = "2023-06-01";
 const DEFAULT_MAX_TOKENS = 4096;
 
+// Internet grounding — server-side Foundry-Claude tools (architecture §2.3; HF-T1 scope).
+const WEB_FETCH_BETA = "web-fetch-2025-09-10";
+
+function parsePositiveInt(value, fallback) {
+  const n = parseInt(value, 10);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
+const WEB_SEARCH_MAX_USES = parsePositiveInt(process.env.THEO_WEB_SEARCH_MAX_USES, 5);
+const WEB_FETCH_MAX_USES = parsePositiveInt(process.env.THEO_WEB_FETCH_MAX_USES, 5);
+const WEB_FETCH_ALLOWED_DOMAINS = (process.env.THEO_WEB_FETCH_ALLOWED_DOMAINS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -183,6 +198,24 @@ async function getFoundryToken() {
   return payload.access_token;
 }
 
+// Server-side grounding tools attached to every upstream Messages call. Claude invokes them
+// autonomously only when a query needs live web data; max_uses caps spend. web_fetch carries an
+// optional domain allowlist (THEO_WEB_FETCH_ALLOWED_DOMAINS) and requires the web-fetch beta header.
+function buildGroundingTools() {
+  const webFetch = {
+    type: "web_fetch_20250910",
+    name: "web_fetch",
+    max_uses: WEB_FETCH_MAX_USES,
+  };
+  if (WEB_FETCH_ALLOWED_DOMAINS.length > 0) {
+    webFetch.allowed_domains = WEB_FETCH_ALLOWED_DOMAINS;
+  }
+  return [
+    { type: "web_search_20250305", name: "web_search", max_uses: WEB_SEARCH_MAX_USES },
+    webFetch,
+  ];
+}
+
 module.exports = async function (context, req) {
   if (req.method === "OPTIONS") {
     return send(context, 204, "");
@@ -243,6 +276,7 @@ module.exports = async function (context, req) {
       max_tokens: maxTokens,
       ...(systemPrompt ? { system: systemPrompt } : {}),
       messages,
+      tools: buildGroundingTools(),
       stream: false,
     });
 
@@ -254,6 +288,7 @@ module.exports = async function (context, req) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
           "anthropic-version": ANTHROPIC_VERSION,
+          "anthropic-beta": WEB_FETCH_BETA,
           "Content-Length": Buffer.byteLength(upstreamPayload),
         },
       },

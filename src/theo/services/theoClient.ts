@@ -8,7 +8,7 @@ import type {
 } from "../types";
 import { INIT_PROJECTS } from "../data";
 import { parseArtifacts, remapToIds, upsert } from "../lib/artifacts";
-import { sendMessage as gatewaySend } from "./gateway.live";
+import { sendMessage as gatewaySend, configureGateway as gatewayConfigure } from "./gateway.live";
 
 let projects: Project[] = INIT_PROJECTS.map((p) => ({ ...p, knowledge: p.knowledge.slice() }));
 let artifacts: Artifact[] = [];
@@ -16,6 +16,11 @@ let settings: Settings = { styleKey: "normal", custom: "" };
 let appContext: AppContext = { app_key: null, app_context: null };
 
 export const theoClient = {
+  // ── Gateway wiring (Origin mount supplies the token provider; switches mock → live) ──
+  configureGateway(opts: { getAccessToken?: (() => Promise<string | null>) | null; baseUrl?: string | null }): void {
+    gatewayConfigure(opts);
+  },
+
   // ── Chat (the one network-bound call; mocked in 1A) ──────────────────────
   sendMessage(req: GatewayRequest): Promise<GatewayResponse> {
     return gatewaySend(req);

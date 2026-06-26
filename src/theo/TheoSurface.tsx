@@ -14,6 +14,7 @@ import { Sidebar } from "./components/Sidebar";
 import { TheoMain } from "./components/TheoMain";
 import { DevContextInjector } from "./components/DevContextInjector";
 import { useTheoState } from "./useTheoState";
+import { theoClient } from "./services/theoClient";
 import type { AppContext } from "./types";
 
 const STYLE_BLOCK = `
@@ -52,11 +53,19 @@ export interface TheoSurfaceProps {
   // them (Origin 1/10 + 9/10). When absent, TheoSurface renders the standalone inline layout.
   navSlot?: HTMLElement | null;
   mainSlot?: HTMLElement | null;
+  // Origin shell's Entra token provider. When supplied, the chat gateway goes live (Bearer-auth to
+  // the deployed model gateway); when absent (standalone harness), the gateway stays on the 1A mock.
+  getAccessToken?: () => Promise<string | null>;
 }
 
-export default function TheoSurface({ appContext, navSlot, mainSlot }: TheoSurfaceProps) {
+export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessToken }: TheoSurfaceProps) {
   const t = useTheoState();
   const { ingestAppContext } = t;
+
+  // Wire the live model gateway to the shell's token provider (mock → live). Absent ⇒ stays on mock.
+  useEffect(() => {
+    theoClient.configureGateway({ getAccessToken: getAccessToken ?? null });
+  }, [getAccessToken]);
 
   // Sync inbound app-context into state (context-only; no fetch — VA-T3 §2.4).
   useEffect(() => {

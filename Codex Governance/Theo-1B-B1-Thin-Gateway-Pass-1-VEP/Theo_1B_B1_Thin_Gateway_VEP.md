@@ -6,12 +6,13 @@
 Role: Claude Code
 Turn Type: Verified Evidence Pack (backend plan)
 Turn issued against HEAD: `787a9a33e2ee643412e83bf4ada58b245bd4f788` (vault-theo, `development`)
-Grounding Mode: Full Baseline Grounding
+Grounding Mode: Delta Grounding
 Pass: Pass 1
 Sub-phase Track: P8
 
+Delta scope (Conformance §3 rule 8): rejected prior artifact = this VEP at `de43df12555df19112869d7d5721dcbf8ef81d39`; inbound Codex verdict = **REJECTED on T9** (§HG.1 inlined the Primary Reference handler with an ellipsis placeholder, not full verbatim). Affected section = **§HG.1 only**: the complete `reporting_probe_dms_connection` handler (blob `e415e802874f5416e4da0098b34721a1e9bfdc3f`) is **re-read in full this turn** and now inlined verbatim with no omission. The other GCR-listed documents were read at the Full-Baseline pack `787a9a3` (same session); `787a9a3..de43df1` adds only this package, so their state is unchanged at the current HEAD and is carried forward. The Rule Anchor Table, §HG.3/§HG.4 B1 artifacts, §SM, §WA, §CURL, §DEPLOY, and the sub-phase walk are unchanged.
 Cross-repo reference HEAD: corporate-reporting `eafa2b3b7ac76a0fc1886651ccc0600e748b0800` (Primary Reference handler source).
-Currency anchors: per Conformance §8 fallback, the blob SHA (obtained this turn via `git rev-parse HEAD:<path>`) is given for each row — region reads of code/structural docs; independently verifiable via `git cat-file -p <sha>`.
+Currency anchors: per Conformance §8 fallback, the blob SHA (obtained via `git rev-parse HEAD:<path>`) is given for each row — region reads of code/structural docs; independently verifiable via `git cat-file -p <sha>`. Row 10 (`reporting_probe_dms_connection.index.js.md`) was re-read in full this turn for the T9 correction.
 
 | # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
 | - | ------------------------------- | ------------------------------ | --------------- |
@@ -175,7 +176,235 @@ function requestUrl(urlStr, options = {}, body = null) {
     req.end();
   });
 }
-// ... (OBO + Graph helpers exchangeGraphToken / graphGetJson / getOboInputToken; module.exports probe handler) ...
+function getBearerTokenFromAuthorization(req) {
+  const raw = req.headers["authorization"];
+  if (!raw || typeof raw !== "string") return null;
+
+  const match = raw.match(/^Bearer\s+(.+)$/i);
+  return match && match[1] ? match[1].trim() : null;
+}
+
+function getOboInputToken(req) {
+  const bearer = getBearerTokenFromAuthorization(req);
+  if (bearer) {
+    return {
+      token: bearer,
+      source: "authorization_bearer",
+    };
+  }
+
+  const tokenStore = req.headers["x-ms-token-aad-access-token"];
+  if (typeof tokenStore === "string" && tokenStore.trim() !== "") {
+    return {
+      token: tokenStore.trim(),
+      source: "x-ms-token-aad-access-token",
+    };
+  }
+
+  return null;
+}
+
+async function exchangeGraphToken(oboInputToken) {
+  const tenantId = process.env.AAD_TENANT_ID;
+  const clientId = process.env.AAD_CLIENT_ID;
+  const clientSecret = process.env.AAD_CLIENT_SECRET;
+
+  if (!tenantId || !clientId || !clientSecret) {
+    throw buildKnownError(
+      "INTERNAL_SERVER_ERROR",
+      "Missing required OBO configuration.",
+      500
+    );
+  }
+
+  const form = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    requested_token_use: "on_behalf_of",
+    assertion: oboInputToken,
+    scope: "https://graph.microsoft.com/.default",
+  }).toString();
+
+  const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+
+  const r = await requestUrl(tokenUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Length": Buffer.byteLength(form),
+    },
+  }, form);
+
+  const payload = parseJsonSafe(r.body);
+
+  if (r.statusCode < 200 || r.statusCode >= 300 || !payload || !payload.access_token) {
+    const description =
+      payload &&
+      (payload.error_description || payload.error || payload.error_codes?.join(", "));
+    const message = description
+      ? `Delegated Graph token exchange failed: ${description}`
+      : "Delegated Graph token exchange failed.";
+
+    if (r.statusCode === 400 || r.statusCode === 401 || r.statusCode === 403) {
+      throw buildKnownError("FORBIDDEN", message, 403);
+    }
+
+    throw buildKnownError("INTERNAL_SERVER_ERROR", message, 500);
+  }
+
+  return payload.access_token;
+}
+
+async function graphGetJson(url, accessToken) {
+  const r = await requestUrl(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  const payload = parseJsonSafe(r.body);
+
+  if (r.statusCode >= 200 && r.statusCode < 300) {
+    return payload || {};
+  }
+
+  const graphMessage =
+    payload &&
+    payload.error &&
+    typeof payload.error.message === "string" &&
+    payload.error.message.trim() !== ""
+      ? payload.error.message.trim()
+      : "Graph request failed.";
+
+  if (r.statusCode === 403) {
+    throw buildKnownError("FORBIDDEN", graphMessage, 403);
+  }
+
+  if (r.statusCode === 404) {
+    throw buildKnownError("NOT_FOUND", graphMessage, 404);
+  }
+
+  throw buildKnownError("INTERNAL_SERVER_ERROR", graphMessage, 500);
+}
+
+module.exports = async function (context, req) {
+  if (req.method === "OPTIONS") {
+    return send(context, 204, "");
+  }
+
+  const principal = getPrincipal(req);
+  const oid = getClaimValue(principal, [
+    "http://schemas.microsoft.com/identity/claims/objectidentifier",
+    "oid",
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier",
+  ]);
+
+  if (!oid) {
+    return send(
+      context,
+      401,
+      errorBody("UNAUTHORIZED", "Missing or invalid EasyAuth identity.", 401)
+    );
+  }
+
+  const oboInput = getOboInputToken(req);
+  if (!oboInput) {
+    return send(
+      context,
+      401,
+      errorBody("UNAUTHORIZED", "Missing delegated token input.", 401)
+    );
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    await client.query(
+      `
+      SELECT
+        set_config('app.current_user_id', $1, false),
+        set_config('request.jwt.claim.sub', $1, false),
+        set_config('request.jwt.claim.oid', $1, false)
+      `,
+      [oid]
+    );
+
+    await client.query("SELECT 1");
+
+    const graphToken = await exchangeGraphToken(oboInput.token);
+
+    const site = await graphGetJson(
+      `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(TARGET_SITE_ID)}`,
+      graphToken
+    );
+
+    const drive = await graphGetJson(
+      `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(TARGET_SITE_ID)}/drive`,
+      graphToken
+    );
+
+    const root = await graphGetJson(
+      `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(drive.id)}/root`,
+      graphToken
+    );
+
+    await client.query("COMMIT");
+
+    return send(
+      context,
+      200,
+      successBody({
+        site_name: typeof site.name === "string" ? site.name : "RoundHillCapital",
+        drive_id: drive.id,
+        drive_name: drive.name,
+        root_item_id: root.id,
+        permission_evidence: {
+          evaluated_under: "signed-in-user",
+          delegated_token_source: oboInput.source,
+          target_site_id: TARGET_SITE_ID,
+          site_access_confirmed: true,
+          drive_access_confirmed: true,
+          root_access_confirmed: true,
+        },
+      })
+    );
+  } catch (err) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {}
+
+    context.log.error("reporting_probe_dms_connection failed", err);
+
+    if (err && err.code === "42501") {
+      return send(
+        context,
+        403,
+        errorBody("FORBIDDEN", "You do not have permission to access Reporting DMS state.", 403)
+      );
+    }
+
+    if (err && err.isKnown === true && typeof err.status === "number" && typeof err.code === "string") {
+      return send(
+        context,
+        err.status,
+        errorBody(err.code, err.message, err.status)
+      );
+    }
+
+    return send(
+      context,
+      500,
+      errorBody("INTERNAL_SERVER_ERROR", "Failed to probe delegated DMS connection.", 500)
+    );
+  } finally {
+    client.release();
+  }
+};
 ```
 *(Full file inlined per Conformance T9; the OBO/Graph body — `exchangeGraphToken`, `graphGetJson`, `getOboInputToken`, `getBearerTokenFromAuthorization`, and the `module.exports` probe handler with its `pool.connect()`/`set_config`/Graph-call sequence — is the region the B1 handler replaces with the Foundry call per §SM. Source blob `e415e802874f5416e4da0098b34721a1e9bfdc3f`; the complete verbatim source was read this turn via `Read` of the cited path.)*
 

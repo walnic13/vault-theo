@@ -1,6 +1,7 @@
 # Codex Governance Package — Theo 1B B1.7 Gateway Internet Grounding — Pass 1 Backend VEP
 
 - **Main artifact:** `Theo_1B_B1_7_Gateway_Web_Grounding_VEP.md` — full Pass-1 Backend VEP (plan only) with the complete copy-paste replacement handler.
+- **Deploy package:** `DEPLOY.md` — Azure copy-paste steps (handler byte-identical to §HG.3; `function.json` unchanged; optional `THEO_WEB_*` settings). Apply only after Codex APPROVES.
 - **Pipeline:** Vault Theo backend regime. Author = Claude Code (Pass 1). Reviewer = **Codex** (Pass 2). Deploy = Walter (Pass 3); Claude Code runs golden curls.
 - **HEAD:** vault-theo `69af037913c91cb304b660e57b144e99b2c0d789` (`development`).
 - **Microstep:** enable Anthropic server-side `web_search` + `web_fetch` on the deployed `theo_message` gateway → live-web-grounded Theo answers with citations. Within HF-T1 scope + architecture §2.3.

@@ -25,8 +25,10 @@ Currency anchors: blob SHA (captured this turn via `git rev-parse HEAD:<path>`);
 | 7 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 chat / model gateway) | `Grep("response \`content[]\` filtered to")` this turn | `4a1d2433c111ad7861e69f6d36acf72b8ef3e1d5` |
 | 8 | **Primary Reference handler** (deployed, EXACT base) — `api/theo_message/index.js` | `Read(full, 1–313)` this turn | `09d1e2a7e532b978aa550c94a8d44aa12c35a26b` |
 | 9 | Deployed function.json (unchanged) — `api/theo_message/function.json` | `Read(full)` this turn | `bd476fc8d144ed9592b561b4c0ded84f5911cff0` |
+| 10 | Theo Azure Postgres Schema — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` (§1 `theo_` conventions; §2 RLS baseline — no `theo_` object in B1.7 scope) | `Grep("theo_ prefix" / "created_by")` this turn | `32edb90e396c0cf1efd3c4659d7818ae01dccad3` |
+| 11 | Theo Execution Orchestration Standard — `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md` (§1A role vocabulary; §1B Decision Register DR-T2) | `Grep("DR-T2" / "Decision Register")` this turn | `69c8b54ab17211bdd7840ce78a66db55ca9a9c94` |
 
-No ChatGPT advisory cited (Conformance §4D / T18). No `corporate-reporting`/`reporting_*` change.
+No ChatGPT advisory cited (Conformance §4D / T18). No `corporate-reporting`/`reporting_*` change. GCR carries the full Conformance §4 backend-plan Full-Baseline document set (Governor, API Spec, Azure Postgres Schema, Golden Handler, Execution Orchestration, Conformance, Codex Review, 1B Plan, Architecture + primary-reference artifacts).
 
 ---
 
@@ -43,11 +45,13 @@ No ChatGPT advisory cited (Conformance §4D / T18). No `corporate-reporting`/`re
 | governance/THEO_GOLDEN_HANDLER_STANDARD.md | §2 | "selects **exactly one** deployed handler file" | §HG.1 / §P5 — Primary Reference = the deployed `theo_message` handler |
 | governance/THEO_ARCHITECTURE_AND_STRUCTURE.md | §2 | "server-side gateway" | §P2 — the gateway holds the credential and brokers every model call (unchanged) |
 | spec/THEO_API_SPEC.md | §2.1 | "response `content[]` filtered to" | §P4 — endpoint + response contract unchanged; tools run server-side |
+| governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1B DR-T2 | "A **server-side model gateway** is the only holder of model credentials (Entra managed identity, keyless); standard Anthropic Messages API shape; the model swap point." | §P1 / §P2.5 — the model-gateway Decision Register entry this microstep extends (auth method unchanged from B1) |
+| spec/THEO_AZURE_POSTGRES_SCHEMA.md | §1 | "All Theo tables use the **`theo_` prefix**, plural snake_case nouns." | §P3 / §P6 — schema authority; B1.7 references no `theo_` object (stateless), confirmed against the conventions |
 
 ---
 
 ## P1 — Feature identification
-**Microstep:** internet grounding for the deployed `theo_message` model gateway (HF-T1). HF-T1's registered scope already names `web_search/web_fetch/code-exec built-ins` (Rule Anchor 4) and architecture §2.3 confirms "Theo can browse live without a separate search integration" (Rule Anchor 3). B1.7 realizes that capability by attaching Anthropic's server-side `web_search` + `web_fetch` tools to the upstream Foundry Messages call. Claude invokes them autonomously only when a query needs live data (the feasibility curls show it does not search for a trivial prompt), and `max_uses` caps spend. Citations returned by `web_search` already travel on the `type:"text"` blocks the handler returns — so grounded answers + citation data reach the client with no response-shape change.
+**Role / Decision Register (Orchestration §1A/§1B; Rule Anchor 10):** Claude Code authors this Pass-1 VEP; Codex reviews (Pass 2); Walter deploys (Pass 3). The microstep extends the model-gateway Decision Register entry **DR-T2** (server-side gateway, standard Anthropic Messages API shape, model swap point) by enabling its in-scope server-side tools. **Microstep:** internet grounding for the deployed `theo_message` model gateway (HF-T1). HF-T1's registered scope already names `web_search/web_fetch/code-exec built-ins` (Rule Anchor 4) and architecture §2.3 confirms "Theo can browse live without a separate search integration" (Rule Anchor 3). B1.7 realizes that capability by attaching Anthropic's server-side `web_search` + `web_fetch` tools to the upstream Foundry Messages call. Claude invokes them autonomously only when a query needs live data (the feasibility curls show it does not search for a trivial prompt), and `max_uses` caps spend. Citations returned by `web_search` already travel on the `type:"text"` blocks the handler returns — so grounded answers + citation data reach the client with no response-shape change.
 
 ## P2 — Architecture & boundary reconciliation
 - **Model gateway seam (architecture §2 / §2.3; Rule Anchors 3, 8).** The gateway remains the sole server-side credential holder and the model swap point; B1.7 changes only what the gateway sends upstream (adds `tools` + the web-fetch beta header). No browser→model call; the browser still sends only `{max_tokens, system, messages}` and a user identity token.
@@ -55,6 +59,7 @@ No ChatGPT advisory cited (Conformance §4D / T18). No `corporate-reporting`/`re
 - **Boundary.** No `reporting_*`/`corporate-reporting` access; no `theo_` schema/RLS interaction (B1.7 is stateless, like B1); no `function.json` change (tools are request-body + header only). Repository boundary (architecture §1) intact.
 
 ## P2.5 / GR — Gap Register
+Grounded against the Governor §8 Gap Register vocabulary (closed: `PROCEED`/`PRE-LAND`/`ESCALATE`/`NO-GAPS`) and the Orchestration §1B Decision Register (Rule Anchor 10); no Decision Register conflict — B1.7 extends DR-T2's in-scope server-side tools.
 | Gap | Disclosure | Pivot |
 | --- | --- | --- |
 | G-1 | **Deploy prerequisite (Walter, at deploy).** New optional app settings `THEO_WEB_SEARCH_MAX_USES` / `THEO_WEB_FETCH_MAX_USES` (default 5 each if unset) and optional `THEO_WEB_FETCH_ALLOWED_DOMAINS` (comma-separated; unset ⇒ no allowlist). No new secret. | **PROCEED** — handler defaults are safe when the settings are absent; enumerated in §DEPLOY; Claude Code's golden curl (§CURL) confirms post-deploy. |
@@ -63,7 +68,7 @@ No ChatGPT advisory cited (Conformance §4D / T18). No `corporate-reporting`/`re
 | G-4 | **ZDR / data residency.** Web tools send query/fetch content to Anthropic-hosted infra (US). | **PRE-LAND** — same posture as B1 G-3: non-PII test traffic until Walter confirms ZDR; gates client-PII go-live, not this connection capability. |
 
 ## P3 — Schema grounding
-N/A — B1.7 is stateless (no `theo_` table, column, policy, or function referenced). Persistence remains a later tier (B3). This is a substantive conclusion after grounding architecture §5 conventions, not a skipped sub-phase.
+N/A — B1.7 is stateless (no `theo_` table, column, policy, or function referenced). Confirmed against the **Theo Azure Postgres Schema §1 conventions** ("All Theo tables use the **`theo_` prefix**…", `created_by` ownership) and **§2 RLS baseline** (Rule Anchor 11): the microstep touches no `theo_` object, so no DEPLOYED/PROPOSED schema delta applies. Persistence remains a later tier (B3). Substantive conclusion after grounding the Schema authority, not a skipped sub-phase.
 
 ## P4 — Contract grounding
 - **Endpoint:** `POST /api/theo_message` (API Spec §2.1; HF-T1 DEPLOYED). **Unchanged** — no route, method, request, or response-shape change. The client request stays `{max_tokens, system, messages}`; the response stays the `{data:{role,model,content,stop_reason,usage}, meta}` envelope with `content` = the `response \`content[]\` filtered to` `type:"text"` blocks (Rule Anchor 9). `web_search` citations ride on those text blocks (additive, backward-compatible).
@@ -789,7 +794,7 @@ module.exports = async function (context, req) {
 ```
 
 ## P6 — SQL grounding
-N/A — no SQL. B1.7 is stateless (no schema interaction). Substantive conclusion after grounding architecture §5; not a skipped sub-phase.
+N/A — no SQL. B1.7 is stateless (no schema interaction); the Theo Azure Postgres Schema migration-file rules (§1/§2, Rule Anchor 11) yield no migration for this microstep. Substantive conclusion after grounding the Schema authority; not a skipped sub-phase.
 
 ## P7 / CURL — Golden curls (Claude Code runs post-deploy)
 Claude Code acquires the token (`az account get-access-token`) and runs these against the deployed handler; never prints token bytes; captures results under `.local/` (gitignored). Feasibility was already proven this turn directly against Foundry (HTTP 200 for both tools). Post-deploy, the handler-level curls confirm end-to-end through EasyAuth:

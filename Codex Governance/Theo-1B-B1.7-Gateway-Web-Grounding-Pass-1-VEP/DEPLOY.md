@@ -1,0 +1,376 @@
+# DEPLOY — Theo B1.7 Gateway Internet Grounding (Azure copy-paste)
+
+> Deploy package for Walter. Apply **only after Codex APPROVES** the B1.7 VEP. One handler file changes; `function.json` does not. No new secret, no dependency, no SQL.
+
+## Step 1 — Replace the handler
+
+Azure Portal → Function App `vaultgpt-func-premium-…` → Functions → **`theo_message`** → Code + Test → `index.js` → select all → paste the block below → **Save**.
+
+(This is byte-identical to the VEP §HG.3 — the deployed B1 handler plus the `web_search`/`web_fetch` delta.)
+
+```js
+const https = require("https");
+
+const FOUNDRY_BASE = process.env.THEO_FOUNDRY_BASE;
+const FOUNDRY_DEPLOYMENT = process.env.THEO_FOUNDRY_DEPLOYMENT;
+const ANTHROPIC_VERSION = "2023-06-01";
+const DEFAULT_MAX_TOKENS = 4096;
+
+// Internet grounding — server-side Foundry-Claude tools (architecture §2.3; HF-T1 scope).
+const WEB_FETCH_BETA = "web-fetch-2025-09-10";
+
+function parsePositiveInt(value, fallback) {
+  const n = parseInt(value, 10);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
+const WEB_SEARCH_MAX_USES = parsePositiveInt(process.env.THEO_WEB_SEARCH_MAX_USES, 5);
+const WEB_FETCH_MAX_USES = parsePositiveInt(process.env.THEO_WEB_FETCH_MAX_USES, 5);
+const WEB_FETCH_ALLOWED_DOMAINS = (process.env.THEO_WEB_FETCH_ALLOWED_DOMAINS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-ms-client-principal",
+};
+
+function send(context, status, body) {
+  context.res = {
+    status,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+    },
+    body,
+  };
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function errorBody(code, message, status) {
+  return {
+    error: {
+      code,
+      message,
+      status,
+      timestamp: nowIso(),
+    },
+  };
+}
+
+function successBody(data) {
+  return {
+    data,
+    meta: {
+      timestamp: nowIso(),
+      version: "1.0",
+    },
+  };
+}
+
+function getPrincipal(req) {
+  const raw = req.headers["x-ms-client-principal"];
+  if (!raw || typeof raw !== "string") return null;
+
+  try {
+    return JSON.parse(Buffer.from(raw, "base64").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function getClaimValue(principal, claimTypes) {
+  if (!principal || !Array.isArray(principal.claims)) return null;
+
+  for (const claimType of claimTypes) {
+    const match = principal.claims.find((c) => c.typ === claimType);
+    if (match && typeof match.val === "string" && match.val.trim() !== "") {
+      return match.val.trim();
+    }
+  }
+
+  return null;
+}
+
+function parseBody(req) {
+  if (req.body == null) return {};
+  if (typeof req.body === "string") {
+    return JSON.parse(req.body);
+  }
+  if (typeof req.body === "object") {
+    return req.body;
+  }
+  return {};
+}
+
+function buildKnownError(code, message, status) {
+  const err = new Error(message);
+  err.code = code;
+  err.status = status;
+  err.isKnown = true;
+  return err;
+}
+
+function parseJsonSafe(raw) {
+  if (typeof raw !== "string" || raw.trim() === "") return null;
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function requestUrl(urlStr, options = {}, body = null) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(urlStr);
+
+    const req = https.request(
+      {
+        method: options.method || "GET",
+        hostname: url.hostname,
+        port: url.port ? Number(url.port) : 443,
+        path: url.pathname + url.search,
+        headers: options.headers || {},
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => {
+          data += chunk;
+        });
+        res.on("end", () => {
+          resolve({
+            statusCode: res.statusCode || 0,
+            headers: res.headers || {},
+            body: data,
+          });
+        });
+      }
+    );
+
+    req.on("error", reject);
+
+    if (body) {
+      req.write(body);
+    }
+
+    req.end();
+  });
+}
+
+async function getFoundryToken() {
+  const tenantId = process.env.AAD_TENANT_ID;
+  const clientId = process.env.AAD_CLIENT_ID;
+  const clientSecret = process.env.AAD_CLIENT_SECRET;
+
+  if (!tenantId || !clientId || !clientSecret) {
+    throw buildKnownError(
+      "INTERNAL_SERVER_ERROR",
+      "Missing required model gateway configuration.",
+      500
+    );
+  }
+
+  const form = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    grant_type: "client_credentials",
+    scope: "https://ai.azure.com/.default",
+  }).toString();
+
+  const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+
+  const r = await requestUrl(tokenUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Length": Buffer.byteLength(form),
+    },
+  }, form);
+
+  const payload = parseJsonSafe(r.body);
+
+  if (r.statusCode < 200 || r.statusCode >= 300 || !payload || !payload.access_token) {
+    const description =
+      payload &&
+      (payload.error_description || payload.error || payload.error_codes?.join(", "));
+    const message = description
+      ? `Model gateway token request failed: ${description}`
+      : "Model gateway token request failed.";
+
+    throw buildKnownError("INTERNAL_SERVER_ERROR", message, 500);
+  }
+
+  return payload.access_token;
+}
+
+// Server-side grounding tools attached to every upstream Messages call. Claude invokes them
+// autonomously only when a query needs live web data; max_uses caps spend. web_fetch carries an
+// optional domain allowlist (THEO_WEB_FETCH_ALLOWED_DOMAINS) and requires the web-fetch beta header.
+function buildGroundingTools() {
+  const webFetch = {
+    type: "web_fetch_20250910",
+    name: "web_fetch",
+    max_uses: WEB_FETCH_MAX_USES,
+  };
+  if (WEB_FETCH_ALLOWED_DOMAINS.length > 0) {
+    webFetch.allowed_domains = WEB_FETCH_ALLOWED_DOMAINS;
+  }
+  return [
+    { type: "web_search_20250305", name: "web_search", max_uses: WEB_SEARCH_MAX_USES },
+    webFetch,
+  ];
+}
+
+module.exports = async function (context, req) {
+  if (req.method === "OPTIONS") {
+    return send(context, 204, "");
+  }
+
+  const principal = getPrincipal(req);
+  const oid = getClaimValue(principal, [
+    "http://schemas.microsoft.com/identity/claims/objectidentifier",
+    "oid",
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier",
+  ]);
+
+  if (!oid) {
+    return send(
+      context,
+      401,
+      errorBody("UNAUTHORIZED", "Missing or invalid EasyAuth identity.", 401)
+    );
+  }
+
+  if (!FOUNDRY_BASE || !FOUNDRY_DEPLOYMENT) {
+    context.log.error("theo_message: missing gateway configuration");
+    return send(
+      context,
+      500,
+      errorBody("INTERNAL_SERVER_ERROR", "Model gateway is not configured.", 500)
+    );
+  }
+
+  let body;
+  try {
+    body = parseBody(req);
+  } catch {
+    return send(
+      context,
+      400,
+      errorBody("BAD_REQUEST", "Request body is not valid JSON.", 400)
+    );
+  }
+
+  const messages = body.messages;
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return send(
+      context,
+      400,
+      errorBody("BAD_REQUEST", "Field 'messages' must be a non-empty array.", 400)
+    );
+  }
+
+  const maxTokens = Number.isInteger(body.max_tokens) ? body.max_tokens : DEFAULT_MAX_TOKENS;
+  const systemPrompt = typeof body.system === "string" ? body.system : null;
+
+  try {
+    const token = await getFoundryToken();
+
+    const upstreamPayload = JSON.stringify({
+      model: FOUNDRY_DEPLOYMENT,
+      max_tokens: maxTokens,
+      ...(systemPrompt ? { system: systemPrompt } : {}),
+      messages,
+      tools: buildGroundingTools(),
+      stream: false,
+    });
+
+    const upstream = await requestUrl(
+      `${FOUNDRY_BASE}/anthropic/v1/messages`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "anthropic-version": ANTHROPIC_VERSION,
+          "anthropic-beta": WEB_FETCH_BETA,
+          "Content-Length": Buffer.byteLength(upstreamPayload),
+        },
+      },
+      upstreamPayload
+    );
+
+    const parsed = parseJsonSafe(upstream.body);
+
+    if (upstream.statusCode < 200 || upstream.statusCode >= 300 || !parsed) {
+      context.log.error("theo_message: gateway non-2xx", upstream.statusCode);
+      if (upstream.statusCode === 429) {
+        return send(
+          context,
+          429,
+          errorBody("RATE_LIMITED", "Model gateway rate limit exceeded.", 429)
+        );
+      }
+      return send(
+        context,
+        502,
+        errorBody("BAD_GATEWAY", "Model gateway call failed.", 502)
+      );
+    }
+
+    const textContent = Array.isArray(parsed.content)
+      ? parsed.content.filter((b) => b && b.type === "text")
+      : [];
+
+    return send(
+      context,
+      200,
+      successBody({
+        role: typeof parsed.role === "string" ? parsed.role : "assistant",
+        model: typeof parsed.model === "string" ? parsed.model : FOUNDRY_DEPLOYMENT,
+        content: textContent,
+        stop_reason: parsed.stop_reason != null ? parsed.stop_reason : null,
+        usage: parsed.usage != null ? parsed.usage : null,
+      })
+    );
+  } catch (err) {
+    context.log.error("theo_message failed", err);
+
+    if (err && err.isKnown === true && typeof err.status === "number" && typeof err.code === "string") {
+      return send(
+        context,
+        err.status,
+        errorBody(err.code, err.message, err.status)
+      );
+    }
+
+    return send(
+      context,
+      500,
+      errorBody("INTERNAL_SERVER_ERROR", "Failed to process message.", 500)
+    );
+  }
+};
+```
+
+## Step 2 — `function.json` — NO CHANGE
+Leave `theo_message/function.json` exactly as deployed (methods `["post","options"]`, route `theo_message`, anonymous). No edit.
+
+## Step 3 — App settings (optional)
+Function App → Settings → **Environment variables**. All optional — the handler defaults to 5 each and no allowlist if unset:
+| Name | Value | Effect |
+|------|-------|--------|
+| `THEO_WEB_SEARCH_MAX_USES` | e.g. `5` | max `web_search` calls per turn |
+| `THEO_WEB_FETCH_MAX_USES` | e.g. `5` | max `web_fetch` calls per turn |
+| `THEO_WEB_FETCH_ALLOWED_DOMAINS` | e.g. `docs.anthropic.com,gov.uk` | comma-separated allowlist; unset ⇒ any domain |
+
+No new **secret** is needed (the existing `THEO_FOUNDRY_*` / `AAD_*` settings are reused).
+
+## Step 4 — Tell Claude Code
+Once saved, notify Claude Code to run the golden curls (web_search, web_fetch, no-tool regression) and capture the results.

@@ -22,11 +22,11 @@ Currency anchors: blob SHA (captured this turn via `git rev-parse HEAD:<path>`) 
 | 4 | Theo Golden Component Pack Standard — `governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` (§5 allowed deltas; §3 CCT) | `Grep("wiring an inline call to the service-module" / "is invalid (T20)")` this turn | `0035a1d9fed103d07bf420b957c3727ec47fcc6b` |
 | 5 | Theo Phase 1A Frontend Plan — `governance/THEO_PHASE_1A_FRONTEND_PLAN.md` (§5 acceptance; surface authority) | `Grep("Acceptance criteria" / "mocked gateway")` this turn | `d125cbdc4048a0b4120d3682bc8ecb76db134219` |
 | 6 | **Microstep source** — Theo Phase 1B Backend Plan — `governance/THEO_PHASE_1B_BACKEND_PLAN.md` (§7 Tier B1.5/B1.6) | `Grep("Point the 1A chat contract")` this turn | `1733bdf19053d7173b72bfa9f0cf64e725cfdd3f` |
-| 7 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 chat / model gateway) | `Grep("response \`content[]\` filtered to")` this turn | `4a1d2433…` (see §F-P3; resolved at HEAD) |
-| 8 | **Prior plan revised** — B1.5 VEP — `Codex Governance/Theo-1B-B1.5-FE-Gateway-Swap-Pass-1-VEP/Theo_1B_B1_5_FE_Gateway_Swap_VEP.md` | `Read(...)` full this turn | (tracked package file) |
+| 7 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 chat / model gateway) | `Grep("response \`content[]\` filtered to")` this turn | `4a1d2433c111ad7861e69f6d36acf72b8ef3e1d5` |
+| 8 | **Prior plan revised** — B1.5 VEP — `Codex Governance/Theo-1B-B1.5-FE-Gateway-Swap-Pass-1-VEP/Theo_1B_B1_5_FE_Gateway_Swap_VEP.md` | `Read(...)` full this turn | `9c881b15129c1a904ebbde9d46cd21d4fa3e0b39` |
 | 9 | ACTIVE — `src/theo/types.ts` (`GatewayRequest`/`GatewayResponse`) | `Grep("GatewayRequest|GatewayResponse", -A 12)` this turn | `2cdcd75606f1af6d25d988aea4b461e33cb7b580` |
-| 10 | ACTIVE (modify-target) — `src/theo/services/theoClient.ts` (the service boundary) | `Read(...)` full this turn | `781947ebf2abd1e0b6ff2d10f2a6e972ec3861ed` |
-| 11 | ACTIVE (modify-target) — `src/theo/services/TheoSurface.tsx` mount root — `src/theo/TheoSurface.tsx` | `Read(offset=1, limit=70)` this turn | (tracked source @ HEAD) |
+| 10 | ACTIVE (modify-target) — `src/theo/services/theoClient.ts` (the service boundary) | `Read(...)` full this turn | `0a86dd7c656d4a5d879ed19494d4f009959d6519` |
+| 11 | ACTIVE (modify-target) — `src/theo/TheoSurface.tsx` (federated mount root; receives shell props) | `Read(offset=1, limit=70)` this turn | `613a33fa75e223e444e8220b574202e991c33407` |
 | 12 | Reference (contract mirror) — `src/theo/services/gateway.mock.ts` (the `sendMessage` contract `gateway.live` mirrors + delegates to) | `Read(...)` full this turn | `d8dea2a230310c1b274e1e4a8b91efcacd5aeb53` |
 
 No ChatGPT advisory cited (§4D / T18). No `corporate-reporting`/`reporting_*` change.

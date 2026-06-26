@@ -10,7 +10,7 @@ Grounding Mode: Delta Grounding
 Pass: Pass 1
 Sub-phase Track: P8
 
-Delta scope (Conformance §3 rule 8): rejected prior artifact = this VEP at `de43df12555df19112869d7d5721dcbf8ef81d39`; inbound Codex verdict = **REJECTED on T9** (§HG.1 inlined the Primary Reference handler with an ellipsis placeholder, not full verbatim). Affected section = **§HG.1 only**: the complete `reporting_probe_dms_connection` handler (blob `e415e802874f5416e4da0098b34721a1e9bfdc3f`) is **re-read in full this turn** and now inlined verbatim with no omission. The other GCR-listed documents were read at the Full-Baseline pack `787a9a3` (same session); `787a9a3..de43df1` adds only this package, so their state is unchanged at the current HEAD and is carried forward. The Rule Anchor Table, §HG.3/§HG.4 B1 artifacts, §SM, §WA, §CURL, §DEPLOY, and the sub-phase walk are unchanged.
+Delta scope (Conformance §3 rule 8): rejected prior artifact = this VEP at `54ebec737756fc984e3910b6e953e59679b9b9f4`; inbound Codex verdict = **REJECTED on T9** (§HG.1 helper functions were reformatted/compressed and `isUuid` omitted — not byte-for-byte verbatim). Affected section = **§HG.1 only**: the complete `reporting_probe_dms_connection` handler (blob `e415e802874f5416e4da0098b34721a1e9bfdc3f`) is **re-read in full this turn** and the entire §HG.1 code block is spliced **byte-for-byte identical** to the source (verified by `diff` against the source file → no difference; all 379 lines present, including `isUuid`). The other GCR-listed documents were read at the Full-Baseline pack `787a9a3` (same session); `787a9a3..de43df1` adds only this package, so their state is unchanged at the current HEAD and is carried forward. The Rule Anchor Table, §HG.3/§HG.4 B1 artifacts, §SM, §WA, §CURL, §DEPLOY, and the sub-phase walk are unchanged.
 Cross-repo reference HEAD: corporate-reporting `eafa2b3b7ac76a0fc1886651ccc0600e748b0800` (Primary Reference handler source).
 Currency anchors: per Conformance §8 fallback, the blob SHA (obtained via `git rev-parse HEAD:<path>`) is given for each row — region reads of code/structural docs; independently verifiable via `git cat-file -p <sha>`. Row 10 (`reporting_probe_dms_connection.index.js.md`) was re-read in full this turn for the T9 correction.
 
@@ -120,62 +120,136 @@ const TARGET_SITE_ID =
 function send(context, status, body) {
   context.res = {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+    },
     body,
   };
 }
-function nowIso() { return new Date().toISOString(); }
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
 function errorBody(code, message, status) {
-  return { error: { code, message, status, timestamp: nowIso() } };
+  return {
+    error: {
+      code,
+      message,
+      status,
+      timestamp: nowIso(),
+    },
+  };
 }
+
 function successBody(data) {
-  return { data, meta: { timestamp: nowIso(), version: "1.0" } };
+  return {
+    data,
+    meta: {
+      timestamp: nowIso(),
+      version: "1.0",
+    },
+  };
 }
+
 function getPrincipal(req) {
   const raw = req.headers["x-ms-client-principal"];
   if (!raw || typeof raw !== "string") return null;
-  try { return JSON.parse(Buffer.from(raw, "base64").toString("utf8")); } catch { return null; }
+
+  try {
+    return JSON.parse(Buffer.from(raw, "base64").toString("utf8"));
+  } catch {
+    return null;
+  }
 }
+
 function getClaimValue(principal, claimTypes) {
   if (!principal || !Array.isArray(principal.claims)) return null;
+
   for (const claimType of claimTypes) {
     const match = principal.claims.find((c) => c.typ === claimType);
-    if (match && typeof match.val === "string" && match.val.trim() !== "") return match.val.trim();
+    if (match && typeof match.val === "string" && match.val.trim() !== "") {
+      return match.val.trim();
+    }
   }
+
   return null;
 }
+
 function parseBody(req) {
   if (req.body == null) return {};
-  if (typeof req.body === "string") return JSON.parse(req.body);
-  if (typeof req.body === "object") return req.body;
+  if (typeof req.body === "string") {
+    return JSON.parse(req.body);
+  }
+  if (typeof req.body === "object") {
+    return req.body;
+  }
   return {};
 }
-function buildKnownError(code, message, status) {
-  const err = new Error(message); err.code = code; err.status = status; err.isKnown = true; return err;
+
+function isUuid(value) {
+  return (
+    typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+  );
 }
+
+function buildKnownError(code, message, status) {
+  const err = new Error(message);
+  err.code = code;
+  err.status = status;
+  err.isKnown = true;
+  return err;
+}
+
 function parseJsonSafe(raw) {
   if (typeof raw !== "string" || raw.trim() === "") return null;
-  try { return JSON.parse(raw); } catch { return null; }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
+
 function requestUrl(urlStr, options = {}, body = null) {
   return new Promise((resolve, reject) => {
     const url = new URL(urlStr);
-    const req = https.request({
-      method: options.method || "GET",
-      hostname: url.hostname,
-      port: url.port ? Number(url.port) : 443,
-      path: url.pathname + url.search,
-      headers: options.headers || {},
-    }, (res) => {
-      let data = "";
-      res.on("data", (chunk) => { data += chunk; });
-      res.on("end", () => resolve({ statusCode: res.statusCode || 0, headers: res.headers || {}, body: data }));
-    });
+
+    const req = https.request(
+      {
+        method: options.method || "GET",
+        hostname: url.hostname,
+        port: url.port ? Number(url.port) : 443,
+        path: url.pathname + url.search,
+        headers: options.headers || {},
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => {
+          data += chunk;
+        });
+        res.on("end", () => {
+          resolve({
+            statusCode: res.statusCode || 0,
+            headers: res.headers || {},
+            body: data,
+          });
+        });
+      }
+    );
+
     req.on("error", reject);
-    if (body) req.write(body);
+
+    if (body) {
+      req.write(body);
+    }
+
     req.end();
   });
 }
+
 function getBearerTokenFromAuthorization(req) {
   const raw = req.headers["authorization"];
   if (!raw || typeof raw !== "string") return null;

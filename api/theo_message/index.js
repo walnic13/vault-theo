@@ -137,35 +137,7 @@ function requestUrl(urlStr, options = {}, body = null) {
   });
 }
 
-function getBearerTokenFromAuthorization(req) {
-  const raw = req.headers["authorization"];
-  if (!raw || typeof raw !== "string") return null;
-
-  const match = raw.match(/^Bearer\s+(.+)$/i);
-  return match && match[1] ? match[1].trim() : null;
-}
-
-function getOboInputToken(req) {
-  const bearer = getBearerTokenFromAuthorization(req);
-  if (bearer) {
-    return {
-      token: bearer,
-      source: "authorization_bearer",
-    };
-  }
-
-  const tokenStore = req.headers["x-ms-token-aad-access-token"];
-  if (typeof tokenStore === "string" && tokenStore.trim() !== "") {
-    return {
-      token: tokenStore.trim(),
-      source: "x-ms-token-aad-access-token",
-    };
-  }
-
-  return null;
-}
-
-async function exchangeFoundryToken(oboInputToken) {
+async function getFoundryToken() {
   const tenantId = process.env.AAD_TENANT_ID;
   const clientId = process.env.AAD_CLIENT_ID;
   const clientSecret = process.env.AAD_CLIENT_SECRET;
@@ -173,7 +145,7 @@ async function exchangeFoundryToken(oboInputToken) {
   if (!tenantId || !clientId || !clientSecret) {
     throw buildKnownError(
       "INTERNAL_SERVER_ERROR",
-      "Missing required OBO configuration.",
+      "Missing required model gateway configuration.",
       500
     );
   }
@@ -181,9 +153,7 @@ async function exchangeFoundryToken(oboInputToken) {
   const form = new URLSearchParams({
     client_id: clientId,
     client_secret: clientSecret,
-    grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-    requested_token_use: "on_behalf_of",
-    assertion: oboInputToken,
+    grant_type: "client_credentials",
     scope: "https://ai.azure.com/.default",
   }).toString();
 
@@ -204,12 +174,8 @@ async function exchangeFoundryToken(oboInputToken) {
       payload &&
       (payload.error_description || payload.error || payload.error_codes?.join(", "));
     const message = description
-      ? `Delegated model gateway token exchange failed: ${description}`
-      : "Delegated model gateway token exchange failed.";
-
-    if (r.statusCode === 400 || r.statusCode === 401 || r.statusCode === 403) {
-      throw buildKnownError("FORBIDDEN", message, 403);
-    }
+      ? `Model gateway token request failed: ${description}`
+      : "Model gateway token request failed.";
 
     throw buildKnownError("INTERNAL_SERVER_ERROR", message, 500);
   }
@@ -246,15 +212,6 @@ module.exports = async function (context, req) {
     );
   }
 
-  const oboInput = getOboInputToken(req);
-  if (!oboInput) {
-    return send(
-      context,
-      401,
-      errorBody("UNAUTHORIZED", "Missing delegated token input.", 401)
-    );
-  }
-
   let body;
   try {
     body = parseBody(req);
@@ -279,7 +236,7 @@ module.exports = async function (context, req) {
   const systemPrompt = typeof body.system === "string" ? body.system : null;
 
   try {
-    const token = await exchangeFoundryToken(oboInput.token);
+    const token = await getFoundryToken();
 
     const upstreamPayload = JSON.stringify({
       model: FOUNDRY_DEPLOYMENT,

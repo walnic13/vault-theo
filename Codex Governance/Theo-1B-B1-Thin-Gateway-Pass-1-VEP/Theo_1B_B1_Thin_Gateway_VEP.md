@@ -10,7 +10,7 @@ Grounding Mode: Delta Grounding
 Pass: Pass 1
 Sub-phase Track: P8
 
-Delta scope (Conformance §3 rule 8): this reissue carries two mirror-fidelity corrections, both narrow. **(1)** Prior Codex **T9** on §HG.1 (helpers reformatted, `isUuid` omitted): §HG.1 now inlines the complete `reporting_probe_dms_connection` source (blob `e415e802874f5416e4da0098b34721a1e9bfdc3f`) **byte-for-byte identical** (re-read full this turn; `diff` against source → no difference, all 379 lines incl. `isUuid`). **(2)** Walter pre-deploy review found the **§HG.3** `theo_message` handler's shared Family-B helpers reformatted/compressed and **§HG.4** `function.json` not in the deployed multi-line shape: §HG.3's 10 shared helpers (`send`/`nowIso`/`errorBody`/`successBody`/`getPrincipal`/`getClaimValue`/`parseBody`/`buildKnownError`/`parseJsonSafe`/`requestUrl`) are now **byte-identical to the deployed `reporting_probe_dms_connection`** (programmatically verified this turn, 10/10), `corsHeaders` differs only in the `Methods` value (the documented endpoint delta), and §HG.4 now matches the deployed binding shape exactly except `methods`/`route`. **No handler logic changed.** The deploy artifacts (`api/theo_message/index.js`, `function.json`) are byte-equal to §HG.3/§HG.4. All other GCR documents were read at the Full-Baseline pack `787a9a3` (same session, unchanged at current HEAD); the Rule Anchor Table, §WA, §CURL, §DEPLOY, and the sub-phase walk are unchanged.
+Delta scope (Conformance §3 rule 8): this reissue carries three corrections. **(1)** Prior Codex **T9** on §HG.1: §HG.1 inlines the complete `reporting_probe_dms_connection` source (blob `e415e802874f5416e4da0098b34721a1e9bfdc3f`) **byte-for-byte identical** (`diff` → no difference, 379 lines incl. `isUuid`). **(2)** Walter pre-deploy review: §HG.3's shared Family-B helpers are now **byte-identical to the deployed `reporting_probe_dms_connection`** (verified — **12/12**: the 10 envelope/util helpers + `getBearerTokenFromAuthorization` + `getOboInputToken`); `corsHeaders` differs only in `Allow-Methods`; §HG.4 matches the deployed binding shape except `methods`/`route`. **(3)** **Token-acquisition method change (Walter directive §WA):** the failed `@azure/identity` managed-identity approach is replaced by the **deployed Family-B OBO client-secret exchange** — `exchangeFoundryToken` mirrors the deployed `exchangeGraphToken` (verified: differs only in name + scope `https://ai.azure.com/.default` + 2 message strings); no SDK, only built-in `https`. This **diverges from architecture §2.2/DR-T2 ("managed identity, keyless")** — disclosed §GR G-5 with a PRE-LAND Role-C. The deploy artifacts (`api/theo_message/{index.js,function.json}`) are byte-equal to §HG.3/§HG.4; §WA + §DEPLOY updated accordingly. Other GCR documents were read at the Full-Baseline pack `787a9a3` (same session, unchanged at current HEAD).
 Cross-repo reference HEAD: corporate-reporting `eafa2b3b7ac76a0fc1886651ccc0600e748b0800` (Primary Reference handler source).
 Currency anchors: per Conformance §8 fallback, the blob SHA (obtained via `git rev-parse HEAD:<path>`) is given for each row — region reads of code/structural docs; independently verifiable via `git cat-file -p <sha>`. Row 10 (`reporting_probe_dms_connection.index.js.md`) was re-read in full this turn for the T9 correction.
 
@@ -33,13 +33,13 @@ Currency anchors: per Conformance §8 fallback, the blob SHA (obtained via `git 
 | Source doc (repo-relative path) | Clause id | Verbatim clause text | Applied in output at |
 | ------------------------------- | --------- | -------------------- | -------------------- |
 | governance/THEO_PHASE_1B_BACKEND_PLAN.md | §7 Tier B1 | "Thin model gateway (HF-T1), stateless" | §P1 Feature identification |
-| governance/THEO_ARCHITECTURE_AND_STRUCTURE.md | §2.2 | "Authentication to Foundry is **Entra managed identity (keyless)**" | §P2 Architecture & boundary reconciliation; §HG handler |
+| governance/THEO_ARCHITECTURE_AND_STRUCTURE.md | §2.2 | "Authentication to Foundry is **Entra managed identity (keyless)**" | §P2 + §GR G-5 — the architecture's stated method; the B1 OBO implementation **deviates** from it per Walter's directive (§WA), Role-C to align PRE-LAND |
 | governance/THEO_ARCHITECTURE_AND_STRUCTURE.md | §2.2 | "The request/response shape is the **standard Anthropic Messages API**" | §P4 Contract grounding; §HG handler |
-| governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1B DR-T2 | "A **server-side model gateway** is the only holder of model credentials (Entra managed identity, keyless); standard Anthropic Messages API shape; the model swap point." | §P2 Architecture & boundary reconciliation |
+| governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1B DR-T2 | "A **server-side model gateway** is the only holder of model credentials (Entra managed identity, keyless); standard Anthropic Messages API shape; the model swap point." | §P2 — gateway-is-sole-credential-holder + Anthropic-shape + swap-point met; the "managed identity, keyless" sub-clause deviates to OBO per §WA (§GR G-5) |
 | spec/THEO_API_SPEC.md | §2.1 | "response `content[]` filtered to" | §P4 Contract grounding; §HG response filtering |
 | governance/THEO_GOLDEN_HANDLER_STANDARD.md | §2 | "selects **exactly one** deployed handler file and **exactly one** deployed `function.json` file" | §P5 Handler grounding; §SM Structural Mirror |
 | governance/THEO_GOLDEN_HANDLER_STANDARD.md | §4 | "A **new-domain or new-external-system helper** classified as ALLOWED DELTA requires either an EXACT mirror against a deployed handler containing that helper, or a Walter authorization quoted verbatim and predating the VEP" | §SM Structural Mirror (Foundry-call delta); §WA |
-| governance/THEO_GOLDEN_HANDLER_STANDARD.md | §3 | "holds the Foundry credential server-side (Entra managed identity, keyless), brokers the standard Anthropic Messages API shape, and is the model swap point" | §HG handler design |
+| governance/THEO_GOLDEN_HANDLER_STANDARD.md | §3 | "holds the Foundry credential server-side (Entra managed identity, keyless), brokers the standard Anthropic Messages API shape, and is the model swap point" | §HG handler design — server-side credential-holding + Anthropic-Messages brokering + swap-point are met via the OBO client-secret method; the "managed identity, keyless" sub-clause deviates per §WA (§GR G-5) |
 | governance/CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md | §8 | "**Gap Register** (proactive disclosure of foreseeable downstream gaps with a `PROCEED` / `PRE-LAND` / `ESCALATE` pivot, or a verbatim `NO-GAPS` certification)" | §GR Gap Register |
 | governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md | §3 | "Every substantive Claude Code or Codex turn MUST open with a table of the form" | §Grounding Conformance Receipt (this pack) |
 | governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md | §5 | "Every substantive Claude Code or Codex turn MUST include, after the GCR, a Rule Anchor Table" | §Rule Anchor Table (this pack) |
@@ -51,7 +51,7 @@ Currency anchors: per Conformance §8 fallback, the blob SHA (obtained via `git 
 Microstep: **Tier B1 — "Thin model gateway (HF-T1), stateless"** (Rule Anchor 1), from the Theo Phase 1B Backend Plan §7 gateway-first sequence. Delivers the first live, deployable Theo handler: `POST /api/theo_message` brokers a chat turn to Claude via Azure AI Foundry and returns the assistant reply. **Stateless** — no `theo_*` persistence (Tier B3). Decision Register: DR-T2 (server-side model gateway), DR-T5 (1B makes surfaces true). Per-surface: this is *real-in-1B* backend for the Chats surface gateway seam (1A handover §2.2).
 
 ## P2 — Architecture & boundary reconciliation
-- **Gateway authority (DR-T2; architecture §2.2, Rule Anchors 2, 4):** a server-side gateway is the only model-credential holder; authenticates to Foundry by **Entra managed identity (keyless)**; brokers the **standard Anthropic Messages API**; is the model swap point. The B1 handler is exactly this, minimal.
+- **Gateway authority (DR-T2; architecture §2.2, Rule Anchors 2, 4):** a server-side gateway is the only model-credential holder; brokers the **standard Anthropic Messages API**; is the model swap point. The B1 handler realizes this. **Auth-method note (deviation, Walter-directed — see §GR G-5):** architecture §2.2/DR-T2 specify "Entra managed identity (keyless)", but per Walter's explicit directive the handler **mirrors the deployed Family-B OBO token-exchange pattern** used by every working reporting handler (`getOboInputToken` → `exchangeGraphToken` via raw `https` to `login.microsoftonline.com` with the app's `AAD_CLIENT_ID`/`SECRET`) — the gateway exchanges the signed-in user's token for a Foundry-scoped token (`https://ai.azure.com/.default`). This is the proven mechanism (the B0 connection used a delegated user token → HTTP 200); the managed-identity/SDK approach is **not** used (the SDK is not installed in the portal-deployed app). A Role-C to align §2.2/DR-T2 to the deployed OBO method is PRE-LAND (§GR G-5).
 - **Verified connection (Plan §11, 2026-06-26):** `POST https://vaultgpt-foundry.services.ai.azure.com/anthropic/v1/messages`, model `claude-sonnet-4-6`, `anthropic-version: 2023-06-01`, bearer scope `https://ai.azure.com/.default` → HTTP 200. The handler targets this proven endpoint.
 - **Boundary (Rule Anchor 12; Conformance §10 T40):** B1 touches **no** `reporting_*` table and **no** `theo_*` table; it is a pure model broker. No Corporate Reporting access (tool-dispatch is Tier B5). No browser→model call (the gateway holds the credential server-side).
 - **Identity:** authenticates the caller via Easy Auth `x-ms-client-principal` → Entra OID (mirrors the Family-B pattern); rejects unauthenticated requests (401). The OID is not yet used (stateless); it gates auth and is the seam for B3 persistence/RLS.
@@ -59,10 +59,11 @@ Microstep: **Tier B1 — "Thin model gateway (HF-T1), stateless"** (Rule Anchor 
 ## P2.5 / GR — Gap Register
 | Gap | Disclosure | Pivot |
 | --- | --- | --- |
-| G-1 | **Deploy prerequisites** (Walter, at deploy): (a) the Functions app needs a **system-assigned managed identity** granted **`Cognitive Services User`** on `vaultgpt-foundry` (the B0 test used the *user* token; the handler uses the *Function's* MI — a different principal); (b) Function app settings `THEO_FOUNDRY_BASE` and `THEO_FOUNDRY_DEPLOYMENT`; (c) the `@azure/identity` package added to the Functions app dependencies. | **PRE-LAND** — enumerated in §DEPLOY; Walter completes before/at deploy; Claude Code's golden curl (§CURL) confirms post-deploy. |
+| G-1 | **Deploy prerequisites** (Walter, at deploy), OBO method — **no SDK, no managed identity**: (a) Function app settings `THEO_FOUNDRY_BASE` + `THEO_FOUNDRY_DEPLOYMENT`, and the existing `AAD_TENANT_ID`/`AAD_CLIENT_ID`/`AAD_CLIENT_SECRET` (already used by the working reporting handlers) present; (b) the signed-in user holds **`Cognitive Services User`** on `vaultgpt-foundry` (Walter, as Owner, passed the B0 user-token test); (c) if the OBO exchange returns an AADSTS consent error, grant the `AAD_CLIENT_ID` app consent to `https://ai.azure.com`. | **PRE-LAND** — enumerated in §DEPLOY; Claude Code's golden curl (§CURL) confirms post-deploy. |
 | G-2 | **No persistence in B1** — the turn is not saved; a refresh loses the thread. | **PROCEED** — by design (stateless gateway). Persistence + RLS land in Tier B3 (`theo_conversations`/`theo_messages`); the handler's response shape is forward-compatible. |
 | G-3 | **ZDR / data residency (D-3)** — Foundry-Claude inference is Anthropic-hosted (US). | **PRE-LAND** — non-PII test traffic only until Walter confirms ZDR; gates client-PII go-live, not the B1 connection test. |
 | G-4 | **Route naming** — API Spec §2.1 writes `/api/theo/message`; the deployed Family-B convention is underscore routes (no slashes). | **PROCEED** — use `theo_message` (route `/api/theo_message`) per the deployed convention + Spec §1 `theo_<operation>_<entity>`; the frontend service module (Tier B1.5) targets `/api/theo_message`. |
+| G-5 | **Auth-method divergence from architecture §2.2 / DR-T2.** Those specify "Entra managed identity (keyless)"; per Walter's explicit directive (§WA) the handler instead mirrors the **deployed Family-B OBO client-secret token exchange** (proven; the SDK/MI path failed to deploy). Implementation now diverges from the doc. | **PRE-LAND** — Walter has decided (directive in §WA); a Pass-4 **Role-C to architecture §2.2 / DR-T2** (and the Theo Phase 1B Plan §4/§11 gateway-auth wording) will record the OBO method as the gateway auth, replacing "managed identity (keyless)". Authored after B1 is confirmed working. Surfaced here with the Walter decision so it is not silent drift (Conformance §10 T13). |
 
 ## P3 — Schema grounding
 **N/A — no `theo_*` schema object in B1 scope.** The thin gateway is stateless; it creates/reads no table, column, policy, or function. The `theo_` conventions (Rule Anchor 14) and the structural table set (`theo_conversations`/`theo_messages`, PROPOSED) are introduced in Tier B3, not here. No DEPLOYED/PROPOSED schema classification is required for B1.
@@ -84,8 +85,10 @@ Microstep: **Tier B1 — "Thin model gateway (HF-T1), stateless"** (Rule Anchor 
 | `getPrincipal` / `getClaimValue` + OID resolution + 401 | present | **byte-identical** (verified) | EXACT |
 | `parseBody` / `parseJsonSafe` / `buildKnownError` / `requestUrl` (raw https helper) | present | **byte-identical** (verified) | EXACT |
 | OPTIONS → 204 | present | identical | EXACT |
+| `getBearerTokenFromAuthorization` / `getOboInputToken` (OBO input) | present | **byte-identical** (verified) | EXACT |
 | Postgres `Pool` + `set_config` session + transaction | present | **omitted** (stateless; no DB in B1) | ALLOWED DELTA — removed RLS-scoped query (Golden §4; persistence is B3) |
-| OBO token exchange + Graph calls (`exchangeGraphToken`/`graphGetJson`/`getOboInputToken`) | present | **replaced** by managed-identity token + Foundry Messages call | ALLOWED DELTA — new-external-system helper, **Walter-authorized** (Golden §4 / Conformance T12; see §WA) |
+| `exchangeGraphToken` (raw-`https` OBO token exchange) | present | `exchangeFoundryToken` — **mirrors it; differs only in name + scope (`https://ai.azure.com/.default`) + 2 message strings** (verified: 4 differing lines) | ALLOWED DELTA — same deployed OBO mechanism, retargeted scope, **Walter-directed** (Golden §4 / Conformance T12; §WA) |
+| `graphGetJson` + Graph drive/site calls | present | **replaced** by the Foundry `POST /anthropic/v1/messages` call | ALLOWED DELTA — new-external-system call (the gateway's purpose), **Walter-authorized** (Golden §4 / Conformance T12; §WA) |
 | input validation (`messages[]`) + final envelope | present (probe shape) | Anthropic-request validation + `content[]`-filtered envelope | ALLOWED DELTA — validated field set + response shape (Golden §4) |
 
 **Byte-identity verification (this turn):** the 10 shared helpers in §HG.3 (`send`, `nowIso`, `errorBody`, `successBody`, `getPrincipal`, `getClaimValue`, `parseBody`, `buildKnownError`, `parseJsonSafe`, `requestUrl`) were extracted and compared against `reporting_probe_dms_connection.index.js.md` → **10/10 byte-identical**. `corsHeaders` differs only in the `Allow-Methods` value. `function.json` (§HG.4) was compared against the deployed `reporting_probe_dms_connection.function.json.md` → same bindings/keys, identical `out` binding, differing only in `methods` + `route`. The dropped regions (`pg` `Pool`/`pool`/`set_config`/transaction, `TARGET_SITE_ID`, `isUuid`, OBO/Graph helpers) are the ALLOWED-DELTA removals above (no DB / no Graph in the stateless gateway).
@@ -94,10 +97,10 @@ Microstep: **Tier B1 — "Thin model gateway (HF-T1), stateless"** (Rule Anchor 
 Walter, 2026-06-26 (this work thread), authorizing the Foundry model-gateway build and its external-system call:
 > "we will use azure blob and azure postgres for our data persistence which is the most important element of the backend. you will need to walk me through the api connection/set up in azure to connect to claude api via microsoft azure foundry."
 
-and authorizing the `@azure/identity` (DefaultAzureCredential) approach + the `theo_message` route + proceeding to author this VEP:
-> "proceed"
+and, after the initial SDK approach failed to deploy, directing the token-acquisition method explicitly — copy the deployed handlers' proven pattern:
+> "copy the way we get the token from the existing handlers that actually WORK. … are you sure you mirrored the shape and patterns of the existing handlers in corporate-reporting?"
 
-This authorizes the new-external-system helper (managed-identity token acquisition + Foundry HTTPS Messages call) classified ALLOWED DELTA in §SM. It is further grounded in architecture §2.2 (DR-T2) and the proven connection (Plan §11).
+This authorizes the OBO token exchange (`exchangeFoundryToken`, mirroring the deployed `exchangeGraphToken`) + the Foundry HTTPS Messages call, classified ALLOWED DELTA in §SM. It supersedes the earlier `@azure/identity`/managed-identity approach (not installed in the portal-deployed app) and **refines architecture §2.2/DR-T2's "managed identity (keyless)" to the deployed client-secret OBO method** — disclosed in §GR G-5 with a PRE-LAND Role-C to align the architecture doc. Grounded in the proven connection (Plan §11).
 
 ## HG — Handler grounding (verbatim artifacts)
 
@@ -498,11 +501,9 @@ module.exports = async function (context, req) {
 ### HG.3 — B1 handler to deploy (COMPLETE, copy-paste ready) — `theo_message/index.js`
 ```js
 const https = require("https");
-const { DefaultAzureCredential } = require("@azure/identity");
 
 const FOUNDRY_BASE = process.env.THEO_FOUNDRY_BASE;
 const FOUNDRY_DEPLOYMENT = process.env.THEO_FOUNDRY_DEPLOYMENT;
-const FOUNDRY_SCOPE = "https://ai.azure.com/.default";
 const ANTHROPIC_VERSION = "2023-06-01";
 const DEFAULT_MAX_TOKENS = 4096;
 
@@ -638,14 +639,84 @@ function requestUrl(urlStr, options = {}, body = null) {
   });
 }
 
-const credential = new DefaultAzureCredential();
+function getBearerTokenFromAuthorization(req) {
+  const raw = req.headers["authorization"];
+  if (!raw || typeof raw !== "string") return null;
 
-async function getFoundryToken() {
-  const t = await credential.getToken(FOUNDRY_SCOPE);
-  if (!t || !t.token) {
-    throw buildKnownError("INTERNAL_SERVER_ERROR", "Failed to acquire model gateway token.", 500);
+  const match = raw.match(/^Bearer\s+(.+)$/i);
+  return match && match[1] ? match[1].trim() : null;
+}
+
+function getOboInputToken(req) {
+  const bearer = getBearerTokenFromAuthorization(req);
+  if (bearer) {
+    return {
+      token: bearer,
+      source: "authorization_bearer",
+    };
   }
-  return t.token;
+
+  const tokenStore = req.headers["x-ms-token-aad-access-token"];
+  if (typeof tokenStore === "string" && tokenStore.trim() !== "") {
+    return {
+      token: tokenStore.trim(),
+      source: "x-ms-token-aad-access-token",
+    };
+  }
+
+  return null;
+}
+
+async function exchangeFoundryToken(oboInputToken) {
+  const tenantId = process.env.AAD_TENANT_ID;
+  const clientId = process.env.AAD_CLIENT_ID;
+  const clientSecret = process.env.AAD_CLIENT_SECRET;
+
+  if (!tenantId || !clientId || !clientSecret) {
+    throw buildKnownError(
+      "INTERNAL_SERVER_ERROR",
+      "Missing required OBO configuration.",
+      500
+    );
+  }
+
+  const form = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    requested_token_use: "on_behalf_of",
+    assertion: oboInputToken,
+    scope: "https://ai.azure.com/.default",
+  }).toString();
+
+  const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+
+  const r = await requestUrl(tokenUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Length": Buffer.byteLength(form),
+    },
+  }, form);
+
+  const payload = parseJsonSafe(r.body);
+
+  if (r.statusCode < 200 || r.statusCode >= 300 || !payload || !payload.access_token) {
+    const description =
+      payload &&
+      (payload.error_description || payload.error || payload.error_codes?.join(", "));
+    const message = description
+      ? `Delegated model gateway token exchange failed: ${description}`
+      : "Delegated model gateway token exchange failed.";
+
+    if (r.statusCode === 400 || r.statusCode === 401 || r.statusCode === 403) {
+      throw buildKnownError("FORBIDDEN", message, 403);
+    }
+
+    throw buildKnownError("INTERNAL_SERVER_ERROR", message, 500);
+  }
+
+  return payload.access_token;
 }
 
 module.exports = async function (context, req) {
@@ -677,6 +748,15 @@ module.exports = async function (context, req) {
     );
   }
 
+  const oboInput = getOboInputToken(req);
+  if (!oboInput) {
+    return send(
+      context,
+      401,
+      errorBody("UNAUTHORIZED", "Missing delegated token input.", 401)
+    );
+  }
+
   let body;
   try {
     body = parseBody(req);
@@ -701,7 +781,7 @@ module.exports = async function (context, req) {
   const systemPrompt = typeof body.system === "string" ? body.system : null;
 
   try {
-    const token = await getFoundryToken();
+    const token = await exchangeFoundryToken(oboInput.token);
 
     const upstreamPayload = JSON.stringify({
       model: FOUNDRY_DEPLOYMENT,
@@ -814,13 +894,12 @@ curl -sS -w "\n---HTTP %{http_code}---\n" -X POST "https://vaultgpt-func-premium
 ```
 **Asserted response:** HTTP 200; body `data.content[0].type == "text"`, `data.content[0].text == "ok"`, `data.role == "assistant"`, `data.stop_reason` present, envelope `meta.version == "1.0"`. (401 ⇒ Easy-Auth token/scope; 500 "not configured" ⇒ missing app settings; 502 ⇒ Foundry MI/role/endpoint — check G-1.)
 
-## DEPLOY — Walter deploy steps (no SQL; copy-paste handler)
-1. Create the Azure Function `theo_message` (HTTP trigger); paste §HG.3 `index.js` and §HG.4 `function.json` verbatim into the Azure portal UI.
-2. Function App → **Identity** → enable **system-assigned managed identity**.
-3. On `vaultgpt-foundry` → Access control (IAM) → add role assignment **`Cognitive Services User`** → assign to the Function App's managed identity.
-4. Function App → **Configuration** → app settings: `THEO_FOUNDRY_BASE=https://vaultgpt-foundry.services.ai.azure.com`, `THEO_FOUNDRY_DEPLOYMENT=claude-sonnet-4-6`.
-5. Ensure `@azure/identity` is in the Functions app `package.json` dependencies (npm install on deploy).
-6. Confirm deploy; notify Claude Code to run §CURL.
+## DEPLOY — Walter deploy steps (no SQL; no dependency; copy-paste handler)
+1. Create the Azure Function `theo_message` (HTTP trigger); paste §HG.3 `index.js` and §HG.4 `function.json` verbatim into the Azure portal UI. **No npm dependency** — the handler uses only built-in `https` (the `@azure/identity` SDK is gone).
+2. **App settings** (Function App → Configuration): `THEO_FOUNDRY_BASE=https://vaultgpt-foundry.services.ai.azure.com`, `THEO_FOUNDRY_DEPLOYMENT=claude-sonnet-4-6`. Confirm the existing OBO settings used by the working reporting handlers are present: `AAD_TENANT_ID`, `AAD_CLIENT_ID`, `AAD_CLIENT_SECRET`.
+3. **Foundry access for the signed-in user:** the OBO exchange yields a *delegated* token, so the calling user needs **`Cognitive Services User`** on `vaultgpt-foundry` (Walter, as Owner, already passed the B0 user-token test). No Function managed-identity step.
+4. **OBO consent (if needed):** if the token exchange returns an AADSTS consent/permission error, grant the app registration (`AAD_CLIENT_ID`) permission/consent to the Foundry resource (`https://ai.azure.com`). The handler surfaces the exact AADSTS message on failure.
+5. Confirm deploy; notify Claude Code to run §CURL.
 
 ## P8 — VEP assembly + mechanical lint
 GCR + Rule Anchor Table open the pack; P1–P8 walked (P3/P6 explicit N/A — stateless, no schema/SQL); Gap Register present; Structural Mirror + verbatim Primary Reference + complete handler/function.json + golden curl included; T40 boundary clean (no `reporting_*`/`theo_*` access). Mechanical lint (Conformance §10 T24):

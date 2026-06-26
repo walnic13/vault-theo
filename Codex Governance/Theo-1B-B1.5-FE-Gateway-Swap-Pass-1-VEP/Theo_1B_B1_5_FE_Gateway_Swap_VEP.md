@@ -6,9 +6,12 @@
 
 ## GROUNDING CONFORMANCE RECEIPT
 Role: Claude Code
-Turn-type: Pass 1 — Frontend Verified Evidence Pack
+Turn Type: Verified Evidence Pack (frontend plan)
 Turn issued against HEAD: `966dafd94571a53b48d9f6dacfe1f71414f3e5ea` (vault-theo, `development`)
-Grounding mode: Full Baseline Grounding (Conformance §4, Claude Code | Pass 1 — Frontend Verified Evidence Pack)
+Grounding Mode: Full Baseline Grounding
+Pass: Pass 1
+Sub-phase Track: N/A
+Detail: Pass 1 — Frontend Verified Evidence Pack (FE Conformance §4 FE matrix). The frontend sub-phases F-P1…F-P7 are walked in the body; the backend P/I/E sub-phase track does not apply to a frontend VEP → `N/A`.
 Currency anchors: blob SHA (captured this turn via `git rev-parse HEAD:<path>`) per Conformance §8 fallback (structural/region reads); independently verifiable via `git cat-file -p <sha>`.
 
 | # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
@@ -29,17 +32,17 @@ No ChatGPT advisory cited (§4D / T18). No `corporate-reporting`/`reporting_*` c
 
 ---
 
-## RULE ANCHORS
+## Rule Anchor Table
 
-| # | Source doc | Clause id | Verbatim clause text | Applied in output at |
-| - | ---------- | --------- | -------------------- | -------------------- |
-| 1 | Theo Phase 1B Backend Plan | §7 Tier B1.5 | "point the 1A chat contract in the single service module from the mock at the live `/api/theo_message` (mock→live swap, no surface change); redeploy" | §F-P1 microstep |
-| 2 | Theo Golden Component Pack Standard | §5 | "wiring an inline call to the service-module/gateway abstraction; replacing in-memory stand-ins with the contracts module" | §F-P2; CCT TC-1/TC-2 = ALLOWED DELTA |
-| 3 | Theo Golden Component Pack Standard | §5 | "a CSS / inline-style change that does not alter the rendered surface is an allowed delta" | §F-P2 (no rendered-surface change) |
-| 4 | Theo API Spec | §2.1 | "response `content[]` filtered to" | §F-P3 (response mapping); CCT TC-2 |
-| 5 | Claude Code Theo FE Governor Standard | §6 (3) | "No `localStorage` / `sessionStorage`; 1A state is React/in-memory." | §F-P6 guardrails |
-| 6 | Claude Code Theo FE Governor Standard | §6 (1) | "The model call routes through a gateway abstraction" | §F-P2; CCT (live gateway behind the same abstraction) |
-| 7 | Theo Golden Component Pack Standard | §3 | "A row missing any of the three locked surfaces is invalid (T20)." | §F-P5 (CCT rows) |
+| Source doc (repo-relative path) | Clause id | Verbatim clause text | Applied in output at |
+| ------------------------------- | --------- | -------------------- | -------------------- |
+| governance/THEO_PHASE_1B_BACKEND_PLAN.md | §7 Tier B1.5 | "Point the 1A chat contract in the single service module from the mock at the live `/api/theo/message`" | §F-P1 microstep (route is `theo_message` per G-4; the plan's `/api/theo/message` is the pre-G-4 wording) |
+| governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md | §5 | "wiring an inline call to the service-module/gateway abstraction; replacing in-memory stand-ins with the contracts module" | §F-P2; CCT TC-1/TC-2 = ALLOWED DELTA |
+| governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md | §5 | "a CSS / inline-style change that does not alter the rendered surface is an allowed delta" | §F-P2 (no rendered-surface change) |
+| spec/THEO_API_SPEC.md | §2.1 | "response `content[]` filtered to" | §F-P3 (response mapping); CCT TC-2 |
+| governance/CLAUDE_CODE_THEO_FRONTEND_GOVERNOR_STANDARD.md | §6 (3) | "No `localStorage` / `sessionStorage`; 1A state is React/in-memory." | §F-P6 guardrails |
+| governance/CLAUDE_CODE_THEO_FRONTEND_GOVERNOR_STANDARD.md | §6 (1) | "The model call routes through a gateway abstraction" | §F-P2; CCT (live gateway behind the same abstraction) |
+| governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md | §3 | "A row missing any of the three locked surfaces is invalid (T20)." | §F-P5 (CCT rows) |
 
 ---
 
@@ -85,6 +88,14 @@ Targets read this turn, ACTIVE @ vault-theo `966dafd`: `theoClient.ts` (modify i
 
 ## F-P7 — VEP assembly
 GCR (§3) + Rule Anchors (§5) open the pack; F-P1→F-P6 walked; Gap Disclosure present; CCT locked (1 ACTIVE + 1 GREENFIELD). No implementation begun. On Codex APPROVAL, Pass 3 adds `gateway.live.ts` + repoints `theoClient`'s import, verified `tsc`/`build` green; Walter redeploys the Origin SWA → **live Claude in the Theo surface** (Walter SWA acceptance = Visual Acceptance Evidence).
+
+## Mechanical lint (Conformance T24)
+```
+$ node tools/lint_microstep_submission.mjs "Codex Governance/Theo-1B-B1.5-FE-Gateway-Swap-Pass-1-VEP/Theo_1B_B1_5_FE_Gateway_Swap_VEP.md" --repo-root .
+PASS  Codex Governance/Theo-1B-B1.5-FE-Gateway-Swap-Pass-1-VEP/Theo_1B_B1_5_FE_Gateway_Swap_VEP.md
+exit code: 0
+```
+(Codex re-runs the same command per its §1A hard gates.)
 
 **Requested Pass 2 verdict:** Codex APPROVED or REJECTED.
 

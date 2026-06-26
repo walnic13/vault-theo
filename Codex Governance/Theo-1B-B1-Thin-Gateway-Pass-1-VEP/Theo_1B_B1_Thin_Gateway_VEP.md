@@ -10,7 +10,7 @@ Grounding Mode: Delta Grounding
 Pass: Pass 1
 Sub-phase Track: P8
 
-Delta scope (Conformance §3 rule 8): rejected prior artifact = this VEP at `54ebec737756fc984e3910b6e953e59679b9b9f4`; inbound Codex verdict = **REJECTED on T9** (§HG.1 helper functions were reformatted/compressed and `isUuid` omitted — not byte-for-byte verbatim). Affected section = **§HG.1 only**: the complete `reporting_probe_dms_connection` handler (blob `e415e802874f5416e4da0098b34721a1e9bfdc3f`) is **re-read in full this turn** and the entire §HG.1 code block is spliced **byte-for-byte identical** to the source (verified by `diff` against the source file → no difference; all 379 lines present, including `isUuid`). The other GCR-listed documents were read at the Full-Baseline pack `787a9a3` (same session); `787a9a3..de43df1` adds only this package, so their state is unchanged at the current HEAD and is carried forward. The Rule Anchor Table, §HG.3/§HG.4 B1 artifacts, §SM, §WA, §CURL, §DEPLOY, and the sub-phase walk are unchanged.
+Delta scope (Conformance §3 rule 8): this reissue carries two mirror-fidelity corrections, both narrow. **(1)** Prior Codex **T9** on §HG.1 (helpers reformatted, `isUuid` omitted): §HG.1 now inlines the complete `reporting_probe_dms_connection` source (blob `e415e802874f5416e4da0098b34721a1e9bfdc3f`) **byte-for-byte identical** (re-read full this turn; `diff` against source → no difference, all 379 lines incl. `isUuid`). **(2)** Walter pre-deploy review found the **§HG.3** `theo_message` handler's shared Family-B helpers reformatted/compressed and **§HG.4** `function.json` not in the deployed multi-line shape: §HG.3's 10 shared helpers (`send`/`nowIso`/`errorBody`/`successBody`/`getPrincipal`/`getClaimValue`/`parseBody`/`buildKnownError`/`parseJsonSafe`/`requestUrl`) are now **byte-identical to the deployed `reporting_probe_dms_connection`** (programmatically verified this turn, 10/10), `corsHeaders` differs only in the `Methods` value (the documented endpoint delta), and §HG.4 now matches the deployed binding shape exactly except `methods`/`route`. **No handler logic changed.** The deploy artifacts (`api/theo_message/index.js`, `function.json`) are byte-equal to §HG.3/§HG.4. All other GCR documents were read at the Full-Baseline pack `787a9a3` (same session, unchanged at current HEAD); the Rule Anchor Table, §WA, §CURL, §DEPLOY, and the sub-phase walk are unchanged.
 Cross-repo reference HEAD: corporate-reporting `eafa2b3b7ac76a0fc1886651ccc0600e748b0800` (Primary Reference handler source).
 Currency anchors: per Conformance §8 fallback, the blob SHA (obtained via `git rev-parse HEAD:<path>`) is given for each row — region reads of code/structural docs; independently verifiable via `git cat-file -p <sha>`. Row 10 (`reporting_probe_dms_connection.index.js.md`) was re-read in full this turn for the T9 correction.
 
@@ -79,13 +79,16 @@ Microstep: **Tier B1 — "Thin model gateway (HF-T1), stateless"** (Rule Anchor 
 ## SM — Structural Mirror Table
 | Region | Primary Reference (`reporting_probe_dms_connection`) | B1 `theo_message` | Classification |
 | --- | --- | --- | --- |
-| CORS headers + `send`/`nowIso`/`errorBody`/`successBody` | present | identical (methods `POST, OPTIONS`) | EXACT (method list = endpoint delta, Golden §4) |
-| `getPrincipal` / `getClaimValue` + OID resolution + 401 | present | identical | EXACT |
-| `parseBody` / `parseJsonSafe` / `buildKnownError` / `requestUrl` (raw https helper) | present | identical | EXACT |
+| `corsHeaders` | present | **byte-identical except** the `Allow-Methods` value (`POST, OPTIONS` vs `GET, OPTIONS`) | EXACT-but-method-value (endpoint delta, Golden §4) |
+| `send` / `nowIso` / `errorBody` / `successBody` | present | **byte-identical** (verified) | EXACT |
+| `getPrincipal` / `getClaimValue` + OID resolution + 401 | present | **byte-identical** (verified) | EXACT |
+| `parseBody` / `parseJsonSafe` / `buildKnownError` / `requestUrl` (raw https helper) | present | **byte-identical** (verified) | EXACT |
 | OPTIONS → 204 | present | identical | EXACT |
 | Postgres `Pool` + `set_config` session + transaction | present | **omitted** (stateless; no DB in B1) | ALLOWED DELTA — removed RLS-scoped query (Golden §4; persistence is B3) |
 | OBO token exchange + Graph calls (`exchangeGraphToken`/`graphGetJson`/`getOboInputToken`) | present | **replaced** by managed-identity token + Foundry Messages call | ALLOWED DELTA — new-external-system helper, **Walter-authorized** (Golden §4 / Conformance T12; see §WA) |
 | input validation (`messages[]`) + final envelope | present (probe shape) | Anthropic-request validation + `content[]`-filtered envelope | ALLOWED DELTA — validated field set + response shape (Golden §4) |
+
+**Byte-identity verification (this turn):** the 10 shared helpers in §HG.3 (`send`, `nowIso`, `errorBody`, `successBody`, `getPrincipal`, `getClaimValue`, `parseBody`, `buildKnownError`, `parseJsonSafe`, `requestUrl`) were extracted and compared against `reporting_probe_dms_connection.index.js.md` → **10/10 byte-identical**. `corsHeaders` differs only in the `Allow-Methods` value. `function.json` (§HG.4) was compared against the deployed `reporting_probe_dms_connection.function.json.md` → same bindings/keys, identical `out` binding, differing only in `methods` + `route`. The dropped regions (`pg` `Pool`/`pool`/`set_config`/transaction, `TARGET_SITE_ID`, `isUuid`, OBO/Graph helpers) are the ALLOWED-DELTA removals above (no DB / no Graph in the stateless gateway).
 
 ## WA — Walter authorization (Conformance §10 T12 / Golden §4) — quoted verbatim, predating this VEP
 Walter, 2026-06-26 (this work thread), authorizing the Foundry model-gateway build and its external-system call:
@@ -497,9 +500,8 @@ module.exports = async function (context, req) {
 const https = require("https");
 const { DefaultAzureCredential } = require("@azure/identity");
 
-// Model gateway config (Function App settings; see §DEPLOY).
-const FOUNDRY_BASE = process.env.THEO_FOUNDRY_BASE;             // e.g. https://vaultgpt-foundry.services.ai.azure.com
-const FOUNDRY_DEPLOYMENT = process.env.THEO_FOUNDRY_DEPLOYMENT; // e.g. claude-sonnet-4-6
+const FOUNDRY_BASE = process.env.THEO_FOUNDRY_BASE;
+const FOUNDRY_DEPLOYMENT = process.env.THEO_FOUNDRY_DEPLOYMENT;
 const FOUNDRY_SCOPE = "https://ai.azure.com/.default";
 const ANTHROPIC_VERSION = "2023-06-01";
 const DEFAULT_MAX_TOKENS = 4096;
@@ -513,64 +515,129 @@ const corsHeaders = {
 function send(context, status, body) {
   context.res = {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+    },
     body,
   };
 }
-function nowIso() { return new Date().toISOString(); }
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
 function errorBody(code, message, status) {
-  return { error: { code, message, status, timestamp: nowIso() } };
+  return {
+    error: {
+      code,
+      message,
+      status,
+      timestamp: nowIso(),
+    },
+  };
 }
+
 function successBody(data) {
-  return { data, meta: { timestamp: nowIso(), version: "1.0" } };
+  return {
+    data,
+    meta: {
+      timestamp: nowIso(),
+      version: "1.0",
+    },
+  };
 }
+
 function getPrincipal(req) {
   const raw = req.headers["x-ms-client-principal"];
   if (!raw || typeof raw !== "string") return null;
-  try { return JSON.parse(Buffer.from(raw, "base64").toString("utf8")); } catch { return null; }
+
+  try {
+    return JSON.parse(Buffer.from(raw, "base64").toString("utf8"));
+  } catch {
+    return null;
+  }
 }
+
 function getClaimValue(principal, claimTypes) {
   if (!principal || !Array.isArray(principal.claims)) return null;
+
   for (const claimType of claimTypes) {
     const match = principal.claims.find((c) => c.typ === claimType);
-    if (match && typeof match.val === "string" && match.val.trim() !== "") return match.val.trim();
+    if (match && typeof match.val === "string" && match.val.trim() !== "") {
+      return match.val.trim();
+    }
   }
+
   return null;
 }
+
 function parseBody(req) {
   if (req.body == null) return {};
-  if (typeof req.body === "string") return JSON.parse(req.body);
-  if (typeof req.body === "object") return req.body;
+  if (typeof req.body === "string") {
+    return JSON.parse(req.body);
+  }
+  if (typeof req.body === "object") {
+    return req.body;
+  }
   return {};
 }
+
 function buildKnownError(code, message, status) {
-  const err = new Error(message); err.code = code; err.status = status; err.isKnown = true; return err;
+  const err = new Error(message);
+  err.code = code;
+  err.status = status;
+  err.isKnown = true;
+  return err;
 }
+
 function parseJsonSafe(raw) {
   if (typeof raw !== "string" || raw.trim() === "") return null;
-  try { return JSON.parse(raw); } catch { return null; }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
+
 function requestUrl(urlStr, options = {}, body = null) {
   return new Promise((resolve, reject) => {
     const url = new URL(urlStr);
-    const req = https.request({
-      method: options.method || "GET",
-      hostname: url.hostname,
-      port: url.port ? Number(url.port) : 443,
-      path: url.pathname + url.search,
-      headers: options.headers || {},
-    }, (res) => {
-      let data = "";
-      res.on("data", (chunk) => { data += chunk; });
-      res.on("end", () => resolve({ statusCode: res.statusCode || 0, headers: res.headers || {}, body: data }));
-    });
+
+    const req = https.request(
+      {
+        method: options.method || "GET",
+        hostname: url.hostname,
+        port: url.port ? Number(url.port) : 443,
+        path: url.pathname + url.search,
+        headers: options.headers || {},
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => {
+          data += chunk;
+        });
+        res.on("end", () => {
+          resolve({
+            statusCode: res.statusCode || 0,
+            headers: res.headers || {},
+            body: data,
+          });
+        });
+      }
+    );
+
     req.on("error", reject);
-    if (body) req.write(body);
+
+    if (body) {
+      req.write(body);
+    }
+
     req.end();
   });
 }
 
-// Single shared credential instance; uses the Function App's managed identity at runtime.
 const credential = new DefaultAzureCredential();
 
 async function getFoundryToken() {
@@ -592,28 +659,46 @@ module.exports = async function (context, req) {
     "oid",
     "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier",
   ]);
+
   if (!oid) {
-    return send(context, 401, errorBody("UNAUTHORIZED", "Missing or invalid EasyAuth identity.", 401));
+    return send(
+      context,
+      401,
+      errorBody("UNAUTHORIZED", "Missing or invalid EasyAuth identity.", 401)
+    );
   }
 
   if (!FOUNDRY_BASE || !FOUNDRY_DEPLOYMENT) {
     context.log.error("theo_message: missing gateway configuration");
-    return send(context, 500, errorBody("INTERNAL_SERVER_ERROR", "Model gateway is not configured.", 500));
+    return send(
+      context,
+      500,
+      errorBody("INTERNAL_SERVER_ERROR", "Model gateway is not configured.", 500)
+    );
   }
 
-  let parsedBody;
+  let body;
   try {
-    parsedBody = parseBody(req);
+    body = parseBody(req);
   } catch {
-    return send(context, 400, errorBody("BAD_REQUEST", "Request body is not valid JSON.", 400));
+    return send(
+      context,
+      400,
+      errorBody("BAD_REQUEST", "Request body is not valid JSON.", 400)
+    );
   }
 
-  const messages = parsedBody.messages;
+  const messages = body.messages;
   if (!Array.isArray(messages) || messages.length === 0) {
-    return send(context, 400, errorBody("BAD_REQUEST", "Field 'messages' must be a non-empty array.", 400));
+    return send(
+      context,
+      400,
+      errorBody("BAD_REQUEST", "Field 'messages' must be a non-empty array.", 400)
+    );
   }
-  const maxTokens = Number.isInteger(parsedBody.max_tokens) ? parsedBody.max_tokens : DEFAULT_MAX_TOKENS;
-  const systemPrompt = typeof parsedBody.system === "string" ? parsedBody.system : null;
+
+  const maxTokens = Number.isInteger(body.max_tokens) ? body.max_tokens : DEFAULT_MAX_TOKENS;
+  const systemPrompt = typeof body.system === "string" ? body.system : null;
 
   try {
     const token = await getFoundryToken();
@@ -632,7 +717,7 @@ module.exports = async function (context, req) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           "anthropic-version": ANTHROPIC_VERSION,
           "Content-Length": Buffer.byteLength(upstreamPayload),
         },
@@ -645,28 +730,50 @@ module.exports = async function (context, req) {
     if (upstream.statusCode < 200 || upstream.statusCode >= 300 || !parsed) {
       context.log.error("theo_message: gateway non-2xx", upstream.statusCode);
       if (upstream.statusCode === 429) {
-        return send(context, 429, errorBody("RATE_LIMITED", "Model gateway rate limit exceeded.", 429));
+        return send(
+          context,
+          429,
+          errorBody("RATE_LIMITED", "Model gateway rate limit exceeded.", 429)
+        );
       }
-      return send(context, 502, errorBody("BAD_GATEWAY", "Model gateway call failed.", 502));
+      return send(
+        context,
+        502,
+        errorBody("BAD_GATEWAY", "Model gateway call failed.", 502)
+      );
     }
 
     const textContent = Array.isArray(parsed.content)
       ? parsed.content.filter((b) => b && b.type === "text")
       : [];
 
-    return send(context, 200, successBody({
-      role: typeof parsed.role === "string" ? parsed.role : "assistant",
-      model: typeof parsed.model === "string" ? parsed.model : FOUNDRY_DEPLOYMENT,
-      content: textContent,
-      stop_reason: parsed.stop_reason != null ? parsed.stop_reason : null,
-      usage: parsed.usage != null ? parsed.usage : null,
-    }));
+    return send(
+      context,
+      200,
+      successBody({
+        role: typeof parsed.role === "string" ? parsed.role : "assistant",
+        model: typeof parsed.model === "string" ? parsed.model : FOUNDRY_DEPLOYMENT,
+        content: textContent,
+        stop_reason: parsed.stop_reason != null ? parsed.stop_reason : null,
+        usage: parsed.usage != null ? parsed.usage : null,
+      })
+    );
   } catch (err) {
     context.log.error("theo_message failed", err);
+
     if (err && err.isKnown === true && typeof err.status === "number" && typeof err.code === "string") {
-      return send(context, err.status, errorBody(err.code, err.message, err.status));
+      return send(
+        context,
+        err.status,
+        errorBody(err.code, err.message, err.status)
+      );
     }
-    return send(context, 500, errorBody("INTERNAL_SERVER_ERROR", "Failed to process message.", 500));
+
+    return send(
+      context,
+      500,
+      errorBody("INTERNAL_SERVER_ERROR", "Failed to process message.", 500)
+    );
   }
 };
 ```
@@ -675,8 +782,19 @@ module.exports = async function (context, req) {
 ```json
 {
   "bindings": [
-    { "authLevel": "anonymous", "type": "httpTrigger", "direction": "in", "name": "req", "methods": ["post", "options"], "route": "theo_message" },
-    { "type": "http", "direction": "out", "name": "res" }
+    {
+      "authLevel": "anonymous",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "req",
+      "methods": ["post", "options"],
+      "route": "theo_message"
+    },
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "res"
+    }
   ]
 }
 ```

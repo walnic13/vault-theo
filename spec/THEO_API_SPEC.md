@@ -21,7 +21,7 @@ Grouped by the 1A handover §2.3 contract list. Operation-level only at v0.1; re
 ### §2.1 Chat / model gateway — backs Chats surface
 | Contract | Shape | Status | Backing |
 |----------|-------|--------|---------|
-| Send message → assistant reply | Standard Anthropic Messages API (`model`, `max_tokens`, `system`, `messages[]`); response `content[]` filtered to `type:"text"`; artifact markers `[[ARTIFACT …]]` parsed client-side | `1A-contract` (mock gateway) / `1B-deployed` — **DEPLOYED 2026-06-26** (`POST /api/theo_message`) | HF-T1 model gateway broker |
+| Send message → assistant reply | Standard Anthropic Messages API (`model`, `max_tokens`, `system`, `messages[]`); response `content[]` filtered to `type:"text"`; `web_search`/`web_fetch` grounding (B1.7) may attach a `citations` array to text blocks — each entry `{ type:"web_search_result_location", url, title, cited_text, encrypted_index }` (additive, backward-compatible); artifact markers `[[ARTIFACT …]]` parsed client-side | `1A-contract` (mock gateway) / `1B-deployed` — **DEPLOYED 2026-06-26** (`POST /api/theo_message`) | HF-T1 model gateway broker |
 
 ### §2.2 Projects — backs Projects surface
 | Contract | Status | Backing |

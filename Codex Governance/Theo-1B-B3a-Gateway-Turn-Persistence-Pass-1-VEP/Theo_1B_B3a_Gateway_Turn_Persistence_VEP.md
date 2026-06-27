@@ -81,6 +81,7 @@ Primary Reference (Golden §2; Rule Anchor 4) = the **deployed `theo_message`** 
 | `require("https")`; FOUNDRY/ANTHROPIC consts; WEB_* grounding consts; `buildGroundingTools`; the 10 shared helpers (`send`…`requestUrl`); `getFoundryToken`; OPTIONS/EasyAuth-oid/config/body/messages validation; the Foundry call + non-2xx/429/502 handling + `textContent` filter | EXACT | byte-identical to §HG.1 (deployed `theo_message`) |
 | `require("pg")` + module `pool` (`POSTGRES_CONNECTION_STRING`, `ssl.rejectUnauthorized:false`); `TITLE_MAX_LEN` | ALLOWED DELTA | persistence pattern (deployed `reporting_create_entity`; Golden §4 + §WA) |
 | Persistence inputs (`requestedConversationId`/`appKey`/`appContext`/`userText`); `let client` | ALLOWED DELTA | B3a request contract (§P4) |
+| Family-B `isUuid` helper + early **400 validation** rejecting a non-UUID `conversation_id` **before** the Foundry call / any SQL | ALLOWED DELTA | input validation against the contract + spec status code (Golden Handler §line 23; canonical reporting `isUuid`); deterministic 400, no `$1::uuid` 500 fall-through (resolves T13) |
 | Persistence txn: `pool.connect()` → `BEGIN` → `set_config(oid)` → resolve/create `theo_conversations` (ownership SELECT + `theo_conversation_exists_unscoped` 403/404, else INSERT) → `seq` → INSERT user + assistant `theo_messages` → `UPDATE updated_at` → `COMMIT`; `catch` ROLLBACK + `42501`→403 + isKnown + 500; `finally` `client.release()` | ALLOWED DELTA | EXACT-mirror of the `reporting_create_entity` Family-B mutation pattern (GCR #12); writes deployed B2 objects under ownership RLS |
 | Success body gains `conversation_id` | ALLOWED DELTA | §P4 response contract |
 | `function.json` | EXACT | unchanged (§HG.4) |
@@ -449,7 +450,7 @@ module.exports = async function (context, req) {
 ```
 
 ### HG.3 — B3a handler to deploy (COMPLETE, copy-paste ready) — `api/theo_message/index.js`
-Delta vs §HG.1: `require("pg")` + `pool` + `TITLE_MAX_LEN`; persistence inputs; the persistence transaction (after a successful Foundry call); `conversation_id` in the response; `pg` error mapping in `catch`; `client.release()` in `finally`. Everything else byte-identical.
+Delta vs §HG.1: `require("pg")` + `pool` + `TITLE_MAX_LEN`; the Family-B `isUuid` helper + an **early 400 `conversation_id` UUID validation** (before the Foundry call / any SQL); persistence inputs; the persistence transaction (after a successful Foundry call); `conversation_id` in the response; `pg` error mapping in `catch`; `client.release()` in `finally`. Everything else byte-identical.
 ```js
 const https = require("https");
 const { Pool } = require("pg");
@@ -564,6 +565,13 @@ function buildKnownError(code, message, status) {
   err.status = status;
   err.isKnown = true;
   return err;
+}
+
+function isUuid(value) {
+  return (
+    typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+  );
 }
 
 function parseJsonSafe(raw) {
@@ -743,6 +751,14 @@ module.exports = async function (context, req) {
     .reverse()
     .find((m) => m && m.role === "user" && typeof m.content === "string");
   const userText = lastUser ? lastUser.content : "";
+
+  if (requestedConversationId !== null && !isUuid(requestedConversationId)) {
+    return send(
+      context,
+      400,
+      errorBody("BAD_REQUEST", "Field 'conversation_id' must be a valid UUID.", 400)
+    );
+  }
 
   let client = null;
   try {
@@ -957,8 +973,9 @@ Claude Code acquires a user token (`az account get-access-token --scope "api://<
 1. **New conversation** — POST `/api/theo_message` `{"max_tokens":256,"messages":[{"role":"user","content":"Say hello in one short sentence."}]}` → 200, `data.conversation_id` present.
 2. **Append to the same conversation** — POST again with `{"conversation_id":"<from #1>","messages":[…,{"role":"user","content":"And one more sentence."}]}` → 200, same `conversation_id`.
 3. **Persistence verification (read-only SQL)** — confirm the `theo_conversations` row + 4 ordered `theo_messages` (seq 0–3, alternating user/assistant) exist for the signed-in user.
-4. **Foreign conversation** — POST with a random `conversation_id` not owned → 404 (or 403 if it exists under another user).
-5. **Grounded turn** — a web_search prompt → 200, assistant message persisted with `citations` populated.
+4. **Foreign conversation** — POST with a random (valid-UUID) `conversation_id` not owned → 404 (or 403 if it exists under another user).
+5. **Malformed conversation_id** — POST with `{"conversation_id":"not-a-uuid","messages":[…]}` → **400 BAD_REQUEST** deterministically (no Foundry call, no 500 fall-through — T13).
+6. **Grounded turn** — a web_search prompt → 200, assistant message persisted with `citations` populated.
 
 ## DEPLOY — Walter deploy steps (handler only; no migration, no new dependency)
 1. Replace `api/theo_message/index.js` with §HG.3 in full (Azure Portal Code+Test / deploy pipeline). `function.json` unchanged.

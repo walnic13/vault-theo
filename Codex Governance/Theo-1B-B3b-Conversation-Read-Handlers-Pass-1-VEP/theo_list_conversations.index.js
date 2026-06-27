@@ -92,7 +92,8 @@ module.exports = async function (context, req) {
 
   let limit = DEFAULT_LIMIT;
   if (req.query && typeof req.query.limit === "string" && req.query.limit.trim() !== "") {
-    const n = parseInt(req.query.limit, 10);
+    const raw = req.query.limit.trim();
+    const n = /^[0-9]+$/.test(raw) ? parseInt(raw, 10) : NaN;
     if (!Number.isInteger(n) || n < 1 || n > MAX_LIMIT) {
       return send(context, 400, errorBody("INVALID_REQUEST", "Query parameter 'limit', when supplied, must be an integer 1..200.", 400));
     }

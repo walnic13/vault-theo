@@ -369,7 +369,8 @@ module.exports = async function (context, req) {
 
   let limit = DEFAULT_LIMIT;
   if (req.query && typeof req.query.limit === "string" && req.query.limit.trim() !== "") {
-    const n = parseInt(req.query.limit, 10);
+    const raw = req.query.limit.trim();
+    const n = /^[0-9]+$/.test(raw) ? parseInt(raw, 10) : NaN;
     if (!Number.isInteger(n) || n < 1 || n > MAX_LIMIT) {
       return send(context, 400, errorBody("INVALID_REQUEST", "Query parameter 'limit', when supplied, must be an integer 1..200.", 400));
     }
@@ -657,7 +658,7 @@ Claude Code acquires a user token (`az`; never printed); captures under `.local/
 2. **Get (read-back)** — `GET /api/theo_get_conversation?conversationId=00419de2-…` → 200, `data.conversation` + `data.messages[]` = **4 ordered messages** (seq 0–3, alternating user/assistant) — the per-row confirmation of B3a persistence.
 3. **Malformed id** — `?conversationId=not-a-uuid` → **400**.
 4. **Foreign id** — a valid-UUID not owned → **404** (or 403 if it exists under another user).
-5. **Limit validation** — `?limit=0` → **400**.
+5. **Limit validation** — `?limit=0` → **400**; and a malformed-but-parseable value `?limit=1.5` (also `7x`, `1abc`) → **400** (strict `^[0-9]+$` gate rejects before `parseInt` truncation).
 
 ## DEPLOY — Walter deploy steps (two new functions; no migration, no new dependency)
 1. Create function **`theo_list_conversations`** (folder under the app) with §HG.3 `index.js` + §HG.4 `function.json`.

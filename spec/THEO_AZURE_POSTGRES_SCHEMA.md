@@ -22,7 +22,7 @@ Filename / location: `spec/THEO_AZURE_POSTGRES_SCHEMA.md`.
 - Policies target `authenticated` and key on `auth.uid()` (= the Entra OID in `created_by`); session context set per request.
 - Default family: ownership-based (`created_by = auth.uid()`). Membership/sharing models are introduced only by explicit Walter-authorized schema update.
 
-## §3 Structural Table Set (DDL DEPLOYED — Tier B2, §5)
+## §3 Structural Table Set (DDL DEPLOYED — Tier B2 §5; Tier B7a §6)
 
 | Table | Purpose | Notes | Status |
 |-------|---------|-------|--------|
@@ -33,6 +33,7 @@ Filename / location: `spec/THEO_AZURE_POSTGRES_SCHEMA.md`.
 | `theo_artifacts` | Artifact record | Optional `conversation_id` / `project_id` (FK ON DELETE SET NULL); `title`, `type` (CHECK document/code/html), `current_version int`. | DEPLOYED — B2 (§5) |
 | `theo_artifact_versions` | Versioned artifact content | `artifact_id` FK ON DELETE CASCADE; `version_number` (UNIQUE per artifact); content via Blob pointer (`blob_container`/`blob_path`/`byte_size`/`content_type`). Immutable. | DEPLOYED — B2 (§5) |
 | `theo_user_settings` | Per-user style + custom instructions (Customize) | Text PK = Entra OID (`user_oid`); `style_key` (CHECK), `custom_instructions`. RLS keys on `user_oid = auth.uid()`. Prepended to system prompt. | DEPLOYED — B2 (§5) |
+| `theo_user_memory` | Distilled per-user memory (Memory Layer, option C) | `scope text` (`'user'`\|`'project'`), `project_id uuid NULL` FK→`theo_projects` ON DELETE CASCADE, `kind text`, `content text` (non-empty), `source_conversation_id uuid NULL` FK→`theo_conversations` ON DELETE SET NULL, `salience int`. CHECK: `scope='project'` iff `project_id` set. Mutable. Injected at system-prompt assembly. | DEPLOYED — B7a (§6) |
 | `theo_apps` / `theo_app_tools` *(candidate)* | Registry of apps + Theo-callable endpoints (backs the Tool Manifest) | May start as config rather than tables; 1B decides (architecture §9 open item 1). | CANDIDATE — 1B decision |
 
 `app_key` is **`text NULL` (no CHECK)** as deployed in B2 (Walter-approved 2026-06-27) — free-text, promotable to a CHECK-constrained closed set / FK'd app registry once the app set settles.
@@ -54,3 +55,11 @@ Theo tables are net-new and additively namespaced in the shared `vaultgpt` insta
 - Helpers (§1): `theo_<entity>_exists_unscoped(p_id uuid) RETURNS boolean LANGUAGE sql SECURITY DEFINER SET search_path = public` + `GRANT EXECUTE … TO authenticated`, for the four tables supporting individual update/delete (projects, conversations, project_knowledge, artifacts). Immutable + cascade-only tables and the upsert-by-PK settings table carry no helper.
 - Additive vs the §3 column sketch (Walter-approved 2026-06-27): `theo_messages.seq` (ordering key) + `theo_messages.citations jsonb` (web-grounding citations); Blob-pointer columns on `theo_artifact_versions` (content body) + `theo_project_knowledge` (large content) per D-5; `app_key text NULL` with no CHECK (free-text, promotable).
 - Boundary: no `reporting_*` object touched; the legacy `theo_users`/`conversations`/`chat_messages` tables are untouched (decommission is a separate Walter ops task).
+
+## §6 DEPLOYED DDL — Tier B7a (2026-06-28)
+
+**Status:** DEPLOYED + read-only-verified against `vaultgpt-postgres-prod` (schema `public`). Verification (catalog read-only): `theo_user_memory` present, RLS enabled with four `TO authenticated` policies keyed on `created_by = auth.uid()`; `theo_user_memory_exists_unscoped(uuid)` helper present; CHECKs — `content` non-empty, `scope IN ('user','project')`, and `scope='project'` iff `project_id IS NOT NULL`.
+
+**Canonical DDL (single source of truth):** `Codex Governance/Theo-1B-B7a-Memory-Substrate-Schema-Pass-1-VEP/b7a_migration.sql` (Codex-APPROVED at `631c9a54`); read-only verification `…/b7a_verify.sql`. Not duplicated here.
+
+**As-built specifics (mirrors the §5 ownership-RLS idiom):** `theo_user_memory` is the distilled per-user memory profile (Memory Layer option C). Columns: `scope text` (`'user'`|`'project'`), `project_id uuid NULL` FK→`theo_projects` ON DELETE CASCADE, `kind text`, `content text` (non-empty CHECK), `source_conversation_id uuid NULL` FK→`theo_conversations` ON DELETE SET NULL, `salience int`, plus `id`/`created_by`/`created_at`/`updated_at` per §1 (mutable — carries `updated_at`). Per-user isolation is ALSO enforced by explicit `created_by = $oid` predicates in the B7a CRUD handlers (the shared Functions connection role bypasses RLS — see the SEC user-isolation fix); RLS is the defence-in-depth second layer. Boundary: net-new additive table; no `reporting_*` touched.

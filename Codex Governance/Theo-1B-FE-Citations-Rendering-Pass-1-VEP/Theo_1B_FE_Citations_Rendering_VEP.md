@@ -7,7 +7,7 @@
 ## GROUNDING CONFORMANCE RECEIPT
 Role: Claude Code
 Turn Type: Verified Evidence Pack (frontend plan)
-Turn issued against HEAD: `a7d70bc6795641c5c508ad5177b9882398700194` (vault-theo, `development`)
+Turn issued against HEAD: `86ce982aaf0d3d478dbc961a5ec1b7019bc2f58e` (vault-theo, `development`)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A
@@ -21,11 +21,12 @@ Currency anchors: blob SHA (via `git rev-parse HEAD:<path>`); verifiable via `gi
 | 3 | Codex Theo FE Review Standard — `governance/CODEX_THEO_FRONTEND_REVIEW_STANDARD.md` (§1A hard gates) | `Read(offset=1, limit=40)` this turn | `e2b7e0ba91486371414da688ae3697f02a11e252` |
 | 4 | Theo Golden Component Pack Standard — `governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` (§3 CCT; §5 EXACT/structural mirror) | `Grep("structural mirror of the Primary Reference")` this turn | `0035a1d9fed103d07bf420b957c3727ec47fcc6b` |
 | 5 | Theo Phase 1A Frontend Plan — `governance/THEO_PHASE_1A_FRONTEND_PLAN.md` (§5 acceptance) | `Grep("Acceptance criteria")` this turn | `d125cbdc4048a0b4120d3682bc8ecb76db134219` |
-| 6 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 gateway response shape) | `Grep("response \`content[]\` filtered to")` this turn | `4a1d2433c111ad7861e69f6d36acf72b8ef3e1d5` |
+| 6 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 gateway response shape, incl. the documented `citations[]` clause) | `Grep("may attach a \`citations\` array to text blocks")` this turn | `b5bbd57e1544404ffe98d92fd33e98c8dc4f0289` |
 | 7 | **VA-T5 reference (reproduce)** — `artifacts/theo-citations-reference.jsx` | `Read(full, 1–193)` this turn | `030d69469e7e6c36a700d66e85696ba31158ea67` |
 | 8 | ACTIVE (modify) — `src/theo/types.ts` (`Message`/`GatewayResponse`; new `Citation`/`CitedRun`) | `Read(full)` this turn | `2cdcd75606f1af6d25d988aea4b461e33cb7b580` |
 | 9 | ACTIVE (modify) — `src/theo/useTheoState.ts` (the `send` flow → build runs) | `Read(full)` this turn | `d411ad4be413a65b71ecbdae638126ca531485b5` |
 | 10 | ACTIVE (modify) — `src/theo/components/ChatView.tsx` (assistant render) | `Read(full)` this turn | `9355548cb88cc7523376e40f60390ffa3486cb57` |
+| 11 | **VA-T1** reference surface (cited in CCT CC-3) — `frontend/theo-frontend-reference.jsx` | `Read(offset=1, limit=20)` this turn | `433f6236344f6e8bdbc49db85a53036427610fed` |
 
 No ChatGPT advisory cited (§4D / T18). No `corporate-reporting`/`reporting_*` change.
 
@@ -41,6 +42,7 @@ No ChatGPT advisory cited (§4D / T18). No `corporate-reporting`/`reporting_*` c
 | governance/CLAUDE_CODE_THEO_FRONTEND_GOVERNOR_STANDARD.md | §6 (3) | "1A state is React/in-memory" | §F-P6 — runs/citations carried in-memory on the `Message`; no `localStorage`/`sessionStorage` |
 | governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md | §3 | "A row missing any of the three locked surfaces is invalid (T20)." | §F-P5 — CCT rows carry prop interface + VA-id + contract dependency |
 | spec/THEO_API_SPEC.md | §2.1 | "response `content[]` filtered to" | §F-P3 — citations ride the `type:"text"` blocks the gateway returns |
+| spec/THEO_API_SPEC.md | §2.1 | "may attach a `citations` array to text blocks" | §F-P3 — the documented citation contract (locked via the API-Spec citations-shape Role-C); resolves T22 |
 
 ---
 
@@ -71,7 +73,7 @@ No `localStorage`/`sessionStorage`; no Tailwind; no `reporting_*`/`corporate-rep
 
 ## F-P3 — Backend / contract grounding
 - **Source (verified live):** gateway `data.content` = `type:"text"` blocks, each optionally carrying `citations: [{ type:"web_search_result_location", url, title, cited_text, encrypted_index }]`. Golden-curl-confirmed against the deployed handler — binding to these **real** fields (not the reference's `{url,title,cited_text}` placeholder).
-- **Client contract (widen, backward-compatible):** `GatewayResponse` content item gains optional `citations`. `gateway.live.ts` already returns the whole `data.content` array — **no gateway.live change**.
+- **Client contract (now documented in API Spec §2.1):** §2.1 documents the citation shape on text blocks — "may attach a `citations` array to text blocks" (locked via the API-Spec citations-shape Role-C; resolves T22). `GatewayResponse` content item gains optional `citations` to surface them; `gateway.live.ts` already returns the whole `data.content` array — **no gateway.live change**.
 - **Mapping (the real work):** in `send`, map each `type:"text"` block to a run `{ text: b.text ?? "", citations: (b.citations ?? []).map((c) => ({ url: c.url, title: c.title, cited_text: c.cited_text })) }`; preserve citation→span association exactly as returned (no re-aggregation that detaches a citation from its claim); sequential index across the message; attach `runs` to the assistant `Message` only when any run has citations.
 
 ## F-P4 — Component reference grounding

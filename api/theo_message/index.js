@@ -1,9 +1,11 @@
 const https = require("https");
+const { Pool } = require("pg");
 
 const FOUNDRY_BASE = process.env.THEO_FOUNDRY_BASE;
 const FOUNDRY_DEPLOYMENT = process.env.THEO_FOUNDRY_DEPLOYMENT;
 const ANTHROPIC_VERSION = "2023-06-01";
 const DEFAULT_MAX_TOKENS = 4096;
+const TITLE_MAX_LEN = 80;
 
 // Internet grounding — server-side Foundry-Claude tools (architecture §2.3; HF-T1 scope).
 const WEB_FETCH_BETA = "web-fetch-2025-09-10";
@@ -19,6 +21,12 @@ const WEB_FETCH_ALLOWED_DOMAINS = (process.env.THEO_WEB_FETCH_ALLOWED_DOMAINS ||
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+
+// Persistence pool (Family-B pattern; shared `vaultgpt` instance; connects as vaultgpt_app).
+const pool = new Pool({
+  connectionString: process.env.POSTGRES_CONNECTION_STRING,
+  ssl: { rejectUnauthorized: false },
+});
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -103,6 +111,13 @@ function buildKnownError(code, message, status) {
   err.status = status;
   err.isKnown = true;
   return err;
+}
+
+function isUuid(value) {
+  return (
+    typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+  );
 }
 
 function parseJsonSafe(raw) {
@@ -268,6 +283,30 @@ module.exports = async function (context, req) {
   const maxTokens = Number.isInteger(body.max_tokens) ? body.max_tokens : DEFAULT_MAX_TOKENS;
   const systemPrompt = typeof body.system === "string" ? body.system : null;
 
+  // B3 persistence inputs: optional conversation id + app-context anchor; the new user turn is
+  // the last user message in the submitted history.
+  const requestedConversationId =
+    typeof body.conversation_id === "string" && body.conversation_id.trim() !== ""
+      ? body.conversation_id.trim()
+      : null;
+  const appKey =
+    typeof body.app_key === "string" && body.app_key.trim() !== "" ? body.app_key.trim() : null;
+  const appContext =
+    body.app_context != null && typeof body.app_context === "object" ? body.app_context : null;
+  const lastUser = [...messages]
+    .reverse()
+    .find((m) => m && m.role === "user" && typeof m.content === "string");
+  const userText = lastUser ? lastUser.content : "";
+
+  if (requestedConversationId !== null && !isUuid(requestedConversationId)) {
+    return send(
+      context,
+      400,
+      errorBody("BAD_REQUEST", "Field 'conversation_id' must be a valid UUID.", 400)
+    );
+  }
+
+  let client = null;
   try {
     const token = await getFoundryToken();
 
@@ -316,20 +355,119 @@ module.exports = async function (context, req) {
     const textContent = Array.isArray(parsed.content)
       ? parsed.content.filter((b) => b && b.type === "text")
       : [];
+    const assistantModel = typeof parsed.model === "string" ? parsed.model : FOUNDRY_DEPLOYMENT;
+    const assistantText = textContent
+      .map((b) => (typeof b.text === "string" ? b.text : ""))
+      .join("");
+    const assistantCitations = textContent.flatMap((b) =>
+      Array.isArray(b.citations) ? b.citations : []
+    );
+
+    // ---- Persist the turn (HF-T2; ownership RLS; shared vaultgpt instance) ----
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    await client.query(
+      `
+      SELECT
+        set_config('app.current_user_id', $1, false),
+        set_config('request.jwt.claim.sub', $1, false),
+        set_config('request.jwt.claim.oid', $1, false)
+      `,
+      [oid]
+    );
+
+    let conversationId = requestedConversationId;
+    if (conversationId) {
+      const owned = await client.query(
+        `SELECT id FROM public.theo_conversations WHERE id = $1`,
+        [conversationId]
+      );
+      if (owned.rowCount === 0) {
+        const existsResult = await client.query(
+          `SELECT public.theo_conversation_exists_unscoped($1::uuid) AS e`,
+          [conversationId]
+        );
+        const exists = existsResult.rows[0] && existsResult.rows[0].e === true;
+        throw exists
+          ? buildKnownError("FORBIDDEN", "You do not have access to this conversation.", 403)
+          : buildKnownError("NOT_FOUND", "Conversation not found.", 404);
+      }
+    } else {
+      const title = userText.trim().slice(0, TITLE_MAX_LEN) || "New chat";
+      const created = await client.query(
+        `
+        INSERT INTO public.theo_conversations (created_by, title, model, app_key, app_context)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id
+        `,
+        [oid, title, assistantModel, appKey, appContext != null ? JSON.stringify(appContext) : null]
+      );
+      conversationId = created.rows[0].id;
+    }
+
+    const seqResult = await client.query(
+      `SELECT count(*)::int AS n FROM public.theo_messages WHERE conversation_id = $1`,
+      [conversationId]
+    );
+    const baseSeq = seqResult.rows[0].n;
+
+    await client.query(
+      `
+      INSERT INTO public.theo_messages (created_by, conversation_id, seq, role, content, model)
+      VALUES ($1, $2, $3, 'user', $4, NULL)
+      `,
+      [oid, conversationId, baseSeq, userText]
+    );
+
+    await client.query(
+      `
+      INSERT INTO public.theo_messages (created_by, conversation_id, seq, role, content, model, citations)
+      VALUES ($1, $2, $3, 'assistant', $4, $5, $6)
+      `,
+      [
+        oid,
+        conversationId,
+        baseSeq + 1,
+        assistantText,
+        assistantModel,
+        assistantCitations.length ? JSON.stringify(assistantCitations) : null,
+      ]
+    );
+
+    await client.query(
+      `UPDATE public.theo_conversations SET updated_at = now() WHERE id = $1`,
+      [conversationId]
+    );
+
+    await client.query("COMMIT");
 
     return send(
       context,
       200,
       successBody({
+        conversation_id: conversationId,
         role: typeof parsed.role === "string" ? parsed.role : "assistant",
-        model: typeof parsed.model === "string" ? parsed.model : FOUNDRY_DEPLOYMENT,
+        model: assistantModel,
         content: textContent,
         stop_reason: parsed.stop_reason != null ? parsed.stop_reason : null,
         usage: parsed.usage != null ? parsed.usage : null,
       })
     );
   } catch (err) {
+    if (client) {
+      try { await client.query("ROLLBACK"); } catch {}
+    }
+
     context.log.error("theo_message failed", err);
+
+    if (err && err.code === "42501") {
+      return send(
+        context,
+        403,
+        errorBody("FORBIDDEN", "You do not have permission for this conversation.", 403)
+      );
+    }
 
     if (err && err.isKnown === true && typeof err.status === "number" && typeof err.code === "string") {
       return send(
@@ -344,5 +482,9 @@ module.exports = async function (context, req) {
       500,
       errorBody("INTERNAL_SERVER_ERROR", "Failed to process message.", 500)
     );
+  } finally {
+    if (client) {
+      client.release();
+    }
   }
 };

@@ -4,9 +4,11 @@ import type { ReactNode } from "react";
 import { C, MONO } from "../theme";
 
 export function inline(s: string): ReactNode {
-  return s.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).filter(Boolean).map((p, i) => {
+  return s.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g).filter(Boolean).map((p, i) => {
     if (/^\*\*[^*]+\*\*$/.test(p)) return <strong key={i} style={{ fontWeight: 650 }}>{p.slice(2, -2)}</strong>;
     if (/^`[^`]+`$/.test(p)) return <code key={i} style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 5, padding: "1px 5px", fontSize: "0.9em", fontFamily: MONO }}>{p.slice(1, -1)}</code>;
+    const lm = p.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (lm) return <a key={i} href={lm[2]} target="_blank" rel="noopener noreferrer" style={{ color: C.coral, textDecoration: "underline" }}>{lm[1]}</a>;
     return <span key={i}>{p}</span>;
   });
 }

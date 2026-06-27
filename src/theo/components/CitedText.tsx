@@ -7,6 +7,7 @@
 // fallback); (G-2) viewport-edge collision handling for the source card.
 import { useState, useRef, useLayoutEffect } from "react";
 import { C, SANS } from "../theme";
+import { inline, Formatted } from "../lib/markdown";
 import type { Citation, CitedRun } from "../types";
 
 function hostOf(url: string): string {
@@ -139,16 +140,22 @@ function CitationMarker({ index, citation }: { index: number; citation: Citation
 export function CitedText({ runs, startIndex = 1 }: { runs: CitedRun[]; startIndex?: number }) {
   let n = startIndex - 1;
   return (
-    <span style={{ fontFamily: SANS, fontSize: 15, lineHeight: 1.7, color: C.ink, whiteSpace: "pre-wrap" }}>
-      {runs.map((run, ri) => (
-        <span key={ri}>
-          {run.text}
-          {(run.citations || []).map((cit) => {
-            n += 1;
-            return <CitationMarker key={`${ri}-${n}`} index={n} citation={cit} />;
-          })}
-        </span>
-      ))}
-    </span>
+    <div style={{ fontFamily: SANS, fontSize: 15, lineHeight: 1.7, color: C.ink }}>
+      {runs.map((run, ri) => {
+        const cites = run.citations || [];
+        // Non-cited runs: full block markdown (lists/paragraphs/headings/links/bold).
+        if (cites.length === 0) return <Formatted key={ri} text={run.text} />;
+        // Cited runs: inline markdown (bold/code/links) + the trailing citation chips, inline.
+        return (
+          <span key={ri} style={{ whiteSpace: "pre-wrap" }}>
+            {inline(run.text)}
+            {cites.map((cit) => {
+              n += 1;
+              return <CitationMarker key={`${ri}-${n}`} index={n} citation={cit} />;
+            })}
+          </span>
+        );
+      })}
+    </div>
   );
 }

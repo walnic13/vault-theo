@@ -2,7 +2,11 @@
 import type { JSX } from "react";
 
 export type Role = "user" | "assistant";
-export interface Message { role: Role; content: string }
+// Web-grounding citation (from the gateway's web_search/web_fetch text blocks; API Spec §2.1).
+export interface Citation { url: string; title: string; cited_text?: string }
+// A cited span: a run of assistant text followed by the citations attached to it.
+export interface CitedRun { text: string; citations: Citation[] }
+export interface Message { role: Role; content: string; runs?: CitedRun[] }
 
 export interface Knowledge { id: string; title: string; content: string }
 export interface Project {
@@ -28,7 +32,7 @@ export interface NpDraft { name: string; desc: string; instructions: string }
 export interface KDraft { title: string; content: string }
 
 export interface GatewayRequest { model: string; max_tokens: number; system: string; messages: Message[] }
-export interface GatewayResponse { content: { type: string; text?: string }[] }
+export interface GatewayResponse { content: { type: string; text?: string; citations?: { url?: string; title?: string; cited_text?: string }[] }[] }
 
 export interface Settings { styleKey: StyleKey; custom: string }
 

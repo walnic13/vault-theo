@@ -58,10 +58,17 @@ export function useTheoState() {
         model: MODEL, max_tokens: 1500, system: buildSystemPrompt(styleKey, custom, chatProject),
         messages: next.map((m) => ({ role: m.role, content: stripArtifactRefs(m.content) })),
       });
-      const reply = (res.content || []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("\n").trim();
+      const blocks = (res.content || []).filter((b) => b.type === "text");
+      const reply = blocks.map((b) => b.text ?? "").join("\n").trim();
+      // Map each text block to a cited run, preserving citation→span association as returned.
+      const runs = blocks.map((b) => ({
+        text: b.text ?? "",
+        citations: (b.citations ?? []).map((c) => ({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text })),
+      }));
+      const hasCites = runs.some((r) => r.citations.length > 0);
       const { display, openId } = theoClient.ingestReply(reply);
       setArtifacts(theoClient.listArtifacts());
-      setMessages((m) => [...m, { role: "assistant", content: display }]);
+      setMessages((m) => [...m, { role: "assistant", content: display, ...(hasCites ? { runs } : {}) }]);
       if (openId) setOpenArt({ id: openId, v: -1 });
     } catch {
       setError("Couldn't reach the assistant. Try again.");

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { C, SANS, SERIF } from "../theme";
 import { Burst } from "./icons";
+import { CitedText } from "./CitedText";
 import type { Message, Project } from "../types";
 
 export interface ChatViewProps {
@@ -49,7 +50,7 @@ export function ChatView(props: ChatViewProps) {
             ) : (
               <div key={i} style={{ display: "flex", gap: 13, margin: "0 0 26px" }}>
                 <div style={{ marginTop: 2, flexShrink: 0 }}><Burst size={22} /></div>
-                <div style={{ fontSize: 15, paddingTop: 1, minWidth: 0, flex: 1 }}>{renderAssistant(m.content)}</div>
+                <div style={{ fontSize: 15, paddingTop: 1, minWidth: 0, flex: 1 }}>{m.runs?.some((r) => r.citations.length) ? <CitedText runs={m.runs} /> : renderAssistant(m.content)}</div>
               </div>
             ))}
             {loading && (<div style={{ display: "flex", gap: 13, margin: "0 0 26px" }}>

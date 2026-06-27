@@ -1,10 +1,10 @@
 # Codex Governance Package — Theo 1B Frontend Citations Rendering — Pass 1 VEP
 
-- **Main artifact:** `Theo_1B_FE_Citations_Rendering_VEP.md` — full Pass-1 Frontend VEP (plan only).
+- **Main artifact:** `Theo_1B_FE_Citations_Rendering_VEP.md` — full Pass-1 Frontend VEP (plan only). **Reproduces VA-T5.**
 - **Pipeline:** Vault Theo frontend regime. Author = Claude Code (Pass 1). Reviewer = **Codex** (Pass 2).
-- **HEAD:** vault-theo `8e766829e380034d723a394485bec006952a31bb` (`development`).
-- **Microstep:** render B1.7's `web_search` citations as clickable **source chips** beneath assistant answers. The citation data already reaches the client (B1.7, golden-curl-verified); this adds the display.
-- **Scope:** 2 ACTIVE-modify rows — `ChatView` (render the chips) + `useTheoState` (collect citations in `send`); plus the `types.ts` contracts (`Citation` + `Message.citations?` + widened `GatewayResponse`). `gateway.live.ts` unchanged. No storage/Tailwind/route/`reporting_*` change.
-- **Classification:** additive **VISUAL-AUTHORITY-DEVIATION** on VA-T1 (a new surface element), Walter-authorized verbatim (§WA), styled in the existing `.vo-chip` vocabulary (no redesign). Chip row renders only when citations are present.
+- **HEAD:** vault-theo `a7d70bc6795641c5c508ad5177b9882398700194` (`development`).
+- **Microstep:** render B1.7's `web_search` citations as the Claude-style inline affordance, **faithfully reproducing VA-T5** (`artifacts/theo-citations-reference.jsx`, registered §4B). Citation data already reaches the client (B1.7, golden-curl-verified real fields); this adds the display.
+- **Scope:** 1 NEW component `CitedText`/`CitationMarker` (reproduces VA-T5) + `useTheoState` (build `{text,citations[]}` runs in `send`) + `ChatView` (render runs); `types.ts` contracts (`Citation`/`CitedRun` + `Message.runs?` + widened `GatewayResponse`). `gateway.live.ts` unchanged.
+- **Classification:** VISUAL-AUTHORITY-MATCH (reproduce VA-T5; structural mirror, Golden §5); additive to VA-T1. Two Pass-3 hardenings: viewport-edge collision (G-2) + graceful favicon→globe fallback (G-1, ships safe; CSP allowlist a fast-follow).
 - **Lint:** `tools/lint_microstep_submission.mjs … --repo-root .` → PASS (exit 0).
 - **Requested verdict:** Codex APPROVED or REJECTED.

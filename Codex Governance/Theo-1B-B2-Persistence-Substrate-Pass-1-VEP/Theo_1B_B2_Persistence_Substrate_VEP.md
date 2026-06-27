@@ -25,7 +25,7 @@ Currency anchors: blob SHA via `git rev-parse HEAD:<path>`; verifiable via `git 
 | 7 | **Data-truth owner** — Theo Azure Postgres Schema — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` (§1 conventions; §2 RLS; §3 table set) | `Read(full)` this turn | `32edb90e396c0cf1efd3c4659d7818ae01dccad3` |
 | 8 | Theo Architecture and Structure — `governance/THEO_ARCHITECTURE_AND_STRUCTURE.md` (§5 schema/RLS) | `Grep("ownership-based" / "RLS ENABLED" / "set_config")` this turn | `07451ce9d912830b3c15fedf74761d00c59f97b2` |
 | 9 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 — the persisted message/citation shape) | `Grep("may attach a \`citations\` array to text blocks")` this turn | `b5bbd57e1544404ffe98d92fd33e98c8dc4f0289` |
-| 10 | Corporate-reporting RLS pattern (referenced mirror source, not forked) — `../corporate-reporting/REPORTING_AZURE_POSTGRES_SCHEMA.md` (§2 naming; §4 RLS; §5 helper) | structural recon this turn (4-policy DO-block + `_exists_unscoped` + `set_config` pattern) | referenced @ corporate-reporting `development` |
+| 10 | Corporate-reporting RLS pattern (referenced mirror source, not forked) — `../corporate-reporting/REPORTING_AZURE_POSTGRES_SCHEMA.md` (§2 naming; §3 session/`auth.uid()`; §4 RLS matrix; §5 helper) | `Read(offset=94, limit=252)` this turn (firsthand, §2–§5) | blob `02c7503f0afb1555085a408686edbbfab38aab1b` (corporate-reporting `38da0d6a722de6042ece0a6c5979b13dff7da736`; `git cat-file -p` verifiable) |
 
 No ChatGPT advisory cited (§4D / T18). No `reporting_*` table read/write (additive `theo_*` namespace only).
 

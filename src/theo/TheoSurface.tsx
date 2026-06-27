@@ -60,12 +60,15 @@ export interface TheoSurfaceProps {
 
 export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessToken }: TheoSurfaceProps) {
   const t = useTheoState();
-  const { ingestAppContext } = t;
+  const { ingestAppContext, loadRecents } = t;
 
-  // Wire the live model gateway to the shell's token provider (mock → live). Absent ⇒ stays on mock.
+  // Wire the live model gateway to the shell's token provider (mock → live), then load Recents.
+  // configureGateway is synchronous, so the subsequent listConversations call runs against the live
+  // gateway when a provider is present (mock fallback otherwise). loadRecents is useCallback-stable.
   useEffect(() => {
     theoClient.configureGateway({ getAccessToken: getAccessToken ?? null });
-  }, [getAccessToken]);
+    void loadRecents();
+  }, [getAccessToken, loadRecents]);
 
   // Sync inbound app-context into state (context-only; no fetch — VA-T3 §2.4).
   useEffect(() => {
@@ -75,7 +78,7 @@ export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessTo
   const nav = (
     <Sidebar
       collapsed={t.collapsed} onToggleCollapse={t.toggleCollapse} view={t.view} onNavigate={t.go} nav={NAV}
-      search={t.search} onSearch={t.setSearch} recents={t.recents} onSelectRecent={() => t.go("chats")}
+      search={t.search} onSearch={t.setSearch} recents={t.recents} onSelectRecent={t.selectRecent}
       onNewChat={t.newChat} workspaceName={WORKSPACE_NAME} productName={PRODUCT_NAME}
       fluid={!!(navSlot && mainSlot)}
     />

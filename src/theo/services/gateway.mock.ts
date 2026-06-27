@@ -3,7 +3,8 @@
 // STANDARD ANTHROPIC MESSAGES API shape, so the real Foundry-backed gateway (1B) drops in
 // behind this contract with no surface change. The real gateway is a vault-theo server-side
 // endpoint (e.g. POST /api/theo/message) holding Foundry creds via Entra managed identity.
-import type { GatewayRequest, GatewayResponse } from "../types";
+import type { ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse } from "../types";
+import { RECENTS } from "../data";
 
 export async function sendMessage(req: GatewayRequest): Promise<GatewayResponse> {
   const last = [...req.messages].reverse().find((m) => m.role === "user")?.content ?? "";
@@ -24,4 +25,25 @@ export async function sendMessage(req: GatewayRequest): Promise<GatewayResponse>
       `[[/ARTIFACT]]`;
   }
   return { content: [{ type: "text", text }] };
+}
+
+// B3b read fallbacks for the standalone dev harness (no Functions backend). listConversations
+// surfaces the static RECENTS seed as read-only summaries so the Recents rail is unchanged;
+// getConversation returns an empty transcript (the mock has no persistence).
+export async function listConversations(limit?: number): Promise<ConversationSummary[]> {
+  const n = typeof limit === "number" && limit > 0 ? limit : 50;
+  return RECENTS.slice(0, n).map((title, i) => ({
+    id: `mock-${i}`, title, model: null, project_id: null, app_key: null,
+    created_at: "", updated_at: "",
+  }));
+}
+
+export async function getConversation(id: string): Promise<ConversationDetail> {
+  return {
+    conversation: {
+      id, title: "Mock conversation", model: null, project_id: null, app_key: null,
+      created_at: "", updated_at: "", app_context: null,
+    },
+    messages: [],
+  };
 }

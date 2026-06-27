@@ -9,8 +9,8 @@
 //
 // Until a live backend is configured (no `VITE_FUNCTIONS_URL` and no `configureGateway` token/base),
 // this delegates to the in-repo 1A mock so the standalone vault-theo dev harness keeps working.
-import type { GatewayRequest, GatewayResponse } from "../types";
-import { sendMessage as mockSend } from "./gateway.mock";
+import type { ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse } from "../types";
+import { sendMessage as mockSend, listConversations as mockList, getConversation as mockGet } from "./gateway.mock";
 
 type TokenProvider = () => Promise<string | null>;
 
@@ -28,20 +28,28 @@ export function configureGateway(opts: { getAccessToken?: TokenProvider | null; 
   if (opts.baseUrl != null) apiBase = normalizeBase(opts.baseUrl);
 }
 
+// Auth headers for a live cross-origin call (Bearer = the shell's user identity token, not a model key).
+async function authHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (tokenProvider) {
+    const token = await tokenProvider();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 export async function sendMessage(req: GatewayRequest): Promise<GatewayResponse> {
   // No live backend wired (standalone dev harness) → preserve the 1A mock behavior unchanged.
   if (!apiBase && !tokenProvider) {
     return mockSend(req);
   }
 
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (tokenProvider) {
-    const token = await tokenProvider();
-    if (token) headers.Authorization = `Bearer ${token}`;
-  }
+  const headers = await authHeaders();
 
-  // GatewayRequest {model, max_tokens, system, messages} → body {max_tokens, system, messages}.
-  // The handler injects the configured model (THEO_FOUNDRY_DEPLOYMENT); the client's `model` is unused.
+  // GatewayRequest {model, max_tokens, system, messages, conversation_id?, app_key?, app_context?} →
+  // body {max_tokens, system, messages, conversation_id?, app_key?, app_context?}. The handler injects
+  // the configured model (THEO_FOUNDRY_DEPLOYMENT); the client's `model` is unused. conversation_id (B3a)
+  // appends to an existing thread when present; omit to start a new one.
   const res = await fetch(`${apiBase}/api/theo_message`, {
     method: "POST",
     credentials: "same-origin",
@@ -50,10 +58,15 @@ export async function sendMessage(req: GatewayRequest): Promise<GatewayResponse>
       max_tokens: req.max_tokens,
       system: req.system,
       messages: req.messages,
+      ...(req.conversation_id ? { conversation_id: req.conversation_id } : {}),
+      ...(req.app_key != null ? { app_key: req.app_key } : {}),
+      ...(req.app_context != null ? { app_context: req.app_context } : {}),
     }),
   });
 
-  let json: { data?: { content?: GatewayResponse["content"] }; error?: { message?: string } } | null = null;
+  let json:
+    | { data?: { content?: GatewayResponse["content"]; conversation_id?: string }; error?: { message?: string } }
+    | null = null;
   try {
     json = await res.json();
   } catch {
@@ -65,10 +78,63 @@ export async function sendMessage(req: GatewayRequest): Promise<GatewayResponse>
     throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
   }
 
-  // Success envelope `{ data: { content: [{type:"text", text}], … }, meta }` → GatewayResponse { content }.
+  // Success envelope `{ data: { content: [{type:"text", text}], conversation_id, … }, meta }`.
   const content = json?.data?.content;
   if (!Array.isArray(content)) {
     throw new Error("Theo gateway response missing data.content[].");
   }
-  return { content };
+  const conversation_id = typeof json?.data?.conversation_id === "string" ? json.data.conversation_id : undefined;
+  return { content, conversation_id };
+}
+
+// B3b — list the signed-in user's conversations (newest-first; backs Recents). Unconfigured → mock.
+export async function listConversations(limit?: number): Promise<ConversationSummary[]> {
+  if (!apiBase && !tokenProvider) {
+    return mockList(limit);
+  }
+  const headers = await authHeaders();
+  const query = limit != null ? `?limit=${encodeURIComponent(String(limit))}` : "";
+  const res = await fetch(`${apiBase}/api/theo_list_conversations${query}`, {
+    method: "GET",
+    credentials: "same-origin",
+    headers,
+  });
+
+  let json: { data?: { conversations?: ConversationSummary[] }; error?: { message?: string } } | null = null;
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`);
+  }
+  if (!res.ok) {
+    throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  }
+  return Array.isArray(json?.data?.conversations) ? json.data.conversations : [];
+}
+
+// B3b — fetch one conversation + its ordered messages (with persisted citations; backs reload). Unconfigured → mock.
+export async function getConversation(id: string): Promise<ConversationDetail> {
+  if (!apiBase && !tokenProvider) {
+    return mockGet(id);
+  }
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_get_conversation?conversationId=${encodeURIComponent(id)}`, {
+    method: "GET",
+    credentials: "same-origin",
+    headers,
+  });
+
+  let json: { data?: ConversationDetail; error?: { message?: string } } | null = null;
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`);
+  }
+  if (!res.ok) {
+    throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  }
+  if (!json?.data?.conversation || !Array.isArray(json.data.messages)) {
+    throw new Error("Theo gateway response missing data.conversation/messages.");
+  }
+  return json.data;
 }

@@ -31,8 +31,33 @@ export interface NavItem { key: View; label: string; Icon: IconComp }
 export interface NpDraft { name: string; desc: string; instructions: string }
 export interface KDraft { title: string; content: string }
 
-export interface GatewayRequest { model: string; max_tokens: number; system: string; messages: Message[] }
-export interface GatewayResponse { content: { type: string; text?: string; citations?: { url?: string; title?: string; cited_text?: string }[] }[] }
+export interface GatewayRequest {
+  model: string; max_tokens: number; system: string; messages: Message[];
+  conversation_id?: string;                          // B3a: omit to start a new thread
+  app_key?: string | null;                           // B3a: persisted on a new conversation
+  app_context?: Record<string, unknown> | null;      // B3a: opaque anchor (jsonb)
+}
+export interface GatewayResponse {
+  content: { type: string; text?: string; citations?: { url?: string; title?: string; cited_text?: string }[] }[];
+  conversation_id?: string;                          // B3a: server-assigned/echoed thread id
+}
+
+// Conversation history (B3b read endpoints; API Spec §2.1). Recents + reload.
+export interface ConversationSummary {
+  id: string; title: string; model: string | null;
+  project_id: string | null; app_key: string | null;
+  created_at: string; updated_at: string;
+}
+export interface PersistedMessage {
+  id: string; seq: number; role: Role; content: string;
+  model: string | null;
+  citations: { url?: string; title?: string; cited_text?: string }[] | null;
+  created_at: string;
+}
+export interface ConversationDetail {
+  conversation: ConversationSummary & { app_context?: Record<string, unknown> | null };
+  messages: PersistedMessage[];
+}
 
 export interface Settings { styleKey: StyleKey; custom: string }
 

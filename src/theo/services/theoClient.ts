@@ -4,11 +4,15 @@
 // swapped for a real `theo_*` API call with NO surface change. NO browser storage
 // (1A handover §2.5) — module memory only.
 import type {
-  AppContext, Artifact, GatewayRequest, GatewayResponse, KDraft, NpDraft, Project, Settings,
+  AppContext, Artifact, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
+  KDraft, NpDraft, Project, Settings,
 } from "../types";
 import { INIT_PROJECTS } from "../data";
 import { parseArtifacts, remapToIds, upsert } from "../lib/artifacts";
-import { sendMessage as gatewaySend, configureGateway as gatewayConfigure } from "./gateway.live";
+import {
+  sendMessage as gatewaySend, configureGateway as gatewayConfigure,
+  listConversations as gatewayList, getConversation as gatewayGet,
+} from "./gateway.live";
 
 let projects: Project[] = INIT_PROJECTS.map((p) => ({ ...p, knowledge: p.knowledge.slice() }));
 let artifacts: Artifact[] = [];
@@ -24,6 +28,14 @@ export const theoClient = {
   // ── Chat (the one network-bound call; mocked in 1A) ──────────────────────
   sendMessage(req: GatewayRequest): Promise<GatewayResponse> {
     return gatewaySend(req);
+  },
+
+  // ── Conversation history (Recents + reload; theo_list/get_conversation in 1B) ──
+  listConversations(limit?: number): Promise<ConversationSummary[]> {
+    return gatewayList(limit);
+  },
+  getConversation(id: string): Promise<ConversationDetail> {
+    return gatewayGet(id);
   },
 
   // Parse [[ARTIFACT]] blocks out of a reply, upsert them (versioned by reused title),

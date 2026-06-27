@@ -11,7 +11,7 @@ Turn issued against HEAD: `c2027c9c968c6f31dfed66acce427e5c445f1410` (vault-theo
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A
-Detail: Pass 1 — Frontend Verified Evidence Pack (FE Conformance §4 matrix: "Pass 1 — Frontend Verified Evidence Pack → Full Baseline Grounding"). New frontend feature (not a revision). Frontend sub-phases F-P1…F-P7 walked in the body; the backend P/I/E sub-phase track does not apply to a frontend VEP → `N/A`. The consumed contract (`conversation_id` round-trip + `theo_list_conversations` + `theo_get_conversation`) is documented in API Spec §2.1 (landed this session via the Conversation-History Role-C) and deployed + golden-curl-verified (B3a `4c4120f`; B3b `2a121fb4`; captures `.local/b3a_verify_result_2026-06-27.txt`, `.local/b3b_verify_result_2026-06-27.txt`).
+Detail: Pass 1 — Frontend Verified Evidence Pack (FE Conformance §4 matrix: "Pass 1 — Frontend Verified Evidence Pack → Full Baseline Grounding"). New frontend feature (not a revision). Frontend sub-phases F-P1…F-P7 walked in the body; the backend P/I/E sub-phase track does not apply to a frontend VEP → `N/A`. Both registered VA artifacts are read this turn (not merely the §4B registry): VA-T1 `frontend/theo-frontend-reference.jsx` (sidebar Recents region) and VA-T5 `artifacts/theo-citations-reference.jsx` (citation affordance). The consumed contract (`conversation_id` round-trip + `theo_list_conversations` + `theo_get_conversation`) is documented in API Spec §2.1 (landed this session via the Conversation-History Role-C) and deployed + golden-curl-verified (B3a `4c4120f`; B3b `2a121fb4`; captures `.local/b3a_verify_result_2026-06-27.txt`, `.local/b3b_verify_result_2026-06-27.txt`).
 Currency anchors: blob SHA (captured this turn via `git rev-parse HEAD:<path>`); independently verifiable via `git cat-file -p <sha>`.
 
 | # | Document (name + path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
@@ -34,6 +34,8 @@ Currency anchors: blob SHA (captured this turn via `git rev-parse HEAD:<path>`);
 | 16 | **Primary reference component** (VA-T5; UNCHANGED) — `src/theo/components/CitedText.tsx` (`{ runs: CitedRun[] }`) | `Read(offset=1, limit=40)` this turn | `7c4e566009a08a4a5f703ab0777eb45655516e52` |
 | 17 | Reference (seed being replaced) — `src/theo/data.ts` (`RECENTS`) | `Read(full)` this turn | `80b7b7b35b5e56320fb3540e5f739addbca29517` |
 | 18 | Deployed contract — `api/theo_message/index.js` (B3a request/response shape) | `Read(full)` this turn | `549f9a57f8c05ed99b2ce5ac1e586e28109d1deb` |
+| 19 | **VA-T1 artifact** (registered §4B) — `frontend/theo-frontend-reference.jsx` (sidebar Recents region L313–322; reference surface) | `Read(offset=313, limit=12)` + `Grep("Recents")` this turn | `433f6236344f6e8bdbc49db85a53036427610fed` |
+| 20 | **VA-T5 artifact** (registered §4B) — `artifacts/theo-citations-reference.jsx` (inline citation affordance) | `Read(offset=1, limit=30)` this turn | `030d69469e7e6c36a700d66e85696ba31158ea67` |
 
 No ChatGPT advisory cited (§6 T18). No `corporate-reporting`/`reporting_*` change. No `localStorage`/`sessionStorage`.
 
@@ -65,7 +67,7 @@ No ChatGPT advisory cited (§6 T18). No `corporate-reporting`/`reporting_*` chan
 ## F-P2 — UI Authority Reconciliation
 | VA-id | Reconciliation | Classification |
 | --- | --- | --- |
-| VA-T1 (Sidebar Recents region; chat surface) | The Recents list still renders the same row chrome (`.vo-row`, ellipsised title, hover) and the chat surface is unchanged. Only the **source** of the list changes (static seed → live `theo_list_conversations`) and rows become clickable to reload. Prop type widens `string[]` → `{ id; title }[]`; rendered output (a list of conversation titles) is pixel-identical. | VISUAL-AUTHORITY-MATCH (no rendered-surface change; Rule Anchors 7/8) |
+| VA-T1 (Sidebar Recents region; chat surface) | VA-T1 read this turn (`frontend/theo-frontend-reference.jsx` L317–320): the reference renders `recents.map((ch,i) => <div className="vo-row" onClick={() => go("chats")} …>{ch}</div>)` — a `.vo-row` list of titles whose own click is a **no-op `go("chats")`**. Productionisation keeps the same row chrome (`.vo-row`, ellipsised title, hover) and makes the click load the selected thread; the chat surface is unchanged. Only the **source** of the list changes (static seed → live `theo_list_conversations`). Prop type widens `string[]` → `{ id; title }[]`; rendered output (a list of conversation titles) is pixel-identical. | VISUAL-AUTHORITY-MATCH (no rendered-surface change; Rule Anchors 7/8) |
 | VA-T5 (inline citation rendering) | Reloaded assistant turns carry persisted `citations`; they render through the **unchanged** `CitedText` via `ChatView` L53 (`m.runs?.some(...) ? <CitedText runs={m.runs}/> : renderAssistant(...)`). No `CitedText`/`ChatView` change. | VISUAL-AUTHORITY-MATCH (existing render path reused) |
 | Gateway / service abstraction (FE Governor §6.1; Golden §5) | Two read methods (`listConversations`, `getConversation`) and the `conversation_id` request/response fields are added behind the same `theoClient` → `gateway.live` abstraction; unconfigured → `gateway.mock`. The explicitly-allowed 1B delta. | ALLOWED DELTA (Rule Anchors 5/7) |
 

@@ -1,6 +1,6 @@
 # THEO PHASE 1B — BACKEND EXECUTION PLAN
 
-> **Status: DRAFT v0.3 — NOT YET AUTHORITATIVE.** Authored by Claude Code as a foundational planning skeleton at Walter's request (2026-06-26). v0.2 baked in Walter's resolved decisions (D-1, D-2, D-4, D-5 — see §8); **v0.3** re-sequences §7 to **gateway-first** (live SWA Claude responses before the persistence layer) and assigns **golden-curl execution to Claude Code** (§2A). It is **pending Codex Pass-2 review and Walter approval** before it governs. It is a *living* plan: each backend microstep updates the three Theo backend authority docs (Theo API Spec, Theo Azure Postgres Schema, Theo Golden Handler Standard) as it lands, in the same shape the Reporting backend plan uses.
+> **Status: DRAFT v0.4 — NOT YET AUTHORITATIVE.** Authored by Claude Code as a foundational planning skeleton at Walter's request (2026-06-26). v0.2 baked in Walter's resolved decisions (D-1, D-2, D-4, D-5 — see §8); **v0.3** re-sequences §7 to **gateway-first** (live SWA Claude responses before the persistence layer) and assigns **golden-curl execution to Claude Code** (§2A); **v0.4** adds **Tier B7 — the memory layer (option C)** — a distilled per-user memory profile (`theo_user_memory`) plus cross-chat history-RAG over the user's own `theo_messages` — operationalizing the architecture's named 1B *memory* pillar (Architecture §8.2). It is **pending Codex Pass-2 review and Walter approval** before it governs. It is a *living* plan: each backend microstep updates the three Theo backend authority docs (Theo API Spec, Theo Azure Postgres Schema, Theo Golden Handler Standard) as it lands, in the same shape the Reporting backend plan uses.
 >
 > **Regime.** This plan is governed by the **Theo backend regime** — `vault-theo/governance/CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md`, `THEO_GROUNDING_CONFORMANCE_STANDARD.md`, `THEO_GOLDEN_HANDLER_STANDARD.md`, with **Codex** as reviewer (Pass 2) and **Walter** as the sole DB-write / deployment authority. It is **not** governed by the Reporting backend Governor Standard. The Corporate Reporting backend standards are referenced as the **proven implementation pattern** the Theo backend reuses and as the **API surface** Theo's tool-dispatch calls — Theo **MUST NOT fork, copy, or restate** them (Theo Tool Manifest §1; Theo Architecture §0a).
 
@@ -16,6 +16,7 @@ Phase 1A built the full Theo frontend surface (chat, projects, artifacts, custom
 3. **App-context persistence** — `theo_conversations.app_key` / `app_context`, carried across reload.
 4. **RAG retrieval** (HF-T4) — Azure AI Search over tax corpus + project knowledge, RLS-scoped, injected at system-prompt assembly.
 5. **Tool dispatch** (HF-T3) — model tool-calls routed to authorized `reporting_*` endpoints, executed **as the signed-in user** through the published Reporting API (never direct table access).
+6. **Memory** (option C; HF-T4 + system-prompt assembly) — a distilled per-user **memory profile** (`theo_user_memory`) surfaced across all chats/projects, plus **cross-chat history-RAG** over the user's own `theo_messages`; both RLS-scoped and injected at HF-T1 system-prompt assembly. Operationalizes the architecture's 1B `memory` pillar (Architecture §8.2). Gated by D-3 (ZDR), the D-5 Azure AI Search sub-item, and D-7 (distillation policy).
 
 **Out of scope:** any change to `reporting_*` handlers, tables, or contracts; any rendered-surface redesign; multi-tenant; sharing/membership RLS models (ownership-only unless Walter authorizes).
 
@@ -87,6 +88,7 @@ Per `THEO_AZURE_POSTGRES_SCHEMA.md §3` + Theo Architecture §5. Conventions (BI
 | `theo_artifacts` | artifact record | optional `conversation_id`/`project_id`, `title`, `type`, current-version pointer |
 | `theo_artifact_versions` | versioned artifact content | `artifact_id uuid FK`, `version_number int`, content (Blob pointer); immutable |
 | `theo_user_settings` | per-user style + custom instructions | text PK = Entra OID; prepended to the system prompt |
+| `theo_user_memory` *(B7, option C)* | distilled cross-chat memory item | `created_by` (Entra OID), `scope text` (`'user'`\|`'project'`), `project_id uuid NULL` (set when `scope='project'`), `kind text`, `content text`, `source_conversation_id uuid NULL`, `salience`/`updated_at`; user-viewable/editable; injected at system-prompt assembly; ownership RLS |
 | `theo_apps` / `theo_app_tools` *(candidate)* | registry backing the Tool Manifest | may start as config, not tables — 1B decides |
 
 **Boundary (BINDING):** `theo_*` tables are net-new and additive in the shared `vaultgpt` instance. Theo **never** reads/writes `reporting_*` tables directly.
@@ -106,6 +108,7 @@ Per `THEO_1A_FRONTEND_HANDOVER.md §2/§3`. The single service module means each
 | Customize | style preset + custom instructions in memory | persisted to `theo_user_settings`, applied server-side in the system prompt (HF-T1/HF-T2) |
 | App-context chip | received from Origin, carried on conversation | persisted to `theo_conversations.app_key`/`app_context`; drives tool-dispatch (HF-T3) |
 | Retrieval | stub results | real Azure AI Search retrieval, RLS-scoped (HF-T4) |
+| Memory (option C) | *absent in 1A* | distilled per-user profile (`theo_user_memory`) + cross-chat history-RAG over `theo_messages`, RLS-scoped, injected at system-prompt assembly (B7) |
 
 ---
 
@@ -155,6 +158,13 @@ Each tier is one or more governed microsteps. **Completion gate per microstep:**
 - **Deliverables.** Azure AI Search index over tax corpus + `theo_project_knowledge` (indexed on project create/update); top-k hybrid retrieval RLS-scoped to the user; injected at HF-T1 system-prompt assembly.
 - **Completion.** Project-knowledge-grounded answers retrieve real sources scoped to the user; Claude Code golden curls / eval pass.
 
+### Tier B7 — Memory layer (option C; HF-T4 + HF-T1 assembly)
+- **Purpose.** Give Theo durable memory across the user's chats and projects: a distilled profile of stable facts/preferences (Claude-style) **and** recall of prior discussions.
+- **Deliverables.**
+  - **B7a — Distilled memory profile.** `theo_user_memory` table (§5) + 4-policy ownership RLS + `_exists_unscoped(uuid)`; a **distillation step** (server-side model call, governed by D-7) that extracts stable memory items from completed turns (scope `user` or `project`); CRUD handlers so the user can **view/edit/delete** their memory (Claude-style controls); items injected at HF-T1 system-prompt assembly (user-scoped always; project-scoped when a `project_id` / `app_key` is active).
+  - **B7b — Cross-chat history-RAG.** Extend the B6 Azure AI Search index to also index the user's own `theo_messages` (RLS-scoped to `created_by`); top-k hybrid retrieval injected at HF-T1 assembly so prior-conversation context is recalled across threads.
+- **Completion.** A fact stated in one chat is recalled in another (profile); a question about a past discussion retrieves the relevant prior turns (history-RAG); the user can inspect and edit their memory; all strictly RLS-scoped to the signed-in user. **Gated:** D-3 ZDR (distillation + indexing are client-PII flows), the D-5 Azure AI Search sub-item (history-RAG index), and D-7 (distillation policy) — no live client-PII memory traffic before these resolve.
+
 ---
 
 ## 8. Open decisions (Walter) — Decision Register seed
@@ -167,8 +177,9 @@ Each tier is one or more governed microsteps. **Completion gate per microstep:**
 | **D-5** | Persistence backing. | **RESOLVED.** Azure Postgres (`theo_*`, RLS) for structured data + Azure Blob for artifact-version / knowledge content (pointer-in-Postgres). *Sub-item still open:* the Azure AI Search resource for RAG indexing (B6) — confirm/provision. |
 | **D-3** | Foundry-Claude **ZDR** posture before any client-PII traffic. | **OPEN.** Zero-data-retention must be contractually confirmed; region limits apply (Theo Architecture §2.4). Non-PII dev/test (B0–B1.5) may proceed; gates live **client-PII** traffic. |
 | **D-6** | First authorized tool-dispatch endpoint (Tool Manifest empty at v0.1). | **OPEN.** Adding an endpoint to the authorized set is a governance change requiring explicit Walter direction. Gates B5. |
+| **D-7** | Memory distillation policy (option C): trigger (post-turn / periodic / on-demand), extraction model, retention + salience, and user memory controls (view/edit/delete). | **OPEN.** Walter sets the distillation policy + model + retention; ownership-only RLS unless Walter authorizes otherwise. Gates B7. |
 
-Remaining open items are **PRE-LAND** for their tiers: D-3 gates live client-PII traffic (non-PII dev test proceeds earlier); the AI-Search sub-item of D-5 gates B6; D-6 gates B5. No tier proceeds on a guessed decision.
+Remaining open items are **PRE-LAND** for their tiers: D-3 gates live client-PII traffic (non-PII dev test proceeds earlier); the AI-Search sub-item of D-5 gates B6 **and the B7 history-RAG index**; D-6 gates B5; **D-7 gates B7 (memory distillation policy)**. B7's memory traffic is client-PII, so it is additionally gated by D-3. No tier proceeds on a guessed decision.
 
 ---
 

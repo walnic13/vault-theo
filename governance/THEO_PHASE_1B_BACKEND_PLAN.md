@@ -1,6 +1,6 @@
 # THEO PHASE 1B — BACKEND EXECUTION PLAN
 
-> **Status: DRAFT v0.4 — NOT YET AUTHORITATIVE.** Authored by Claude Code as a foundational planning skeleton at Walter's request (2026-06-26). v0.2 baked in Walter's resolved decisions (D-1, D-2, D-4, D-5 — see §8); **v0.3** re-sequences §7 to **gateway-first** (live SWA Claude responses before the persistence layer) and assigns **golden-curl execution to Claude Code** (§2A); **v0.4** adds **Tier B7 — the memory layer (option C)** — a distilled per-user memory profile (`theo_user_memory`) plus cross-chat history-RAG over the user's own `theo_messages` — operationalizing the architecture's named 1B *memory* pillar (Architecture §8.2). It is **pending Codex Pass-2 review and Walter approval** before it governs. It is a *living* plan: each backend microstep updates the three Theo backend authority docs (Theo API Spec, Theo Azure Postgres Schema, Theo Golden Handler Standard) as it lands, in the same shape the Reporting backend plan uses.
+> **Status: DRAFT v0.5 — NOT YET AUTHORITATIVE.** Authored by Claude Code as a foundational planning skeleton at Walter's request (2026-06-26). v0.2 baked in Walter's resolved decisions (D-1, D-2, D-4, D-5 — see §8); **v0.3** re-sequences §7 to **gateway-first** (live SWA Claude responses before the persistence layer) and assigns **golden-curl execution to Claude Code** (§2A); **v0.4** adds **Tier B7 — the memory layer (option C)** — a distilled per-user memory profile (`theo_user_memory`) plus cross-chat history-RAG over the user's own `theo_messages` — operationalizing the architecture's named 1B *memory* pillar (Architecture §8.2); **v0.5** adds **Tier B8 — attachments** (users attach files to a chat; Theo reads them via Anthropic document/image content blocks — capability golden-curl-verified 2026-06-28). It is **pending Codex Pass-2 review and Walter approval** before it governs. It is a *living* plan: each backend microstep updates the three Theo backend authority docs (Theo API Spec, Theo Azure Postgres Schema, Theo Golden Handler Standard) as it lands, in the same shape the Reporting backend plan uses.
 >
 > **Regime.** This plan is governed by the **Theo backend regime** — `vault-theo/governance/CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md`, `THEO_GROUNDING_CONFORMANCE_STANDARD.md`, `THEO_GOLDEN_HANDLER_STANDARD.md`, with **Codex** as reviewer (Pass 2) and **Walter** as the sole DB-write / deployment authority. It is **not** governed by the Reporting backend Governor Standard. The Corporate Reporting backend standards are referenced as the **proven implementation pattern** the Theo backend reuses and as the **API surface** Theo's tool-dispatch calls — Theo **MUST NOT fork, copy, or restate** them (Theo Tool Manifest §1; Theo Architecture §0a).
 
@@ -17,6 +17,7 @@ Phase 1A built the full Theo frontend surface (chat, projects, artifacts, custom
 4. **RAG retrieval** (HF-T4) — Azure AI Search over tax corpus + project knowledge, RLS-scoped, injected at system-prompt assembly.
 5. **Tool dispatch** (HF-T3) — model tool-calls routed to authorized `reporting_*` endpoints, executed **as the signed-in user** through the published Reporting API (never direct table access).
 6. **Memory** (option C; HF-T4 + system-prompt assembly) — a distilled per-user **memory profile** (`theo_user_memory`) surfaced across all chats/projects, plus **cross-chat history-RAG** over the user's own `theo_messages`; both RLS-scoped and injected at HF-T1 system-prompt assembly. Operationalizes the architecture's 1B `memory` pillar (Architecture §8.2). Gated by D-3 (ZDR), the D-5 Azure AI Search sub-item, and D-7 (distillation policy).
+7. **Attachments** (Tier B8) — users attach files (PDF/image) to a chat; Theo reads them via Anthropic **document/image content blocks** at the gateway (capability golden-curl-verified — Foundry accepts document blocks with current headers). Stored owner-scoped in Blob (`theo_attachments` + the `theo-content` container). Gated by D-8 (upload mechanism + limits); D-3 (ZDR, RESOLVED) covers attachment content reaching the model.
 
 **Out of scope:** any change to `reporting_*` handlers, tables, or contracts; any rendered-surface redesign; multi-tenant; sharing/membership RLS models (ownership-only unless Walter authorizes).
 
@@ -89,6 +90,7 @@ Per `THEO_AZURE_POSTGRES_SCHEMA.md §3` + Theo Architecture §5. Conventions (BI
 | `theo_artifact_versions` | versioned artifact content | `artifact_id uuid FK`, `version_number int`, content (Blob pointer); immutable |
 | `theo_user_settings` | per-user style + custom instructions | text PK = Entra OID; prepended to the system prompt |
 | `theo_user_memory` *(B7, option C)* | distilled cross-chat memory item | `created_by` (Entra OID), `scope text` (`'user'`\|`'project'`), `project_id uuid NULL` (set when `scope='project'`), `kind text`, `content text`, `source_conversation_id uuid NULL`, `salience`/`updated_at`; user-viewable/editable; injected at system-prompt assembly; ownership RLS |
+| `theo_attachments` *(B8)* | file attached to a chat | `created_by` (Entra OID), `conversation_id uuid NULL`, `filename`, `content_type`, `byte_size`, `blob_container`/`blob_path` (pointer into `theo-content`), `created_at`; ownership RLS + `_exists_unscoped(uuid)`; injected as document/image content blocks at the gateway |
 | `theo_apps` / `theo_app_tools` *(candidate)* | registry backing the Tool Manifest | may start as config, not tables — 1B decides |
 
 **Boundary (BINDING):** `theo_*` tables are net-new and additive in the shared `vaultgpt` instance. Theo **never** reads/writes `reporting_*` tables directly.
@@ -109,6 +111,7 @@ Per `THEO_1A_FRONTEND_HANDOVER.md §2/§3`. The single service module means each
 | App-context chip | received from Origin, carried on conversation | persisted to `theo_conversations.app_key`/`app_context`; drives tool-dispatch (HF-T3) |
 | Retrieval | stub results | real Azure AI Search retrieval, RLS-scoped (HF-T4) |
 | Memory (option C) | *absent in 1A* | distilled per-user profile (`theo_user_memory`) + cross-chat history-RAG over `theo_messages`, RLS-scoped, injected at system-prompt assembly (B7) |
+| Attachments (B8) | *absent in 1A* | upload files → Blob (`theo_attachments` / `theo-content`), injected as document/image content blocks to Foundry-Claude (HF-T1), owner-scoped |
 
 ---
 
@@ -165,6 +168,15 @@ Each tier is one or more governed microsteps. **Completion gate per microstep:**
   - **B7b — Cross-chat history-RAG.** Extend the B6 Azure AI Search index to also index the user's own `theo_messages` (RLS-scoped to `created_by`); top-k hybrid retrieval injected at HF-T1 assembly so prior-conversation context is recalled across threads.
 - **Completion.** A fact stated in one chat is recalled in another (profile); a question about a past discussion retrieves the relevant prior turns (history-RAG); the user can inspect and edit their memory; all strictly RLS-scoped to the signed-in user. **Gated:** D-3 ZDR (distillation + indexing are client-PII flows), the D-5 Azure AI Search sub-item (history-RAG index), and D-7 (distillation policy) — no live client-PII memory traffic before these resolve.
 
+### Tier B8 — Attachments (file upload → document/image content blocks)
+- **Purpose.** Let users attach files (PDF/image/etc.) to a chat so Theo can read and reason over them — the core tax-assistant use case ("analyse this K-1 / statement / workpaper"). Capability verified 2026-06-28: the deployed Foundry-Claude gateway accepts Anthropic document content blocks with current headers (no beta) and extracts PDF text.
+- **Deliverables.**
+  - **B8a — schema.** `theo_attachments` table (§5) + 4-policy ownership RLS + `theo_attachment_exists_unscoped(uuid)`; Blob pointer into the existing `theo-content` container.
+  - **B8b — upload handler.** `theo_upload_attachment` — store the file in Blob + insert the owner-scoped metadata row; return the attachment id. Upload mechanism + size/type limits per D-8.
+  - **B8c — gateway integration.** `theo_message` accepts `attachment_ids`; for each **owned** attachment, fetch the blob, base64-encode, and inject a `document`/`image` content block alongside the user text (handle array-content `userText`/title persistence).
+  - **B8d — frontend.** Composer attach control + upload + attachment chips (Theo FE regime).
+- **Completion.** A user uploads a document and Theo answers questions grounded in it; attachments are owner-scoped (RLS + explicit `created_by`); content reaches the model only via the gateway (D-3 ZDR resolved). **Gated:** D-8 (upload mechanism + limits) gates B8b; B8a schema is not gated.
+
 ---
 
 ## 8. Open decisions (Walter) — Decision Register seed
@@ -178,8 +190,9 @@ Each tier is one or more governed microsteps. **Completion gate per microstep:**
 | **D-3** | Foundry-Claude **ZDR** posture before any client-PII traffic. | **RESOLVED (2026-06-28).** Walter has contractually confirmed Anthropic zero-data-retention; live client-PII traffic — including B7 memory distillation + history-RAG — may proceed. |
 | **D-6** | First authorized tool-dispatch endpoint (Tool Manifest empty at v0.1). | **OPEN.** Adding an endpoint to the authorized set is a governance change requiring explicit Walter direction. Gates B5. |
 | **D-7** | Memory distillation policy (option C): trigger, extraction model, retention + salience, and user memory controls. | **RESOLVED (2026-06-28).** Distill on conversation idle/close (not per-turn); extraction via the same Foundry-Claude gateway (a cheap pass emitting ≤N stable items as JSON); store durable facts/preferences only (never transient content); user can view/edit/delete every item (Claude-style; delete is permanent); scope user-global by default, project-scoped when the chat is in a project; ownership-only RLS. Gates lifted for B7. |
+| **D-8** | Attachment upload mechanism (direct base64 through the handler vs a short-lived SAS for direct-to-Blob) + max file size + allowed content types + retention. | **OPEN.** Walter confirms the mechanism + limits; Claude Code recommends in the B8b VEP. Gates B8b (upload handler); B8a schema is not gated. |
 
-Remaining open items are **PRE-LAND** for their tiers: the AI-Search sub-item of D-5 gates B6 **and the B7b history-RAG index**; D-6 gates B5. **D-3 (ZDR) and D-7 (memory distillation policy) are RESOLVED (2026-06-28)** — B7 distillation + system-prompt injection are no longer gated; B7b history-RAG still awaits the D-5 Azure AI Search resource. No tier proceeds on a guessed decision.
+Remaining open items are **PRE-LAND** for their tiers: the AI-Search sub-item of D-5 gates B6 **and the B7b history-RAG index**; D-6 gates B5; **D-8 gates B8b (attachment upload mechanism + limits)**. **D-3 (ZDR) and D-7 (memory distillation policy) are RESOLVED (2026-06-28)** — B7 distillation + system-prompt injection are no longer gated. No tier proceeds on a guessed decision.
 
 ---
 

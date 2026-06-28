@@ -27,6 +27,7 @@ Currency anchors: blob SHA via `git rev-parse HEAD:<path>`; verifiable via `git 
 | 9 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2 boundary; Memory row follows post-deploy) | `Read(offset=1, limit=55)` this turn | `010133b146b5fa8c5ed1820f6b25b40f6bb1656b` |
 | 10 | **Primary Reference handler** (pg mutation pattern) — `../corporate-reporting/reference-artifacts/handlers/reporting_create_entity.index.js.md` | `Read(full)` + `Grep("BEGIN|RETURNING|23503")` this turn | blob `c2f02bf0f6c5be50900a9fbb7a015529e649ad25` (corporate-reporting `38da0d6a722de6042ece0a6c5979b13dff7da736`) |
 | 11 | Deployed `theo_user_memory` schema source — `Codex Governance/Theo-1B-B7a-Memory-Substrate-Schema-Pass-1-VEP/b7a_migration.sql` | `Read(full)` this turn | `bbb66f45d5b598bf104499f32b3812af41c64e26` |
+| 12 | **Primary Reference function.json** (canonical deployed) — `../corporate-reporting/reference-artifacts/function-json/reporting_create_entity.function.json.md` | `Read(full)` this turn | blob `25400b61661db135baa73392e5c0d7b76ae742b3` (corporate-reporting `38da0d6a722de6042ece0a6c5979b13dff7da736`) |
 
 No ChatGPT advisory cited (§4D / T18). No `reporting_*`/`corporate-reporting` change.
 
@@ -39,7 +40,8 @@ No ChatGPT advisory cited (§4D / T18). No `reporting_*`/`corporate-reporting` c
 | governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md | §3–§5 | "MUST open with a Grounding Conformance Receipt (GCR) and a Rule Anchor Table" | GCR + Rule Anchor Table (this pack) |
 | governance/CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md | §8 | "Gap Register" | §P2.5 / GR Gap Register |
 | governance/THEO_PHASE_1B_BACKEND_PLAN.md | Tier B7 | "Distilled memory profile" | §P1 — B7a memory CRUD handlers backing view/edit/delete |
-| governance/THEO_GOLDEN_HANDLER_STANDARD.md | §2 | "selects **exactly one** deployed handler file" | §SM — Primary Reference = deployed `reporting_create_entity` |
+| governance/THEO_GOLDEN_HANDLER_STANDARD.md | §2 | "selects **exactly one** deployed handler file" | §SM — Primary Reference handler = deployed `reporting_create_entity` |
+| ../corporate-reporting/reference-artifacts/function-json/reporting_create_entity.function.json.md | binding | "httpTrigger" | §SM-FJ — Primary Reference function.json = deployed `reporting_create_entity.function.json` |
 | governance/THEO_ARCHITECTURE_AND_STRUCTURE.md | §5.2 | "Default family: ownership-based" | §HG.1–§HG.4 — every query scoped `created_by = $oid` |
 | spec/THEO_AZURE_POSTGRES_SCHEMA.md | §6 | "theo_user_memory" | §HG.1–§HG.4 — handlers operate over the deployed B7a table |
 
@@ -74,7 +76,9 @@ Contract basis = the deployed `theo_user_memory` table (Schema doc §3/§6; colu
 - **`theo_delete_user_memory`** (POST): `id` uuid; `DELETE … WHERE id=$ AND created_by=$ RETURNING id`; 0 rows → 403/404 → **200** `{ deleted:true, id }` (permanent per D-7).
 
 ## P5 — Component reference grounding
-Primary Reference (Golden §2) = deployed `reporting_create_entity` (pg mutation pattern), inlined byte-identical §SM. The four handlers reuse the deployed theo helper block verbatim and the B3b read/ownership idiom; only the `theo_user_memory`-specific columns/validation differ.
+Primary Reference (Golden §2) = the deployed `reporting_create_entity` **pair** — the handler (pg mutation pattern, inlined byte-identical §SM) and its canonical deployed `function.json` (inlined byte-identical §SM-FJ; `httpTrigger` POST/OPTIONS, underscore route, anonymous). The four handlers reuse the deployed theo helper block verbatim and the B3b read/ownership idiom; only the `theo_user_memory`-specific columns/validation differ. The four new `function.json` (§FJ.1–§FJ.4) follow the §SM-FJ binding shape (list=GET/OPTIONS, mutations=POST/OPTIONS; underscore route = handler name; anonymous).
+
+**Create-time FK ownership (since the connection role bypasses RLS):** `theo_create_user_memory` verifies the referenced `project_id` (`theo_projects`) and `source_conversation_id` (`theo_conversations`) are **owned by the caller** (`created_by = $oid`) before insert — a non-owned UUID returns 404, never attaches to the caller's memory row. FK success alone does not prove ownership.
 
 ## P6 — Repository & active-surface grounding
 New artifacts (this package): four `*.index.js` + four `*.function.json`. No existing source changed. Guardrails: no browser storage (backend); no `reporting_*`; explicit `created_by` on every query; `node --check` clean for all four handlers; function.json methods = GET (list) / POST (mutations), routes match handler names, authLevel anonymous (EasyAuth in front).
@@ -348,6 +352,27 @@ module.exports = async function (context, req) {
     client.release();
   }
 };
+```
+
+## §SM-FJ — Primary Reference function.json (deployed `reporting_create_entity.function.json`, byte-identical)
+```json
+{
+  "bindings": [
+    {
+      "authLevel": "anonymous",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "req",
+      "methods": ["post", "options"],
+      "route": "reporting_create_entity"
+    },
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "res"
+    }
+  ]
+}
 ```
 
 ---
@@ -739,6 +764,27 @@ module.exports = async function (context, req) {
       [oid]
     );
 
+    // FK ownership (the connection role bypasses RLS, so FK existence does NOT prove ownership):
+    // a referenced project / conversation MUST belong to the caller, else 404 (no leakage).
+    if (projectId !== null) {
+      const owned = await client.query(
+        `SELECT 1 FROM public.theo_projects WHERE id = $1 AND created_by = $2`,
+        [projectId, oid]
+      );
+      if (owned.rowCount === 0) {
+        throw buildKnownError("NOT_FOUND", "Referenced project not found.", 404);
+      }
+    }
+    if (sourceConversationId !== null) {
+      const owned = await client.query(
+        `SELECT 1 FROM public.theo_conversations WHERE id = $1 AND created_by = $2`,
+        [sourceConversationId, oid]
+      );
+      if (owned.rowCount === 0) {
+        throw buildKnownError("NOT_FOUND", "Referenced conversation not found.", 404);
+      }
+    }
+
     // created_by = the signed-in OID (explicit ownership; the connection role bypasses RLS).
     const inserted = await client.query(
       `
@@ -763,6 +809,9 @@ module.exports = async function (context, req) {
 
     if (err && err.code === "42501") {
       return send(context, 403, errorBody("FORBIDDEN", "You do not have permission to create memory.", 403));
+    }
+    if (err && err.isKnown === true && typeof err.status === "number" && typeof err.code === "string") {
+      return send(context, err.status, errorBody(err.code, err.message, err.status));
     }
     // FK violation: project_id / source_conversation_id not owned or absent.
     if (err && err.code === "23503") {

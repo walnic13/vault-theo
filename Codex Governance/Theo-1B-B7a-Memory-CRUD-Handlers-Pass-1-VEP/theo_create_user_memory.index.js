@@ -188,6 +188,27 @@ module.exports = async function (context, req) {
       [oid]
     );
 
+    // FK ownership (the connection role bypasses RLS, so FK existence does NOT prove ownership):
+    // a referenced project / conversation MUST belong to the caller, else 404 (no leakage).
+    if (projectId !== null) {
+      const owned = await client.query(
+        `SELECT 1 FROM public.theo_projects WHERE id = $1 AND created_by = $2`,
+        [projectId, oid]
+      );
+      if (owned.rowCount === 0) {
+        throw buildKnownError("NOT_FOUND", "Referenced project not found.", 404);
+      }
+    }
+    if (sourceConversationId !== null) {
+      const owned = await client.query(
+        `SELECT 1 FROM public.theo_conversations WHERE id = $1 AND created_by = $2`,
+        [sourceConversationId, oid]
+      );
+      if (owned.rowCount === 0) {
+        throw buildKnownError("NOT_FOUND", "Referenced conversation not found.", 404);
+      }
+    }
+
     // created_by = the signed-in OID (explicit ownership; the connection role bypasses RLS).
     const inserted = await client.query(
       `
@@ -212,6 +233,9 @@ module.exports = async function (context, req) {
 
     if (err && err.code === "42501") {
       return send(context, 403, errorBody("FORBIDDEN", "You do not have permission to create memory.", 403));
+    }
+    if (err && err.isKnown === true && typeof err.status === "number" && typeof err.code === "string") {
+      return send(context, err.status, errorBody(err.code, err.message, err.status));
     }
     // FK violation: project_id / source_conversation_id not owned or absent.
     if (err && err.code === "23503") {

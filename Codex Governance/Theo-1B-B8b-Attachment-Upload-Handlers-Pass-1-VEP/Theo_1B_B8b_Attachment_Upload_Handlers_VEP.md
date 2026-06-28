@@ -52,7 +52,7 @@ No ChatGPT advisory cited (§4D / T18). No `reporting_*`/`corporate-reporting`/`
 ## P1 — Feature identification
 **Microstep:** Theo Phase 1B **Tier B8b (upload handlers)** over the deployed `theo_attachments` table (Rule Anchor on Plan Tier B8). Three handlers implement the D-8-resolved upload flow so a user can attach a file to a chat:
 - **`theo_create_attachment_upload`** — validate `filename` + `content_type` (ingestion-class allow-list), mint an attachment id + deterministic owner-scoped blob path `attachments/<oid>/<attachmentId>`, and return a short-lived (15-min), single-blob, create+write **user-delegation SAS** the client PUTs the bytes to directly.
-- **`theo_finalize_attachment`** — after the client uploads, HEAD the blob to read its **actual** byte size (authoritative; the client cannot misdeclare it), enforce the per-class cap (10 MB native / 50 MB extract) + the allow-list, verify any referenced conversation is owned, and insert the owner-scoped `theo_attachments` row (`id = attachmentId`, so row ↔ blob are 1:1).
+- **`theo_finalize_attachment`** — after the client uploads, HEAD the blob to read its **actual** byte size **and actual stored Content-Type** (both authoritative; the client cannot misdeclare either). The ingestion-class allow-list, the ingestion class, and the per-class cap (10 MB native / 50 MB extract) are all enforced against the **blob's actual Content-Type** (not any client-declared field); verify any referenced conversation is owned; persist `content_type` = the actual type; insert the owner-scoped `theo_attachments` row (`id = attachmentId`, so row ↔ blob are 1:1). A disallowed / over-cap / empty blob is deleted (best-effort) and rejected.
 - **`theo_delete_attachment`** — owner-scoped permanent delete of the row (403/404 split via `theo_attachment_exists_unscoped`) + best-effort blob reclaim.
 
 Storage + upload only. Extraction-at-upload (B8c), gateway document/image-block injection (B8d), and the FE composer control (B8e) are separate, later microsteps.
@@ -62,7 +62,7 @@ Storage + upload only. Extraction-at-upload (B8c), gateway document/image-block 
 - **SAS issuance (create).** Reproduces the deployed `axis/artifacts-upload-url` user-delegation technique **verbatim** (§SAS): managed-identity token for `https://storage.azure.com/` (`IDENTITY_ENDPOINT`/`IDENTITY_HEADER`, api-version `2019-08-01`) → `Get User Delegation Key` (`x-ms-version: 2022-11-02`) → manually-signed SAS (`sp=cw`, `sr=b`, 15-min, `rsct` pinned to the declared content-type). No `@azure/storage-blob` dependency (pure `crypto`+`https`) — matches the deployed pattern and avoids adding a package.
 - **Managed-identity data-plane access (finalize/delete).** The same MI token is used as a `Bearer` on a **HEAD** (read actual size/type) and **DELETE** (reclaim) against the blob — no SAS needed server-side.
 - **Explicit ownership (SEC-fix discipline).** The blob path embeds the caller OID, so create/finalize/delete operate only within `attachments/<thisOID>/…`; the row INSERT/SELECT/DELETE all carry `created_by = $oid`. A non-owned id → 0 rows → `theo_attachment_exists_unscoped` → 403/404 (no leakage).
-- **Validation before SQL/Blob.** `cleanFileName` non-empty; `content_type` normalized + allow-listed (else 400 `UNSUPPORTED_MEDIA_TYPE`); `attachment_id`/`conversation_id` `isUuid`; actual size `> 0` and `≤ cap` (else 400, with best-effort cleanup of the offending blob) — all before the INSERT.
+- **Validation + authoritative enforcement.** *Create* validates the declared `content_type` against the allow-list (early 400 + pins the SAS `rsct`) — a guidance/UX check only. *Finalize* validates `cleanFileName` non-empty + `attachment_id`/`conversation_id` `isUuid`, then enforces the **authoritative** guardrail against the blob's **actual** HEAD properties: the allow-list + ingestion class + per-class cap are keyed on the blob's **actual stored Content-Type** (`props.contentType`, normalized — else 400 `UNSUPPORTED_MEDIA_TYPE`), and the cap on the **actual** `props.contentLength` (`> 0` and `≤ cap` — else 400). A disallowed / empty / over-cap blob is deleted (best-effort) before the 400. The persisted `content_type` is the actual type. The client cannot misdeclare type or size (D-8 "client cannot misdeclare").
 - **Boundary.** Reads/writes only `theo_attachments` (deployed B8a) + the existing `theo-content` Blob container; FK `conversation_id` references the deployed B2 `theo_conversations`; **no `reporting_*` access**; the `reporting_create_entity` and `axis` files are inlined read-only references, unchanged.
 
 ## P2.5 / GR — Gap Register
@@ -93,7 +93,7 @@ New artifacts (this package): `theo_create_attachment_upload.index.js` + `.funct
 ## P7 — Risk / regression
 - **Additive only:** three brand-new routes; nothing existing is modified. No live traffic touches them until the FE (B8e) wires the composer.
 - **No secret exposure:** the SAS is signed server-side with the user-delegation key (never the account key); the key bytes are never logged; the golden curls obtain the auth token via `az` and **never** print token bytes.
-- **Abuse bounds:** the SAS is single-blob, create+write only, 15-min; the path is owner-scoped; finalize enforces the size cap on the **actual** uploaded bytes (not the client's claim) and deletes an over-cap/empty blob. Cross-user finalize/delete is impossible (path + `created_by` both bind to the request OID).
+- **Abuse bounds:** the SAS is single-blob, create+write only, 15-min; the path is owner-scoped; finalize enforces the allow-list + ingestion class + size cap against the blob's **actual** HEAD Content-Type and Content-Length (not the client's claim) and deletes a disallowed/over-cap/empty blob. Cross-user finalize/delete is impossible (path + `created_by` both bind to the request OID).
 - **Orphan safety:** an abandoned upload (created SAS, never finalized) leaves a blob with no row — reclaimable by a future sweeper; a deleted row whose blob reclaim fails leaves a harmless orphan blob (DB is source of truth).
 - **Failure modes mapped:** missing MI Storage role → `Get User Delegation Key` 500 (surfaced by the golden curl, fixed by G-2); blob absent at finalize → 404; duplicate finalize → 409; non-owned conversation → 404.
 
@@ -1139,7 +1139,7 @@ module.exports = async function (context, req) {
 }
 ```
 
-## §H2 — `theo_finalize_attachment/index.js` (complete; reads actual size, enforces caps, inserts the owner-scoped row)
+## §H2 — `theo_finalize_attachment/index.js` (complete; reads actual size + Content-Type, enforces the allow-list + per-class cap against the actual type, inserts the owner-scoped row)
 ```js
 const { Pool } = require("pg");
 
@@ -1370,19 +1370,8 @@ module.exports = async function (context, req) {
     return send(context, 400, errorBody("INVALID_REQUEST", "Field 'filename' is required and must be a non-empty string.", 400));
   }
 
-  const contentType = normalizeContentType(body.content_type);
-  const ingestion = INGESTION_CLASSES[contentType];
-  if (!ingestion) {
-    return send(
-      context,
-      400,
-      errorBody(
-        "UNSUPPORTED_MEDIA_TYPE",
-        `Field 'content_type' must be one of the supported attachment types: ${ALLOWED_CONTENT_TYPES.join(", ")}.`,
-        400
-      )
-    );
-  }
+  // NOTE: content-type is NOT taken from the request body — it is read from the blob's
+  // ACTUAL stored Content-Type below (after HEAD), so the client cannot misdeclare it (D-8).
 
   const conversationId =
     body.conversation_id != null && typeof body.conversation_id === "string" && body.conversation_id.trim() !== ""
@@ -1407,6 +1396,25 @@ module.exports = async function (context, req) {
   if (!props) {
     return send(context, 404, errorBody("NOT_FOUND", "Uploaded blob not found for this attachment id (upload may have failed or expired).", 404));
   }
+
+  // AUTHORITATIVE content-type = the blob's ACTUAL stored Content-Type (set on the client's PUT),
+  // NOT a client-declared body field. The allow-list, ingestion class, and per-class cap are all
+  // enforced against this actual type, so a client cannot misdeclare the type past the guardrail (D-8).
+  const contentType = normalizeContentType(props.contentType);
+  const ingestion = INGESTION_CLASSES[contentType];
+  if (!ingestion) {
+    await deleteBlobBestEffort(context, STORAGE_ACCOUNT, STORAGE_CONTAINER, blobKey);
+    return send(
+      context,
+      400,
+      errorBody(
+        "UNSUPPORTED_MEDIA_TYPE",
+        `Uploaded blob Content-Type '${contentType || "(none)"}' is not a supported attachment type. Allowed: ${ALLOWED_CONTENT_TYPES.join(", ")}.`,
+        400
+      )
+    );
+  }
+
   if (!Number.isFinite(props.contentLength) || props.contentLength <= 0) {
     await deleteBlobBestEffort(context, STORAGE_ACCOUNT, STORAGE_CONTAINER, blobKey);
     return send(context, 400, errorBody("INVALID_REQUEST", "Uploaded file is empty.", 400));
@@ -1791,9 +1799,9 @@ module.exports = async function (context, req) {
 ## §GOLDEN — golden-curl round-trip (Claude Code runs post-deploy; token via `az`, never printed)
 1. **create** → `POST /api/theo_create_attachment_upload` `{ "filename": "b8b_probe.pdf", "content_type": "application/pdf" }` → expect **201** with `data.attachmentId` + `data.upload.uploadUrl` (+ `ingestionClass:"native"`, `maxBytes:10485760`). Capture both.
 2. **PUT to Blob** → `PUT <uploadUrl>` with headers `x-ms-blob-type: BlockBlob`, `Content-Type: application/pdf`, body = a small valid test PDF → expect **201** (Created) from Blob.
-3. **finalize** → `POST /api/theo_finalize_attachment` `{ "attachment_id": "<attachmentId>", "filename": "b8b_probe.pdf", "content_type": "application/pdf" }` → expect **201** with `data.attachment.byte_size` = the actual uploaded length, `blob_path = attachments/<oid>/<attachmentId>`.
-4. **RO verify** (`.local\run-reporting-ro-query.ps1`, SELECT-only): confirm exactly one `theo_attachments` row for the probe id, `created_by` = the caller OID.
-5. **negatives:** finalize a random unused `attachment_id` → **404**; create with `content_type:"application/x-msdownload"` → **400 UNSUPPORTED_MEDIA_TYPE**; (size cap) PUT a >10 MB body for a native type then finalize → **400 PAYLOAD_TOO_LARGE** (+ blob auto-deleted).
+3. **finalize** → `POST /api/theo_finalize_attachment` `{ "attachment_id": "<attachmentId>", "filename": "b8b_probe.pdf" }` → expect **201** with `data.attachment.byte_size` = the actual uploaded length, `data.attachment.content_type` = the **actual blob** Content-Type (`application/pdf`), `blob_path = attachments/<oid>/<attachmentId>`. (No `content_type` in the request — finalize reads it from the blob; any supplied value is ignored.)
+4. **RO verify** (`.local\run-reporting-ro-query.ps1`, SELECT-only): confirm exactly one `theo_attachments` row for the probe id, `created_by` = the caller OID, `content_type` = the actual blob type.
+5. **negatives:** finalize a random unused `attachment_id` → **404**; create with `content_type:"application/x-msdownload"` → **400 UNSUPPORTED_MEDIA_TYPE**; **misdeclaration guard** — PUT with `Content-Type: application/x-msdownload` (a disallowed type) to a SAS minted for a PDF, then finalize → **400 UNSUPPORTED_MEDIA_TYPE** (enforced on the blob's actual type, + blob auto-deleted); (size cap) PUT a >10 MB body for a native type then finalize → **400 PAYLOAD_TOO_LARGE** (+ blob auto-deleted).
 6. **delete** → `POST /api/theo_delete_attachment` `{ "id": "<attachmentId>" }` → expect **200** `data.deleted:true`; re-finalize/HEAD confirms the blob + row are gone; deleting a non-owned id → **403/404**.
 All captured under `.local/` (no token bytes).
 

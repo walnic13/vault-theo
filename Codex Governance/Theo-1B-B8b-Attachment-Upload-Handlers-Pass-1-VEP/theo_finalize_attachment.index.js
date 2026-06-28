@@ -227,19 +227,8 @@ module.exports = async function (context, req) {
     return send(context, 400, errorBody("INVALID_REQUEST", "Field 'filename' is required and must be a non-empty string.", 400));
   }
 
-  const contentType = normalizeContentType(body.content_type);
-  const ingestion = INGESTION_CLASSES[contentType];
-  if (!ingestion) {
-    return send(
-      context,
-      400,
-      errorBody(
-        "UNSUPPORTED_MEDIA_TYPE",
-        `Field 'content_type' must be one of the supported attachment types: ${ALLOWED_CONTENT_TYPES.join(", ")}.`,
-        400
-      )
-    );
-  }
+  // NOTE: content-type is NOT taken from the request body — it is read from the blob's
+  // ACTUAL stored Content-Type below (after HEAD), so the client cannot misdeclare it (D-8).
 
   const conversationId =
     body.conversation_id != null && typeof body.conversation_id === "string" && body.conversation_id.trim() !== ""
@@ -264,6 +253,25 @@ module.exports = async function (context, req) {
   if (!props) {
     return send(context, 404, errorBody("NOT_FOUND", "Uploaded blob not found for this attachment id (upload may have failed or expired).", 404));
   }
+
+  // AUTHORITATIVE content-type = the blob's ACTUAL stored Content-Type (set on the client's PUT),
+  // NOT a client-declared body field. The allow-list, ingestion class, and per-class cap are all
+  // enforced against this actual type, so a client cannot misdeclare the type past the guardrail (D-8).
+  const contentType = normalizeContentType(props.contentType);
+  const ingestion = INGESTION_CLASSES[contentType];
+  if (!ingestion) {
+    await deleteBlobBestEffort(context, STORAGE_ACCOUNT, STORAGE_CONTAINER, blobKey);
+    return send(
+      context,
+      400,
+      errorBody(
+        "UNSUPPORTED_MEDIA_TYPE",
+        `Uploaded blob Content-Type '${contentType || "(none)"}' is not a supported attachment type. Allowed: ${ALLOWED_CONTENT_TYPES.join(", ")}.`,
+        400
+      )
+    );
+  }
+
   if (!Number.isFinite(props.contentLength) || props.contentLength <= 0) {
     await deleteBlobBestEffort(context, STORAGE_ACCOUNT, STORAGE_CONTAINER, blobKey);
     return send(context, 400, errorBody("INVALID_REQUEST", "Uploaded file is empty.", 400));

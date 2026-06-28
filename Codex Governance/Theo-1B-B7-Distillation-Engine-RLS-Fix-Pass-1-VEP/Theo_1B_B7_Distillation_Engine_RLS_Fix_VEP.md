@@ -7,11 +7,11 @@
 ## GROUNDING CONFORMANCE RECEIPT
 Role: Claude Code
 Turn Type: Verified Evidence Pack (backend plan; materially-revised)
-Turn issued against HEAD: `badd85b91d02bc1f9e3c37c08d1d7bcfdec556ec` (vault-theo, `development`)
+Turn issued against HEAD: `58ddb9a1e47b6e8c30612435c84e95deccffd0da` (vault-theo, `development`)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P8
-Detail: Pass 1 materially-revised backend VEP (supersedes the prior B7 distillation VEP, cited below). Primary Reference (Golden §2) = the deployed `theo_message` (Foundry + `pg` idiom; blob `f41362bb`, §SM) + its `function.json` (blob `bd476fc8`, §SM-FJ). The new `theo_due_conversations` is a `SECURITY DEFINER` function — the SAME idiom as the deployed `theo_*_exists_unscoped` helpers (Architecture §5.2; API Spec §1; Schema §1/§5), now applied to a cross-owner due-scan. Diagnosis evidenced live: timer invocations succeed (3×, ~228ms) logging `theo_distill_memory: 0 conversation(s) due`; an RO predicate test (impersonating the owner) showed all 12 conversations `would_be_due = t` — i.e. the scan logic is right but RLS hid the rows from the user-less batch. `theo_distill_memory` writes remain explicit `created_by`-scoped (T13). NEW timer `timerTrigger` binding disclosed (no deployed precedent). Full Baseline per Conformance §4.
+Detail: Pass 1 materially-revised backend VEP (supersedes the prior B7 distillation VEP, cited below; re-issued against the amended authority). Primary Reference (Golden §2) = the deployed `theo_message` (Foundry + `pg` idiom; blob `f41362bb`, §SM) + its `function.json` (blob `bd476fc8`, §SM-FJ). The new `theo_due_conversations` is a `SECURITY DEFINER` **enumeration helper** — explicitly sanctioned by the **scheduled-job enumeration carve-out** added this session to Golden Handler §3 item 1(b) + API Spec §1 (returns identifiers + owner ids only, no user content; processed per-owner under `set_config`). This replaces the prior pack's misclassification of it under the existence-helper clause (Codex T13). Diagnosis evidenced live: timer invocations succeed (3×, ~228ms) logging `theo_distill_memory: 0 conversation(s) due`; an RO predicate test (impersonating the owner) showed all 12 conversations `would_be_due = t` — i.e. the scan logic is right but RLS hid the rows from the user-less batch. `theo_distill_memory` writes remain explicit `created_by`-scoped (T13). NEW timer `timerTrigger` binding disclosed (no deployed precedent). Full Baseline per Conformance §4.
 Currency anchors: blob SHA via `git rev-parse HEAD:<path>`; verifiable via `git cat-file -p <sha>`.
 
 | # | Document (name + path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
@@ -22,8 +22,8 @@ Currency anchors: blob SHA via `git rev-parse HEAD:<path>`; verifiable via `git 
 | 4 | Theo Golden Handler Standard — `governance/THEO_GOLDEN_HANDLER_STANDARD.md` (§2 primary ref; §5 SM) | `Grep("selects \*\*exactly one\*\* deployed handler file")` this turn | `2ee83c036e21a5dabe3405b6532c3471c680da0b` |
 | 5 | Theo Execution Orchestration Standard — `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md` (§1A roles) | `Grep("the model swap point")` this turn | `69c8b54ab17211bdd7840ce78a66db55ca9a9c94` |
 | 6 | **Microstep source** — Theo Phase 1B Backend Plan — `governance/THEO_PHASE_1B_BACKEND_PLAN.md` (§7 Tier B7) | `Grep("distillation step")` this turn | `f433158a9ef37789ae3a7133906d3c08c31c1783` |
-| 7 | Theo Architecture and Structure — `governance/THEO_ARCHITECTURE_AND_STRUCTURE.md` (§5.2 RLS ownership + `_exists_unscoped`) | `Grep("SECURITY DEFINER existence helper")` this turn | `07451ce9d912830b3c15fedf74761d00c59f97b2` |
-| 8 | Theo API Spec — `spec/THEO_API_SPEC.md` (§1 SECURITY DEFINER helper exception; §2.7 Memory) | `Grep("SECURITY DEFINER existence helper")` this turn | `0d5ac940baf402cf369862694adcac394232c137` |
+| 7 | **Sanctioning authority** — Theo Golden Handler Standard — `governance/THEO_GOLDEN_HANDLER_STANDARD.md` (§3 item 1(b) scheduled-job enumeration-helper carve-out) | `Grep("enumeration helper")` this turn | `af4ef9fd93ce886ad968d3644599e54e29c67220` |
+| 8 | **Sanctioning authority** — Theo API Spec — `spec/THEO_API_SPEC.md` (§1 enumeration-helper carve-out; §2.7 Memory) | `Grep("enumeration helper invoked only by scheduled")` this turn | `f491b3986dd1fdbcaa91346def08520217fc9370` |
 | 9 | **Contract basis** — Theo Azure Postgres Schema — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` (§1/§5 `_exists_unscoped` SECURITY DEFINER idiom; §6 `theo_user_memory`) | `Grep("_exists_unscoped")` this turn | `95538419e01ff95d20342e6b65d97c332912c614` |
 | 10 | **Primary Reference handler** (deployed; Foundry + pg idiom) — `Codex Governance/Theo-1B-B7-Memory-Injection-Pass-1-VEP/theo_message.index.js` | `Read(full)` this turn | `f41362bb020a2488915fce0699f8598344b558e8` |
 | 11 | **Primary Reference function.json** (deployed httpTrigger) — `api/theo_message/function.json` | `Read(full)` this turn | `bd476fc8d144ed9592b561b4c0ded84f5911cff0` |
@@ -40,8 +40,8 @@ No ChatGPT advisory cited (§4D / T18). No `reporting_*`/`corporate-reporting` c
 | ------------------------------- | --------- | -------------------- | -------------------- |
 | governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md | §3–§5 | "MUST open with a Grounding Conformance Receipt (GCR) and a Rule Anchor Table" | GCR + Rule Anchor Table (this pack) |
 | governance/CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md | §8 | "Gap Register" | §P2.5 / GR Gap Register |
-| spec/THEO_API_SPEC.md | §1 | "No service-credential reads except an explicit SECURITY DEFINER existence helper" | §DDL — `theo_due_conversations` SECURITY DEFINER scan (the sanctioned bypass idiom) |
-| governance/THEO_ARCHITECTURE_AND_STRUCTURE.md | §5.2 | "SECURITY DEFINER existence helper" | §DDL — same idiom as `theo_*_exists_unscoped`, applied to the cross-owner scan |
+| spec/THEO_API_SPEC.md | §1 | "enumeration helper invoked only by scheduled (timer) handlers" | §DDL — `theo_due_conversations` IS the sanctioned scheduled-job enumeration helper |
+| governance/THEO_GOLDEN_HANDLER_STANDARD.md | §3 | "SECURITY DEFINER **enumeration helper**" | §DDL — the scheduled-job enumeration-helper carve-out (item 1(b)) |
 | governance/THEO_GOLDEN_HANDLER_STANDARD.md | §2 | "selects **exactly one** deployed handler file" | §SM — Primary Reference = deployed `theo_message` |
 | spec/THEO_AZURE_POSTGRES_SCHEMA.md | §6 | "theo_user_memory" | §HG — per-owner writes to the deployed B7a table |
 
@@ -52,7 +52,7 @@ No ChatGPT advisory cited (§4D / T18). No `reporting_*`/`corporate-reporting` c
 
 ## P2 — Architecture & boundary reconciliation
 - **Diagnosis (live).** Timer fires + succeeds (3 invocations, ~228ms) but logs `0 conversation(s) due`. RO predicate test (owner-impersonated) → all 12 conversations `would_be_due = t`. So the scan logic + interval are correct; the user-less batch simply cannot satisfy `created_by = auth.uid()` under RLS → 0 rows.
-- **Fix — sanctioned bypass idiom.** `theo_due_conversations(p_idle_minutes, p_limit)` is `SECURITY DEFINER SET search_path = public`, owner = the `theo_*` owner, returning only `(id, created_by)` for due conversations across all owners — the same mechanism the deployed `theo_*_exists_unscoped` helpers use, which API Spec §1 explicitly sanctions ("No service-credential reads except an explicit SECURITY DEFINER existence helper").
+- **Fix — the sanctioned scheduled-job enumeration helper.** `theo_due_conversations(p_idle_minutes, p_limit)` is `SECURITY DEFINER SET search_path = public`, owner = the `theo_*` owner, returning only `(id, created_by)` for due conversations across all owners. This is exactly the **enumeration-helper carve-out** added to Golden Handler §3 item 1(b) + API Spec §1 this session (a scheduled-job-only SECURITY DEFINER helper returning identifiers + owner ids, no user content) — distinct from, and a sibling to, the existence helper.
 - **Per-owner context.** For each due conversation the timer `set_config('app.current_user_id', conv.created_by, …)` BEFORE reading its messages/existing memory and writing memory + the watermark — so every data row access runs under that owner's RLS context, and each memory row is written as (and only visible to) its owner. The explicit `created_by`-scoped predicates (T13) remain on all writes.
 - **Boundary.** New SECURITY DEFINER function returns no content (ids/owners only); reads `theo_conversations`/`theo_messages`, writes `theo_user_memory`; **no `reporting_*`**; the only model call is the per-conversation extraction (server-side Foundry, no web tools).
 
@@ -68,7 +68,7 @@ Grounded against Governor §8 (closed vocabulary `PROCEED`/`PRE-LAND`/`ESCALATE`
 No write SQL executed in this pack (plan only; Walter runs §DDL at Pass 3). No `reporting_*` change.
 
 ## P3 — Backend / contract grounding
-No HTTP contract (timer). `theo_due_conversations` is SECURITY DEFINER returning `TABLE(id uuid, created_by text)` — the sanctioned bypass idiom (API Spec §1; Architecture §5.2). Writes conform to `theo_user_memory` (Schema §6) and API Spec §2.7. Extraction uses the established Foundry-Claude path (`THEO_FOUNDRY_*` + `AAD_*`), no web tools.
+No HTTP contract (timer). `theo_due_conversations` is SECURITY DEFINER returning `TABLE(id uuid, created_by text)` — the sanctioned scheduled-job **enumeration helper** (Golden Handler §3 item 1(b); API Spec §1), returning identifiers + owner ids only, no user content. Writes conform to `theo_user_memory` (Schema §6) and API Spec §2.7. Extraction uses the established Foundry-Claude path (`THEO_FOUNDRY_*` + `AAD_*`), no web tools.
 
 ## P4 — Change detail (vs the superseded handler)
 Two changes to `theo_distill_memory/index.js`:
@@ -679,8 +679,10 @@ CREATE INDEX IF NOT EXISTS idx_theo_conversations_distill_scan
   ON public.theo_conversations (updated_at)
   WHERE last_distilled_at IS NULL OR last_distilled_at < updated_at;
 
--- Cross-owner due-scan for the distillation timer. SECURITY DEFINER (owner = pgadmin_vault) so it sees
--- all owners' conversations regardless of RLS; returns only ids + owners for scheduling (no content).
+-- Cross-owner ENUMERATION helper for the distillation timer — the scheduled-job SECURITY DEFINER
+-- enumeration carve-out (Golden Handler §3 item 1(b) / API Spec §1). Runs as the function owner so it
+-- sees all owners' conversations regardless of RLS; returns ONLY identifiers + owner ids for scheduling
+-- (never user content). The timer then processes each owner under that owner's set_config context.
 CREATE OR REPLACE FUNCTION public.theo_due_conversations(p_idle_minutes int, p_limit int)
 RETURNS TABLE (id uuid, created_by text)
 LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$

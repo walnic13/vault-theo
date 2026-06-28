@@ -18,8 +18,10 @@ CREATE INDEX IF NOT EXISTS idx_theo_conversations_distill_scan
   ON public.theo_conversations (updated_at)
   WHERE last_distilled_at IS NULL OR last_distilled_at < updated_at;
 
--- Cross-owner due-scan for the distillation timer. SECURITY DEFINER (owner = pgadmin_vault) so it sees
--- all owners' conversations regardless of RLS; returns only ids + owners for scheduling (no content).
+-- Cross-owner ENUMERATION helper for the distillation timer — the scheduled-job SECURITY DEFINER
+-- enumeration carve-out (Golden Handler §3 item 1(b) / API Spec §1). Runs as the function owner so it
+-- sees all owners' conversations regardless of RLS; returns ONLY identifiers + owner ids for scheduling
+-- (never user content). The timer then processes each owner under that owner's set_config context.
 CREATE OR REPLACE FUNCTION public.theo_due_conversations(p_idle_minutes int, p_limit int)
 RETURNS TABLE (id uuid, created_by text)
 LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$

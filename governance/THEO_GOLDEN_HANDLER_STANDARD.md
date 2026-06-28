@@ -18,7 +18,7 @@ For each implementation package, Claude Code selects **exactly one** deployed ha
 ## §3 Handler Structure (Theo conventions)
 
 Every Theo handler:
-1. Authenticates the caller and executes **as the signed-in user** (Entra OID), honouring deployed RLS — never with elevated/service credentials except where a SECURITY DEFINER existence helper is explicitly invoked for 403/404 discrimination (architecture §5.1).
+1. Authenticates the caller and executes **as the signed-in user** (Entra OID), honouring deployed RLS — never with elevated/service credentials except (a) where a SECURITY DEFINER existence helper is explicitly invoked for 403/404 discrimination (architecture §5.1), or (b) where a **scheduled (timer) handler** invokes an explicit SECURITY DEFINER **enumeration helper** that returns ONLY identifiers + owner ids (never user content) to schedule per-owner work, after which the handler processes each owner under that owner's session context (`set_config`). No other elevated/service-credential reads are permitted.
 2. Reads/writes only `theo_` tables (architecture §5). It MUST NOT read or write `reporting_*` tables; any Corporate Reporting data is obtained by calling the published Reporting API as the user, per the Theo Tool Manifest (architecture §0a/§1.3/§4.3).
 3. Validates input against the Theo API Spec contract; rejects unknown/extra fields; returns the spec's status codes.
 4. Leaks nothing sensitive (no tokens, no raw OIDs/usernames, no upstream URLs, no model credentials) in responses or logs.

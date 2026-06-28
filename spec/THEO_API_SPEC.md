@@ -10,7 +10,7 @@ Filename / location: `spec/THEO_API_SPEC.md`.
 ## §1 Conventions
 
 - Route naming: `theo_<operation>_<entity>` (e.g. `theo_create_project`).
-- Every endpoint executes **as the signed-in user** (Entra OID), honouring deployed RLS (architecture §3.3 / §5.2). No service-credential reads except an explicit SECURITY DEFINER existence helper.
+- Every endpoint executes **as the signed-in user** (Entra OID), honouring deployed RLS (architecture §3.3 / §5.2). No service-credential reads except (a) an explicit SECURITY DEFINER existence helper, or (b) an explicit SECURITY DEFINER enumeration helper invoked only by scheduled (timer) handlers, returning ONLY identifiers + owner ids (no user content), whose results are processed per-owner under that owner's session context.
 - The **model gateway** request/response is the **standard Anthropic Messages API shape** (architecture §2.2) so tool wiring / streaming / prompt caching are model-agnostic; the gateway is the only credential holder and the model swap point.
 - Status codes, validation (reject unknown/extra fields), and no-leakage responses follow the Theo Golden Handler Standard.
 

@@ -22,7 +22,7 @@ Filename / location: `spec/THEO_AZURE_POSTGRES_SCHEMA.md`.
 - Policies target `authenticated` and key on `auth.uid()` (= the Entra OID in `created_by`); session context set per request.
 - Default family: ownership-based (`created_by = auth.uid()`). Membership/sharing models are introduced only by explicit Walter-authorized schema update.
 
-## §3 Structural Table Set (DDL DEPLOYED — Tier B2 §5; Tier B7a §6)
+## §3 Structural Table Set (DDL DEPLOYED — Tier B2 §5; Tier B7a §6; Tier B8a §7)
 
 | Table | Purpose | Notes | Status |
 |-------|---------|-------|--------|
@@ -34,6 +34,7 @@ Filename / location: `spec/THEO_AZURE_POSTGRES_SCHEMA.md`.
 | `theo_artifact_versions` | Versioned artifact content | `artifact_id` FK ON DELETE CASCADE; `version_number` (UNIQUE per artifact); content via Blob pointer (`blob_container`/`blob_path`/`byte_size`/`content_type`). Immutable. | DEPLOYED — B2 (§5) |
 | `theo_user_settings` | Per-user style + custom instructions (Customize) | Text PK = Entra OID (`user_oid`); `style_key` (CHECK), `custom_instructions`. RLS keys on `user_oid = auth.uid()`. Prepended to system prompt. | DEPLOYED — B2 (§5) |
 | `theo_user_memory` | Distilled per-user memory (Memory Layer, option C) | `scope text` (`'user'`\|`'project'`), `project_id uuid NULL` FK→`theo_projects` ON DELETE CASCADE, `kind text`, `content text` (non-empty), `source_conversation_id uuid NULL` FK→`theo_conversations` ON DELETE SET NULL, `salience int`. CHECK: `scope='project'` iff `project_id` set. Mutable. Injected at system-prompt assembly. | DEPLOYED — B7a (§6) |
+| `theo_attachments` | File attached to a chat (Attachments, Tier B8) | `conversation_id uuid NULL` FK→`theo_conversations` ON DELETE SET NULL, `filename text` (non-empty CHECK), `content_type text`, `byte_size bigint` (CHECK `>= 0`), `blob_container`/`blob_path` (pointer into the existing `theo-content` container). Immutable — no `updated_at`. Body lives in Blob; the row holds only the pointer. | DEPLOYED — B8a (§7) |
 | `theo_apps` / `theo_app_tools` *(candidate)* | Registry of apps + Theo-callable endpoints (backs the Tool Manifest) | May start as config rather than tables; 1B decides (architecture §9 open item 1). | CANDIDATE — 1B decision |
 
 `app_key` is **`text NULL` (no CHECK)** as deployed in B2 (Walter-approved 2026-06-27) — free-text, promotable to a CHECK-constrained closed set / FK'd app registry once the app set settles.
@@ -63,3 +64,11 @@ Theo tables are net-new and additively namespaced in the shared `vaultgpt` insta
 **Canonical DDL (single source of truth):** `Codex Governance/Theo-1B-B7a-Memory-Substrate-Schema-Pass-1-VEP/b7a_migration.sql` (Codex-APPROVED at `631c9a54`); read-only verification `…/b7a_verify.sql`. Not duplicated here.
 
 **As-built specifics (mirrors the §5 ownership-RLS idiom):** `theo_user_memory` is the distilled per-user memory profile (Memory Layer option C). Columns: `scope text` (`'user'`|`'project'`), `project_id uuid NULL` FK→`theo_projects` ON DELETE CASCADE, `kind text`, `content text` (non-empty CHECK), `source_conversation_id uuid NULL` FK→`theo_conversations` ON DELETE SET NULL, `salience int`, plus `id`/`created_by`/`created_at`/`updated_at` per §1 (mutable — carries `updated_at`). Per-user isolation is ALSO enforced by explicit `created_by = $oid` predicates in the B7a CRUD handlers (the shared Functions connection role bypasses RLS — see the SEC user-isolation fix); RLS is the defence-in-depth second layer. Boundary: net-new additive table; no `reporting_*` touched.
+
+## §7 DEPLOYED DDL — Tier B8a (2026-06-28)
+
+**Status:** DEPLOYED + read-only-verified against `vaultgpt-postgres-prod` (schema `public`). Verification (catalog read-only): `theo_attachments` present, RLS enabled with four `TO authenticated` policies keyed on `created_by = auth.uid()` (`theo_attachment_<verb>_own`); `theo_attachment_exists_unscoped(uuid)` SECURITY DEFINER helper present; constraints — `conversation_id` FK→`theo_conversations(id)` ON DELETE SET NULL, `byte_size >= 0`, `filename` non-empty.
+
+**Canonical DDL (single source of truth):** `Codex Governance/Theo-1B-B8a-Attachments-Schema-Pass-1-VEP/b8a_migration.sql` (Codex-APPROVED; deployed by Walter); read-only verification `…/b8a_verify.sql`. Not duplicated here.
+
+**As-built specifics (mirrors the §5 ownership-RLS idiom):** `theo_attachments` is the storage substrate for files a user attaches to a chat (Attachments, Tier B8). Columns: `conversation_id uuid NULL` FK→`theo_conversations` ON DELETE SET NULL (an attachment survives deletion of its chat), `filename text` (non-empty CHECK), `content_type text`, `byte_size bigint` (CHECK `>= 0`), `blob_container`/`blob_path` (pointer into the existing `theo-content` Blob container), plus `id`/`created_by`/`created_at` per §1. Immutable file metadata — no `updated_at`. The file body lives in Blob; the row holds only the pointer. Per-user isolation is enforced by RLS (this table) AND by explicit `created_by = $oid` predicates in the Tier B8 handlers (next microsteps). Boundary: net-new additive table; no `reporting_*` touched.

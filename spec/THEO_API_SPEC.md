@@ -53,6 +53,13 @@ Grouped by the 1A handover §2.3 contract list. Operation-level only at v0.1; re
 | App-action tool dispatch (published `reporting_*` etc. as the user) | `1B-deployed` (mocked-absent in 1A) | HF-T3 via `spec/THEO_TOOL_MANIFEST.md` |
 | RAG retrieval (Azure AI Search; tax corpus + project knowledge, RLS-scoped) | `1A-contract` (mocked, stub results — architecture §6) / `1B-deployed` | HF-T4 |
 
+### §2.7 Memory (option C; B7) — backs the memory controls + cross-chat recall
+| Contract | Status | Backing |
+|----------|--------|---------|
+| list / create / update / delete user memory | `1B-deployed` — **DEPLOYED 2026-06-28** (B7a): `GET /api/theo_list_user_memory` (`?scope`=user\|project, `?projectId`), `POST /api/theo_create_user_memory`, `POST /api/theo_update_user_memory`, `POST /api/theo_delete_user_memory`. Per-user `created_by`-scoped (explicit predicate; the connection role bypasses RLS). Item shape `{ id, scope, project_id, kind, content, source_conversation_id, salience, created_at, updated_at }`; create validates the scope⟺project_id invariant + FK ownership (project / source conversation owned by the caller). | `theo_user_memory` (HF-T2; B7a) |
+| distilled memory written from completed turns; injected at system-prompt assembly | `1B` (sequenced; D-7 distillation policy RESOLVED, D-3 ZDR RESOLVED) | distillation step → `theo_user_memory` (B7) |
+| cross-chat history-RAG over the user's own `theo_messages` | `1B` (PRE-LAND; needs Azure AI Search `vaultgpt-search` + embeddings) | HF-T4 over `theo_messages`, `created_by`-scoped (B7b) |
+
 ## §3 Boundary
 
 No Theo endpoint reads/writes `reporting_*` tables. Corporate Reporting data is obtained only by calling the published Reporting API as the signed-in user, per `spec/THEO_TOOL_MANIFEST.md` (architecture §0a/§1.3/§4.3).

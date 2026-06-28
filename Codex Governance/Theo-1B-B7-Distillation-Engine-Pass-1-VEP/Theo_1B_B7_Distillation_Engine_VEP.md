@@ -833,8 +833,8 @@ module.exports = async function (context, distillTimer) {
 
         if (msgs.rowCount === 0) {
           await client.query(
-            `UPDATE public.theo_conversations SET last_distilled_at = now() WHERE id = $1`,
-            [conv.id]
+            `UPDATE public.theo_conversations SET last_distilled_at = now() WHERE id = $1 AND created_by = $2`,
+            [conv.id, conv.created_by]
           );
           continue;
         }
@@ -917,8 +917,8 @@ module.exports = async function (context, distillTimer) {
           inserted++;
         }
         await client.query(
-          `UPDATE public.theo_conversations SET last_distilled_at = now() WHERE id = $1`,
-          [conv.id]
+          `UPDATE public.theo_conversations SET last_distilled_at = now() WHERE id = $1 AND created_by = $2`,
+          [conv.id, conv.created_by]
         );
         await client.query("COMMIT");
 
@@ -930,8 +930,8 @@ module.exports = async function (context, distillTimer) {
         // it re-distills only if it gains new activity (updated_at advances).
         try {
           await client.query(
-            `UPDATE public.theo_conversations SET last_distilled_at = now() WHERE id = $1`,
-            [conv.id]
+            `UPDATE public.theo_conversations SET last_distilled_at = now() WHERE id = $1 AND created_by = $2`,
+            [conv.id, conv.created_by]
           );
         } catch (markErr) {
           context.log.error(`theo_distill_memory: watermark update failed for ${conv.id}`, markErr);

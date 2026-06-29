@@ -37,13 +37,14 @@ A handler region is classified **EXACT** (byte-identical structural mirror of th
 
 ## §6 Handler Family Registry (Theo starter)
 
-Stable-id registry of Theo backend handler families, populated as families are authored.
+Stable-id registry of Theo backend handler families, populated as families are authored. (HF-T5 Blob upload SAS broker added 2026-06-29 for Tier B8b attachments.)
 
 | HF-id | Family | Scope | Status |
 |-------|--------|-------|--------|
 | HF-T1 | Model gateway broker | Server-side Foundry-Claude broker (Anthropic Messages API shape; Entra managed identity; web_search/web_fetch/code-exec built-ins) | PROPOSED (architecture §2; authored in 1B) |
-| HF-T2 | `theo_` CRUD + RLS | Ownership-based CRUD over `theo_conversations` / `theo_messages` / `theo_projects` / `theo_project_knowledge` / `theo_artifacts` / `theo_artifact_versions` / `theo_user_settings` | PROPOSED (architecture §5.3; authored in 1B) |
+| HF-T2 | `theo_` CRUD + RLS | Ownership-based CRUD over `theo_conversations` / `theo_messages` / `theo_projects` / `theo_project_knowledge` / `theo_artifacts` / `theo_artifact_versions` / `theo_user_settings` / `theo_attachments` | PROPOSED (architecture §5.3; authored in 1B) |
 | HF-T3 | Tool dispatch | Dispatch of app-action tools (published `reporting_*` etc.) as the signed-in user via the Tool Manifest | PROPOSED (architecture §4; authored in 1B) |
 | HF-T4 | RAG retrieval | Azure AI Search hybrid retrieval over tax corpus + project knowledge, RLS-scoped, at the system-prompt assembly seam | PROPOSED (architecture §6; authored in 1B) |
+| HF-T5 | Blob upload SAS broker | Server-side issuance of short-lived, single-blob, owner-scoped managed-identity **user-delegation** write SAS for direct-to-Blob upload into `theo-content`, plus managed-identity data-plane blob HEAD (actual size/type) and DELETE (reclaim); no `@azure/storage-blob` dependency (managed-identity token → user delegation key → manually-signed SAS) | DEPLOYED 2026-06-29 (B8b; `theo_create_attachment_upload`; the blob-side of `theo_finalize_attachment` / `theo_delete_attachment`) |
 
 Append rule: new families are added with a monotonically increasing `HF-Tn` id by a Walter-approved Role-C landing as each is authored against the Theo API Spec + Schema.

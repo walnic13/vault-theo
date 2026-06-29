@@ -60,6 +60,16 @@ Grouped by the 1A handover §2.3 contract list. Operation-level only at v0.1; re
 | distilled memory written from completed turns; injected at system-prompt assembly | `1B` (sequenced; D-7 distillation policy RESOLVED, D-3 ZDR RESOLVED) | distillation step → `theo_user_memory` (B7) |
 | cross-chat history-RAG over the user's own `theo_messages` | `1B` (PRE-LAND; needs Azure AI Search `vaultgpt-search` + embeddings) | HF-T4 over `theo_messages`, `created_by`-scoped (B7b) |
 
+### §2.8 Attachments (Tier B8) — backs file upload to chats
+| Contract | Status | Backing |
+|----------|--------|---------|
+| create attachment upload (issue write SAS) | `1B-deployed` — **DEPLOYED 2026-06-29** (B8b): `POST /api/theo_create_attachment_upload` `{ filename, content_type }` (`content_type` ∈ the ingestion-class allow-list — native PDF/PNG/JPEG/WebP/GIF ≤10 MB; extract XLSX/XLS/DOCX/PPTX/CSV/TXT ≤50 MB; else 400 `UNSUPPORTED_MEDIA_TYPE`). Returns `{ attachmentId, filename, contentType, ingestionClass, maxBytes, upload: { account, container, blobKey, blobUrl, uploadUrl, method:"PUT", requiredHeaders, expiresAt } }` — a 15-min, single-blob, owner-scoped (`attachments/<oid>/<attachmentId>`) managed-identity **user-delegation write SAS** the client PUTs the bytes to directly. | Blob `theo-content` (HF-T5) |
+| finalize attachment | `1B-deployed` — **DEPLOYED 2026-06-29** (B8b): `POST /api/theo_finalize_attachment` `{ attachment_id, filename, conversation_id? }`. HEADs the uploaded blob and enforces the allow-list + ingestion class + per-class cap against the blob's **actual** Content-Type and Content-Length (the client cannot misdeclare); a disallowed / empty / over-cap blob → 400 (`UNSUPPORTED_MEDIA_TYPE` / `INVALID_REQUEST` / `PAYLOAD_TOO_LARGE`) + blob deleted. Inserts the owner-scoped row (`id = attachmentId`); returns `{ attachment: { id, conversation_id, filename, content_type, byte_size, blob_container, blob_path, created_at, ingestion_class } }`. A referenced `conversation_id` must be owned by the caller (else 404). | `theo_attachments` (HF-T2) + Blob `theo-content` |
+| delete attachment | `1B-deployed` — **DEPLOYED 2026-06-29** (B8b): `POST /api/theo_delete_attachment` `{ id }`. Owner-scoped permanent delete (403/404 split via `theo_attachment_exists_unscoped`) + best-effort blob reclaim; returns `{ deleted: true, id }`. | `theo_attachments` (HF-T2) + Blob `theo-content` |
+| read uploaded files into a chat (PDF/image as document/image content blocks; Excel/Word/PPT/CSV/TXT extracted to text) | `1B` (sequenced; B8c extraction-at-upload + B8d gateway injection) | HF-T1 gateway + `theo_attachments` |
+
+All attachment endpoints execute as the signed-in user; every query is explicit `created_by`-scoped, with ownership RLS the second layer (per §1). The Blob body lives in the existing `theo-content` container; the row holds only the pointer.
+
 ## §3 Boundary
 
 No Theo endpoint reads/writes `reporting_*` tables. Corporate Reporting data is obtained only by calling the published Reporting API as the signed-in user, per `spec/THEO_TOOL_MANIFEST.md` (architecture §0a/§1.3/§4.3).

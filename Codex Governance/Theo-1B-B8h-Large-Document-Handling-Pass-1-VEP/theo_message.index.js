@@ -431,7 +431,7 @@ async function buildAttachmentBlocks(context, rows) {
     // B8f: honor finalize's classification — a row marked extract-class (e.g. a large PDF promoted
     // to text) injects its extracted text, not a giant document block, even though content_type is
     // application/pdf. Only non-extract rows with a native media type inject document/image blocks.
-    const isExtractRow = row.ingestion_class === "extract" && !!row.extracted_text_path;
+    const isExtractRow = row.ingestion_class === "extract"; // extract-class NEVER falls back to native (T13)
     const native = !isExtractRow && NATIVE_MEDIA_TYPES[row.content_type];
     try {
       if (native) {
@@ -448,7 +448,7 @@ async function buildAttachmentBlocks(context, rows) {
           blocks.push({ type: "image", source: { type: "base64", media_type: row.content_type, data: b64 } });
         }
         blocks.push({ type: "text", text: `(above is the attached file "${row.filename}")` });
-      } else if (isExtractRow) {
+      } else if (isExtractRow && row.extracted_text_path) {
         const text = await downloadBlobText(storageToken, row.extracted_text_path);
         const remaining = ATTACH_EXTRACT_BUDGET_CHARS - extractChars;
         if (remaining <= 0) {

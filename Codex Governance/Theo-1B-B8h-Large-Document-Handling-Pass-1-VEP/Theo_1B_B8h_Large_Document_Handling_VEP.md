@@ -54,7 +54,7 @@ Tier **B8h (large-document handling)**. The deployed attachment pipeline times o
 
 ## P2 — Architecture & boundary reconciliation
 - **Level 2 (`theo_finalize_attachment`).** After the HEAD/size/allow-list checks, a PDF with actual size `> PDF_NATIVE_MAX_BYTES` (3 MB, env-overridable) is promoted to **extract-class**: the existing B8c extraction path runs, with a new `pdf-parse` branch in `extractTextFromBlob` producing the text, stored as the sibling `…/<id>.extracted.md`, and `ingestion_class='extract'` + `extracted_text_path` set. Small PDFs and images keep `ingestion_class='native'`. Extraction stays **non-fatal** (the file is stored regardless). No change to the allow-list, the per-class cap, ownership, or the INSERT columns (the B8c columns already exist).
-- **Level 1 (`theo_message`).** `buildAttachmentBlocks` now decides native-vs-extract by the **row's `ingestion_class`** (`isExtractRow = ingestion_class==='extract' && extracted_text_path`), not by `content_type` — so a promoted PDF (still `content_type: application/pdf`) injects its **budgeted extracted text** rather than a multi-MB document block. The extract-text budget (`ATTACH_EXTRACT_BUDGET_CHARS`, 200 K) bounds the injected tokens; the native byte budget is tightened (25 MB → 14 MB). Everything else (memory, history-RAG, persistence, attachment ownership fetch, streaming-tools) is unchanged.
+- **Level 1 (`theo_message`).** `buildAttachmentBlocks` now decides native-vs-extract by the **row's `ingestion_class`** (`isExtractRow = ingestion_class==='extract'` — **path-independent**, so an extract-class row is never injected natively even if extraction failed; it degrades to a note), not by `content_type` — so a promoted PDF (still `content_type: application/pdf`) injects its **budgeted extracted text** rather than a multi-MB document block. The extract-text budget (`ATTACH_EXTRACT_BUDGET_CHARS`, 200 K) bounds the injected tokens; the native byte budget is tightened (25 MB → 14 MB). Everything else (memory, history-RAG, persistence, attachment ownership fetch, streaming-tools) is unchanged.
 - **Boundary.** Reads/writes only `theo_attachments` + the `theo-content` container; **no `reporting_*`**; no schema change; managed-identity blob access (B8b/B8c pattern) unchanged; `pdf-parse` is in-process (no network), same posture as `xlsx`/`mammoth`/`officeparser`.
 
 ## P2.5 / GR — Gap Register
@@ -87,8 +87,8 @@ None — reuses the deployed B8c `ingestion_class` + `extracted_text_path` colum
 
 **`theo_message` (Level 1):**
 4. `ATTACH_NATIVE_BUDGET_BYTES` default tightened 25 MB → 14 MB.
-5. `buildAttachmentBlocks` decides by ingestion class: `const isExtractRow = row.ingestion_class==='extract' && !!row.extracted_text_path; const native = !isExtractRow && NATIVE_MEDIA_TYPES[row.content_type];` — a promoted PDF injects extracted text, not a document block.
-6. The extract branch keys on `isExtractRow`.
+5. `buildAttachmentBlocks` decides by ingestion class: `const isExtractRow = row.ingestion_class==='extract'; const native = !isExtractRow && NATIVE_MEDIA_TYPES[row.content_type];` — `isExtractRow` is **path-independent**, so an extract-class row is never native (T13): a promoted PDF injects its extracted text, or — if extraction failed (no `extracted_text_path`) — a "could not be read" note, **never** a document block.
+6. The extract **text** branch keys on `isExtractRow && row.extracted_text_path`; an extract-class row with no extracted text falls through to the note (never native).
 
 Everything else in both handlers is byte-for-byte the deployed version.
 
@@ -1064,7 +1064,7 @@ async function buildAttachmentBlocks(context, rows) {
     // B8f: honor finalize's classification — a row marked extract-class (e.g. a large PDF promoted
     // to text) injects its extracted text, not a giant document block, even though content_type is
     // application/pdf. Only non-extract rows with a native media type inject document/image blocks.
-    const isExtractRow = row.ingestion_class === "extract" && !!row.extracted_text_path;
+    const isExtractRow = row.ingestion_class === "extract"; // extract-class NEVER falls back to native (T13)
     const native = !isExtractRow && NATIVE_MEDIA_TYPES[row.content_type];
     try {
       if (native) {
@@ -1081,7 +1081,7 @@ async function buildAttachmentBlocks(context, rows) {
           blocks.push({ type: "image", source: { type: "base64", media_type: row.content_type, data: b64 } });
         }
         blocks.push({ type: "text", text: `(above is the attached file "${row.filename}")` });
-      } else if (isExtractRow) {
+      } else if (isExtractRow && row.extracted_text_path) {
         const text = await downloadBlobText(storageToken, row.extracted_text_path);
         const remaining = ATTACH_EXTRACT_BUDGET_CHARS - extractChars;
         if (remaining <= 0) {

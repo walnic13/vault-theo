@@ -82,7 +82,7 @@ None — reuses the deployed B8c `ingestion_class` + `extracted_text_path` colum
 ## §CHANGESET — exact additive delta (diff-verified)
 **`theo_finalize_attachment` (Level 2):**
 1. `PDF_NATIVE_MAX_BYTES` const (env `THEO_PDF_NATIVE_MAX_BYTES`, default 3 MB).
-2. `extractTextFromBlob` gains an `application/pdf` branch (`pdf-parse` → `data.text`).
+2. `extractTextFromBlob` gains an `application/pdf` branch — `require("pdf-parse/lib/pdf-parse.js")` (inner lib of the pinned `pdf-parse@1.1.1`) → `data.text`.
 3. The extraction decision promotes large PDFs: `const isLargePdf = contentType==='application/pdf' && byteSize > PDF_NATIVE_MAX_BYTES; let ingestionClass = isLargePdf ? 'extract' : ingestion.class;` and the extraction block is guarded by `if (ingestionClass === 'extract')`.
 
 **`theo_message` (Level 1):**
@@ -108,11 +108,12 @@ GCR (§3) + Rule Anchors (§5) + §WALTER-AUTH open the pack; P1–P8 walked; Ga
 ---
 
 ## §DEPS — npm dependency (Walter installs via Kudu before redeploy — G-1)
-Install into `vaultgpt-func-premium` (Kudu console `npm install`, same as the B8c libs):
-```json
-{ "dependencies": { "pdf-parse": "^1.1.1" } }
+Pin the **classic CJS `pdf-parse@1.1.1`** (the unpinned `npm install pdf-parse` pulls `2.x`, an ESM/class-based `PDFParse` API that is NOT compatible with the inlined `require(...)` call — it broke extraction on the first deploy: a >3 MB PDF promoted to `extract` but `extracted_text_path` came back NULL). In `vaultgpt-func-premium` (Kudu console):
 ```
-(`pg`, `xlsx`, `mammoth`, `officeparser` already present. `pdf-parse` is pure-JS, in-process, no network.)
+npm uninstall pdf-parse && npm install pdf-parse@1.1.1
+```
+(`pg`, `xlsx`, `mammoth`, `officeparser` already present. `pdf-parse@1.1.1` is pure-JS/CJS, in-process, no network. The handler requires `pdf-parse/lib/pdf-parse.js` — the inner module — to avoid `1.1.1`'s `index.js` debug-block, which reads a bundled test PDF when `module.parent` is falsy, as in Azure Functions.)
+
 
 ## §H-FINALIZE — `theo_finalize_attachment/index.js` (complete; B8h Level 2)
 ```js
@@ -408,7 +409,7 @@ async function extractTextFromBlob(buf, contentType) {
     return await officeParser.parseOfficeAsync(buf);
   }
   if (contentType === "application/pdf") {
-    const pdfParse = require("pdf-parse");
+    const pdfParse = require("pdf-parse/lib/pdf-parse.js"); // pin pdf-parse@1.1.1; inner lib avoids the index.js debug-block (reads a test PDF when module.parent is falsy, as in Functions)
     const data = await pdfParse(buf);
     return (data && data.text) || "";
   }

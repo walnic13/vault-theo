@@ -290,7 +290,7 @@ async function extractTextFromBlob(buf, contentType) {
     return await officeParser.parseOfficeAsync(buf);
   }
   if (contentType === "application/pdf") {
-    const pdfParse = require("pdf-parse");
+    const pdfParse = require("pdf-parse/lib/pdf-parse.js"); // pin pdf-parse@1.1.1; inner lib avoids the index.js debug-block (reads a test PDF when module.parent is falsy, as in Functions)
     const data = await pdfParse(buf);
     return (data && data.text) || "";
   }

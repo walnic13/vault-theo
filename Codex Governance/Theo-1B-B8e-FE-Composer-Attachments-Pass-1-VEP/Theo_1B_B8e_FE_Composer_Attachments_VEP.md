@@ -103,8 +103,8 @@ export interface ChatViewProps {
 ```
 - **Contract dependency:** drives `useTheoState` handlers `addFiles`/`addPastedText`/`removeAttachment`/`send`; on send, ready attachments flow to `theoClient.sendMessage({ …, attachment_ids })` → `POST /api/theo_message` (API Spec §2.8 / §2.1, B8d). Paste interception calls `onAddPastedText(text)` → returns `true` to `preventDefault`.
 
-### CCT-2 — `Chip` (NEW / GREENFIELD; sub-component of ChatView)
-- **Ownership:** Theo surface, NEW. **VA-id:** GREENFIELD (VA-T1 token system; §WALTER-AUTH).
+### CCT-2 — `Chip` (NEW; sub-component of ChatView)
+- **Ownership:** Theo surface, NEW. **Primary Reference:** GREENFIELD (no deployed analog; Golden Component Pack §8). **VA-id:** **VA-T1** (composer region L479–492 token system — `C.line2`/`C.bubble`/`C.ink*`/`SANS`/`vo-chip` rounding) — additive affordance classified **VISUAL-AUTHORITY-DEVIATION** authorized by §WALTER-AUTH.
 - **Prop interface (literal):**
 ```ts
 function Chip(props: {
@@ -118,16 +118,16 @@ function Chip(props: {
 ```
 - **Contract dependency:** none (presentational); rendered from `ComposerAttachment` (composer) / `SentAttachment` (sent bubble). Expandable when `previewText` is non-empty.
 
-### CCT-3 — `SentAttachments` (NEW / GREENFIELD; sub-component of ChatView)
-- **Ownership:** Theo surface, NEW. **VA-id:** GREENFIELD (§WALTER-AUTH).
+### CCT-3 — `SentAttachments` (NEW; sub-component of ChatView)
+- **Ownership:** Theo surface, NEW. **Primary Reference:** GREENFIELD (no deployed analog; Golden Component Pack §8). **VA-id:** **VA-T1** (sent-bubble region; reuses the VA-T1 message-bubble token system) — additive affordance classified **VISUAL-AUTHORITY-DEVIATION** authorized by §WALTER-AUTH.
 - **Prop interface (literal):**
 ```ts
 function SentAttachments(props: { items: SentAttachment[] }): JSX.Element
 ```
 - **Contract dependency:** none; reads `Message.attachments` (the read-only record carried on a sent user turn).
 
-### CCT-4 — `Paperclip` (NEW / GREENFIELD; inline icon)
-- **Ownership:** Theo surface, NEW. **VA-id:** GREENFIELD (icon; matches the existing inline-SVG idiom).
+### CCT-4 — `Paperclip` (NEW; inline icon)
+- **Ownership:** Theo surface, NEW. **Primary Reference:** GREENFIELD (no deployed analog; Golden Component Pack §8). **VA-id:** **VA-T1** (composer-icon idiom — inline SVG matching the VA-T1 `Burst`/`vo-send` icon treatment) — additive affordance classified **VISUAL-AUTHORITY-DEVIATION** authorized by §WALTER-AUTH.
 - **Prop interface (literal):**
 ```ts
 function Paperclip(props: { size?: number }): JSX.Element

@@ -9,7 +9,9 @@
 //
 // Until a live backend is configured (no `VITE_FUNCTIONS_URL` and no `configureGateway` token/base),
 // this delegates to the in-repo 1A mock so the standalone vault-theo dev harness keeps working.
-import type { ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse } from "../types";
+import type {
+  AttachmentUpload, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
+} from "../types";
 import { sendMessage as mockSend, listConversations as mockList, getConversation as mockGet } from "./gateway.mock";
 
 type TokenProvider = () => Promise<string | null>;
@@ -26,6 +28,14 @@ let apiBase: string = normalizeBase((import.meta.env as Record<string, unknown>)
 export function configureGateway(opts: { getAccessToken?: TokenProvider | null; baseUrl?: string | null }): void {
   if (opts.getAccessToken !== undefined) tokenProvider = opts.getAccessToken;
   if (opts.baseUrl != null) apiBase = normalizeBase(opts.baseUrl);
+}
+
+// True once a live backend is wired (token provider or a Functions base URL). Attachments require it.
+function isLive(): boolean {
+  return Boolean(apiBase || tokenProvider);
+}
+export function attachmentsAvailable(): boolean {
+  return isLive();
 }
 
 // Auth headers for a live cross-origin call (Bearer = the shell's user identity token, not a model key).
@@ -46,10 +56,11 @@ export async function sendMessage(req: GatewayRequest): Promise<GatewayResponse>
 
   const headers = await authHeaders();
 
-  // GatewayRequest {model, max_tokens, system, messages, conversation_id?, app_key?, app_context?} →
-  // body {max_tokens, system, messages, conversation_id?, app_key?, app_context?}. The handler injects
-  // the configured model (THEO_FOUNDRY_DEPLOYMENT); the client's `model` is unused. conversation_id (B3a)
-  // appends to an existing thread when present; omit to start a new one.
+  // GatewayRequest {model, max_tokens, system, messages, conversation_id?, app_key?, app_context?,
+  // attachment_ids?} → body {max_tokens, system, messages, conversation_id?, app_key?, app_context?,
+  // attachment_ids?}. The handler injects the configured model (THEO_FOUNDRY_DEPLOYMENT); the client's
+  // `model` is unused. conversation_id (B3a) appends to an existing thread; attachment_ids (B8d) inject
+  // the owner-scoped attachments into the upstream user turn.
   const res = await fetch(`${apiBase}/api/theo_message`, {
     method: "POST",
     credentials: "same-origin",
@@ -61,6 +72,7 @@ export async function sendMessage(req: GatewayRequest): Promise<GatewayResponse>
       ...(req.conversation_id ? { conversation_id: req.conversation_id } : {}),
       ...(req.app_key != null ? { app_key: req.app_key } : {}),
       ...(req.app_context != null ? { app_context: req.app_context } : {}),
+      ...(req.attachment_ids && req.attachment_ids.length ? { attachment_ids: req.attachment_ids } : {}),
     }),
   });
 
@@ -85,6 +97,80 @@ export async function sendMessage(req: GatewayRequest): Promise<GatewayResponse>
   }
   const conversation_id = typeof json?.data?.conversation_id === "string" ? json.data.conversation_id : undefined;
   return { content, conversation_id };
+}
+
+// ── B8e attachment upload handshake (B8b/B8c endpoints) ───────────────────────────────────
+// 1) create → owner-scoped write SAS; 2) PUT bytes straight to Blob (SAS is the auth — no Bearer,
+// cross-origin to blob.core.windows.net, requires the storage account's CORS to allow PUT from the
+// SWA origin); 3) finalize → the server reads the actual size/type, extracts text for extract-class,
+// and inserts the owner-scoped row. Unconfigured dev harness → attachments unavailable (clear error).
+
+export async function createAttachmentUpload(filename: string, contentType: string): Promise<AttachmentUpload> {
+  if (!isLive()) throw new Error("Attachments are unavailable in the standalone preview.");
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_create_attachment_upload`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ filename, content_type: contentType }),
+  });
+  let json: { data?: AttachmentUpload; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Attachment upload init returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Attachment upload init failed (HTTP ${res.status}).`);
+  const data = json?.data;
+  if (!data || !data.attachmentId || !data.upload?.uploadUrl) {
+    throw new Error("Attachment upload init response missing data.upload.uploadUrl.");
+  }
+  return data;
+}
+
+export async function uploadToBlob(upload: AttachmentUpload["upload"], body: Blob): Promise<void> {
+  // PUT directly to Blob using the SAS URL. No Authorization header — the SAS query is the credential.
+  const res = await fetch(upload.uploadUrl, {
+    method: "PUT",
+    headers: { ...upload.requiredHeaders },
+    body,
+  });
+  if (!res.ok) {
+    throw new Error(`Direct-to-Blob upload failed (HTTP ${res.status}).`);
+  }
+}
+
+export async function finalizeAttachment(
+  attachmentId: string,
+  filename: string,
+  conversationId?: string | null
+): Promise<{ id: string }> {
+  if (!isLive()) throw new Error("Attachments are unavailable in the standalone preview.");
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_finalize_attachment`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({
+      attachment_id: attachmentId,
+      filename,
+      ...(conversationId ? { conversation_id: conversationId } : {}),
+    }),
+  });
+  let json: { data?: { attachment?: { id?: string } }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Attachment finalize returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Attachment finalize failed (HTTP ${res.status}).`);
+  const id = json?.data?.attachment?.id;
+  if (typeof id !== "string") throw new Error("Attachment finalize response missing data.attachment.id.");
+  return { id };
+}
+
+export async function deleteAttachment(id: string): Promise<void> {
+  if (!isLive()) return; // nothing persisted in the standalone preview
+  const headers = await authHeaders();
+  await fetch(`${apiBase}/api/theo_delete_attachment`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ id }),
+  });
+  // Best-effort: a failed cleanup of an abandoned attachment is non-fatal to the UI.
 }
 
 // B3b — list the signed-in user's conversations (newest-first; backs Recents). Unconfigured → mock.

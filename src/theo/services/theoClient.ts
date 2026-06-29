@@ -12,6 +12,9 @@ import { parseArtifacts, remapToIds, upsert } from "../lib/artifacts";
 import {
   sendMessage as gatewaySend, configureGateway as gatewayConfigure,
   listConversations as gatewayList, getConversation as gatewayGet,
+  createAttachmentUpload as gatewayCreateUpload, uploadToBlob as gatewayUploadToBlob,
+  finalizeAttachment as gatewayFinalize, deleteAttachment as gatewayDeleteAttachment,
+  attachmentsAvailable as gatewayAttachmentsAvailable,
 } from "./gateway.live";
 
 let projects: Project[] = INIT_PROJECTS.map((p) => ({ ...p, knowledge: p.knowledge.slice() }));
@@ -29,6 +32,17 @@ export const theoClient = {
   sendMessage(req: GatewayRequest): Promise<GatewayResponse> {
     return gatewaySend(req);
   },
+
+  // ── Attachments (B8e) — one network round per file: create SAS → PUT bytes → finalize.
+  // Returns the server attachment id (used as attachment_ids on the next sendMessage). The bytes
+  // never transit the gateway — the browser PUTs straight to Blob via the owner-scoped SAS. ──
+  attachmentsAvailable(): boolean { return gatewayAttachmentsAvailable(); },
+  async uploadAttachment(input: { blob: Blob; name: string; contentType: string }): Promise<{ id: string }> {
+    const up = await gatewayCreateUpload(input.name, input.contentType);
+    await gatewayUploadToBlob(up.upload, input.blob);
+    return gatewayFinalize(up.attachmentId, input.name);
+  },
+  deleteAttachment(id: string): Promise<void> { return gatewayDeleteAttachment(id); },
 
   // ── Conversation history (Recents + reload; theo_list/get_conversation in 1B) ──
   listConversations(limit?: number): Promise<ConversationSummary[]> {

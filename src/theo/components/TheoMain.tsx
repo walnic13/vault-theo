@@ -60,7 +60,10 @@ export function TheoMain({ t, mode }: TheoMainProps) {
           {t.view === "chats" && (
             <ChatView
               messages={t.messages} loading={t.loading} error={t.error} draft={t.draft}
-              onDraftChange={t.setDraft} onSend={t.send} chatProject={t.chatProject}
+              attachments={t.attachments} attachmentsAvailable={t.attachmentsAvailable}
+              onDraftChange={t.setDraft} onSend={t.send}
+              onAddFiles={t.addFiles} onAddPastedText={t.addPastedText} onRemoveAttachment={t.removeAttachment}
+              chatProject={t.chatProject}
               assistantName={ASSISTANT_NAME} greeting={t.greeting} starters={STARTERS} renderAssistant={renderAssistant}
             />
           )}

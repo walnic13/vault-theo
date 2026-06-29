@@ -1,19 +1,26 @@
 // ChatView — chat scroll content + composer (VA-T1 L348–377, L479–492). The view-switched
 // 54px header bar is shared chrome rendered by TheoMain (identical pixels; allowed split delta).
-import { useEffect, useRef } from "react";
-import type { ReactNode } from "react";
+// B8e: composer gains an attach control + attachment chips + paste-to-attachment (a large paste
+// becomes a collapsed, expandable "Pasted text" chip — Claude-style — instead of flooding the box).
+import { useEffect, useRef, useState } from "react";
+import type { ChangeEvent, ClipboardEvent, ReactNode } from "react";
 import { C, SANS, SERIF } from "../theme";
 import { Burst } from "./icons";
 import { CitedText } from "./CitedText";
-import type { Message, Project } from "../types";
+import type { ComposerAttachment, Message, Project, SentAttachment } from "../types";
 
 export interface ChatViewProps {
   messages: Message[];
   loading: boolean;
   error: string;
   draft: string;
+  attachments: ComposerAttachment[];
+  attachmentsAvailable: boolean;
   onDraftChange: (s: string) => void;
   onSend: (text?: string) => void;
+  onAddFiles: (files: FileList | File[]) => void;
+  onAddPastedText: (text: string) => boolean;
+  onRemoveAttachment: (localId: string) => void;
   chatProject: Project | null;
   assistantName: string;
   greeting: string;
@@ -21,13 +28,105 @@ export interface ChatViewProps {
   renderAssistant: (content: string) => ReactNode;
 }
 
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function Paperclip({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3.5 3.5 0 014.95 4.95l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+    </svg>
+  );
+}
+
+// One attachment chip — file or "Pasted text". Pasted/text chips with a preview expand inline.
+// `onRemove` present ⇒ composer chip (removable); absent ⇒ sent-bubble chip (read-only).
+function Chip(props: {
+  name: string; kind: "file" | "pasted"; byteSize: number;
+  status?: ComposerAttachment["status"]; previewText?: string;
+  onRemove?: () => void;
+}) {
+  const { name, kind, byteSize, status, previewText, onRemove } = props;
+  const [open, setOpen] = useState(false);
+  const expandable = previewText != null && previewText.length > 0;
+  const meta =
+    status === "uploading" ? "Uploading…" :
+    status === "error" ? "Failed" :
+    kind === "pasted" ? `${previewText ? previewText.split("\n").length : 0} lines · ${formatSize(byteSize)}` :
+    formatSize(byteSize);
+  const failed = status === "error";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", maxWidth: 320 }}>
+      <div
+        onClick={expandable ? () => setOpen((o) => !o) : undefined}
+        title={expandable ? (open ? "Hide preview" : "Show preview") : name}
+        style={{
+          display: "flex", alignItems: "center", gap: 8, background: "#fff",
+          border: `1px solid ${failed ? C.coral : C.line2}`, borderRadius: 10, padding: "7px 10px",
+          fontFamily: SANS, fontSize: 12.5, color: failed ? C.coralDk : C.ink2,
+          cursor: expandable ? "pointer" : "default", maxWidth: 320,
+        }}
+      >
+        <span style={{ flexShrink: 0, fontSize: 14 }}>{kind === "pasted" ? "¶" : "📄"}</span>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: C.ink, fontWeight: 500 }}>{name}</span>
+        <span style={{ flexShrink: 0, color: failed ? C.coralDk : C.ink3 }}>{meta}</span>
+        {onRemove && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            aria-label={`Remove ${name}`}
+            style={{ flexShrink: 0, marginLeft: 2, border: "none", background: "transparent", color: C.ink3, cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "0 2px" }}
+          >×</button>
+        )}
+      </div>
+      {open && expandable && (
+        <pre style={{
+          margin: "6px 0 0", maxHeight: 220, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word",
+          background: C.bubble, border: `1px solid ${C.line2}`, borderRadius: 10, padding: "10px 12px",
+          fontFamily: SANS, fontSize: 12.5, color: C.ink2, lineHeight: 1.5,
+        }}>{previewText}</pre>
+      )}
+    </div>
+  );
+}
+
+function SentAttachments({ items }: { items: SentAttachment[] }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8, justifyContent: "flex-end" }}>
+      {items.map((a, i) => (
+        <Chip key={i} name={a.name} kind={a.kind} byteSize={a.byteSize} previewText={a.previewText} />
+      ))}
+    </div>
+  );
+}
+
 export function ChatView(props: ChatViewProps) {
-  const { messages, loading, error, draft, onDraftChange, onSend, chatProject, assistantName, greeting, starters, renderAssistant } = props;
+  const {
+    messages, loading, error, draft, attachments, attachmentsAvailable,
+    onDraftChange, onSend, onAddFiles, onAddPastedText, onRemoveAttachment,
+    chatProject, assistantName, greeting, starters, renderAssistant,
+  } = props;
   const scroller = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [messages, loading]);
   useEffect(() => { const ta = taRef.current; if (ta) { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 200) + "px"; } }, [draft]);
+
+  const uploading = attachments.some((a) => a.status === "uploading");
+  const hasReady = attachments.some((a) => a.status === "ready");
+  const canSend = (!!draft.trim() || hasReady) && !loading && !uploading;
+
+  function onPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    const text = e.clipboardData.getData("text/plain");
+    if (text && onAddPastedText(text)) e.preventDefault();   // captured as an attachment → don't insert
+  }
+  function onFilePick(e: ChangeEvent<HTMLInputElement>) {
+    if (e.target.files && e.target.files.length) onAddFiles(e.target.files);
+    e.target.value = "";   // allow re-picking the same file
+  }
 
   return (
     <>
@@ -44,7 +143,8 @@ export function ChatView(props: ChatViewProps) {
         ) : (
           <div style={{ maxWidth: 740, margin: "0 auto", padding: "28px 24px 8px" }}>
             {messages.map((m, i) => m.role === "user" ? (
-              <div key={i} style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 22px" }}>
+              <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", margin: "0 0 22px" }}>
+                {m.attachments && m.attachments.length > 0 && <SentAttachments items={m.attachments} />}
                 <div style={{ background: C.bubble, borderRadius: 16, padding: "11px 16px", maxWidth: "82%", fontSize: 15, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{m.content}</div>
               </div>
             ) : (
@@ -65,9 +165,23 @@ export function ChatView(props: ChatViewProps) {
         <div style={{ maxWidth: 740, margin: "0 auto" }}>
           {error && <div style={{ color: C.coralDk, fontSize: 13, marginBottom: 8, textAlign: "center" }}>{error}</div>}
           <div style={{ background: "#fff", border: `1px solid ${C.line2}`, borderRadius: 18, padding: "12px 14px", boxShadow: "0 2px 14px rgba(40,38,31,0.05)" }}>
-            <textarea ref={taRef} value={draft} onChange={(e) => onDraftChange(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); } }} rows={1} placeholder={`Message ${assistantName}…`} style={{ width: "100%", border: "none", resize: "none", fontFamily: SANS, fontSize: 15, color: C.ink, background: "transparent", lineHeight: 1.5, maxHeight: 200 }} />
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
-              <button className="vo-send" disabled={!draft.trim() || loading} onClick={() => onSend()} style={{ width: 34, height: 34, borderRadius: 10, border: "none", background: draft.trim() && !loading ? C.coral : C.line2, color: "#fff", cursor: draft.trim() && !loading ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, transition: "background .15s" }}>↑</button>
+            {attachments.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                {attachments.map((a) => (
+                  <Chip key={a.localId} name={a.name} kind={a.kind} byteSize={a.byteSize} status={a.status} previewText={a.previewText} onRemove={() => onRemoveAttachment(a.localId)} />
+                ))}
+              </div>
+            )}
+            <textarea ref={taRef} value={draft} onChange={(e) => onDraftChange(e.target.value)} onPaste={onPaste} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (canSend) onSend(); } }} rows={1} placeholder={`Message ${assistantName}…`} style={{ width: "100%", border: "none", resize: "none", fontFamily: SANS, fontSize: 15, color: C.ink, background: "transparent", lineHeight: 1.5, maxHeight: 200 }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+              <input ref={fileRef} type="file" multiple onChange={onFilePick} style={{ display: "none" }} />
+              <button
+                className="vo-attach" disabled={!attachmentsAvailable} onClick={() => fileRef.current?.click()}
+                title={attachmentsAvailable ? "Attach files" : "Attachments unavailable in this preview"}
+                aria-label="Attach files"
+                style={{ width: 34, height: 34, borderRadius: 10, border: "none", background: "transparent", color: attachmentsAvailable ? C.ink2 : C.line2, cursor: attachmentsAvailable ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center" }}
+              ><Paperclip size={18} /></button>
+              <button className="vo-send" disabled={!canSend} onClick={() => onSend()} style={{ width: 34, height: 34, borderRadius: 10, border: "none", background: canSend ? C.coral : C.line2, color: "#fff", cursor: canSend ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, transition: "background .15s" }}>↑</button>
             </div>
           </div>
           <div style={{ textAlign: "center", fontSize: 11.5, color: C.ink3, marginTop: 9 }}>{assistantName} can make mistakes. Verify tax conclusions before relying on them.</div>

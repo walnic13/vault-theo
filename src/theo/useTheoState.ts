@@ -7,7 +7,14 @@ import { stripArtifactRefs } from "./lib/artifacts";
 import { buildSystemPrompt, greeting } from "./lib/prompt";
 import { MODEL } from "./swapBlock";
 import { STYLES } from "./data";
-import type { AppContext, Artifact, ConversationSummary, KDraft, Message, NpDraft, OpenArtifact, Project, Settings, StyleKey, View } from "./types";
+import type { AppContext, Artifact, ComposerAttachment, ConversationSummary, KDraft, Message, NpDraft, OpenArtifact, Project, SentAttachment, Settings, StyleKey, View } from "./types";
+
+// B8e: a paste longer than this becomes a "Pasted text" attachment (collapsed, expandable) instead
+// of flooding the composer — the Claude-style behaviour. Tunable; ~a long block, not a sentence.
+const PASTE_AS_ATTACHMENT_CHARS = 1500;
+
+let attCounter = 0;
+function newLocalId() { attCounter += 1; return "att" + Date.now().toString(36) + "_" + attCounter; }
 
 export function useTheoState() {
   const seeded: Settings = theoClient.readSettings();
@@ -21,6 +28,7 @@ export function useTheoState() {
   const [openArt, setOpenArt] = useState<OpenArtifact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [styleKey, setStyleKey] = useState<StyleKey>(seeded.styleKey);
@@ -51,14 +59,59 @@ export function useTheoState() {
   }, []);
 
   function go(v: View) { setView(v); setDetailId(null); }
-  function newChat() { setMessages([]); setConversationId(null); setChatProjectId(null); go("chats"); }
-  function startInProject(id: string) { setChatProjectId(id); setMessages([]); setConversationId(null); setView("chats"); setDetailId(null); }
+  function clearComposer() { setAttachments([]); }
+  function newChat() { setMessages([]); setConversationId(null); setChatProjectId(null); clearComposer(); go("chats"); }
+  function startInProject(id: string) { setChatProjectId(id); setMessages([]); setConversationId(null); clearComposer(); setView("chats"); setDetailId(null); }
   function openProject(id: string) { setDetailId(id); setView("project"); }
+
+  // ── B8e attachments ───────────────────────────────────────────────────────
+  const attachmentsAvailable = theoClient.attachmentsAvailable();
+
+  // Upload one attachment (create SAS → PUT bytes → finalize), updating its chip status in place.
+  async function uploadOne(localId: string, name: string, contentType: string, blob: Blob) {
+    try {
+      const { id } = await theoClient.uploadAttachment({ blob, name, contentType });
+      setAttachments((list) => list.map((a) => (a.localId === localId ? { ...a, id, status: "ready" } : a)));
+    } catch (e) {
+      setAttachments((list) => list.map((a) => (a.localId === localId ? { ...a, status: "error", error: (e as Error).message } : a)));
+    }
+  }
+
+  // Add picked/dropped files → upload each; chips appear immediately (status "uploading").
+  function addFiles(files: FileList | File[]) {
+    if (!attachmentsAvailable) { setError("Attachments aren't available in this preview."); return; }
+    for (const f of Array.from(files)) {
+      const localId = newLocalId();
+      const contentType = f.type || "application/octet-stream";
+      setAttachments((list) => [...list, { localId, id: null, name: f.name, contentType, byteSize: f.size, kind: "file", status: "uploading" }]);
+      void uploadOne(localId, f.name, contentType, f);
+    }
+  }
+
+  // A large paste → a "Pasted text" attachment (text/plain). Returns true if it was captured as an
+  // attachment (caller should preventDefault); false → let it fall through into the textarea.
+  function addPastedText(text: string): boolean {
+    if (!attachmentsAvailable || text.length < PASTE_AS_ATTACHMENT_CHARS) return false;
+    const localId = newLocalId();
+    const blob = new Blob([text], { type: "text/plain" });
+    setAttachments((list) => [...list, { localId, id: null, name: "Pasted text", contentType: "text/plain", byteSize: blob.size, kind: "pasted", status: "uploading", previewText: text }]);
+    void uploadOne(localId, "pasted-text.txt", "text/plain", blob);
+    return true;
+  }
+
+  function removeAttachment(localId: string) {
+    setAttachments((list) => {
+      const target = list.find((a) => a.localId === localId);
+      if (target?.id) void theoClient.deleteAttachment(target.id); // best-effort server cleanup
+      return list.filter((a) => a.localId !== localId);
+    });
+  }
 
   // Reload a persisted thread (B3b): rehydrate messages, mapping each assistant turn's persisted
   // citations to a single CitedRun so the existing CitedText path renders them (ChatView L53).
+  // (Reloaded threads do not yet show their attachment chips — that needs the B8f list endpoint.)
   async function selectRecent(id: string) {
-    setError(""); setChatProjectId(null); setView("chats"); setDetailId(null);
+    setError(""); setChatProjectId(null); setView("chats"); setDetailId(null); clearComposer();
     try {
       const d = await theoClient.getConversation(id);
       const msgs: Message[] = d.messages.map((m) => {
@@ -79,16 +132,23 @@ export function useTheoState() {
 
   async function send(textArg?: string) {
     const text = (textArg ?? draft).trim();
-    if (!text || loading) return;
+    const ready = attachments.filter((a) => a.status === "ready" && a.id);
+    const uploading = attachments.some((a) => a.status === "uploading");
+    if (loading || uploading) return;                 // wait for in-flight uploads (composer also disables send)
+    if (!text && ready.length === 0) return;          // nothing to send
     setError("");
-    const next: Message[] = [...messages, { role: "user", content: text }];
-    setMessages(next); setDraft(""); setLoading(true);
+    const userContent = text || "Please review the attached file(s).";
+    const sentAtts: SentAttachment[] = ready.map((a) => ({ name: a.name, kind: a.kind, contentType: a.contentType, byteSize: a.byteSize, previewText: a.previewText }));
+    const next: Message[] = [...messages, { role: "user", content: userContent, ...(sentAtts.length ? { attachments: sentAtts } : {}) }];
+    const keptAttachments = attachments;              // restore on error so the user can retry
+    setMessages(next); setDraft(""); setAttachments([]); setLoading(true);
     try {
       const res = await theoClient.sendMessage({
         model: MODEL, max_tokens: 1500, system: buildSystemPrompt(styleKey, custom, chatProject),
         messages: next.map((m) => ({ role: m.role, content: stripArtifactRefs(m.content) })),
         ...(conversationId ? { conversation_id: conversationId } : {}),
         app_key: appContext.app_key, app_context: appContext.app_context,
+        ...(ready.length ? { attachment_ids: ready.map((a) => a.id as string) } : {}),
       });
       const blocks = (res.content || []).filter((b) => b.type === "text");
       const reply = blocks.map((b) => b.text ?? "").join("\n").trim();
@@ -106,7 +166,7 @@ export function useTheoState() {
       void loadRecents();  // reflect the new/updated thread in Recents (newest-first)
     } catch {
       setError("Couldn't reach the assistant. Try again.");
-      setMessages((m) => m.slice(0, -1)); setDraft(text);
+      setMessages((m) => m.slice(0, -1)); setDraft(text); setAttachments(keptAttachments);
     } finally { setLoading(false); }
   }
 
@@ -132,11 +192,12 @@ export function useTheoState() {
 
   return {
     // state
-    view, collapsed, search, projects, artifacts, detail, chatProject, art, openArt, messages, draft, loading, error,
+    view, collapsed, search, projects, artifacts, detail, chatProject, art, openArt, messages, draft, attachments, attachmentsAvailable, loading, error,
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
     // setters / handlers
     go, toggleCollapse: () => setCollapsed((v) => !v), setSearch, setDraft, newChat, startInProject, openProject,
     clearChatProject: () => setChatProjectId(null), send, ingestAppContext, selectRecent, loadRecents,
+    addFiles, addPastedText, removeAttachment,
     toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, setKdraft, addKnowledge, removeKnowledge,
     selectStyle: setStyleKey, setCustom, save, copyArt,
     selectVersion: (v: number) => setOpenArt(openArt ? { id: openArt.id, v } : null),

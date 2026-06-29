@@ -1549,7 +1549,7 @@ module.exports = async function (context, req) {
 5. native budget: confirm a normal image/small-PDF still injects. Evidence under `.local/`.
 
 ## §DEPLOY — Walter deploy steps
-1. **Kudu:** `npm install pdf-parse` in `vaultgpt-func-premium`.
+1. **Kudu:** `npm uninstall pdf-parse && npm install pdf-parse@1.1.1` in `vaultgpt-func-premium` — pin `1.1.1`; the unpinned `npm install pdf-parse` pulls the incompatible `2.x` (the original failure).
 2. Replace `theo_finalize_attachment/index.js` (§H-FINALIZE) + `theo_message/index.js` (§H-MESSAGE); function.json unchanged.
 3. Reply "B8h deployed" → Claude Code re-runs §GOLDEN (incl. the >3 MB text-dense PDF, now expected to answer fast), captures evidence.
 

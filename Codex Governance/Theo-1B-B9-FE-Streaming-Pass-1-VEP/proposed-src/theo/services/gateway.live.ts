@@ -22,12 +22,20 @@ function normalizeBase(v: unknown): string {
 
 let tokenProvider: TokenProvider | null = null;
 let apiBase: string = normalizeBase((import.meta.env as Record<string, unknown>).VITE_FUNCTIONS_URL);
+// B9: the STREAMING endpoint (theo_message_stream) lives on a SEPARATE sidecar Function App
+// (vaultgpt-func-stream), distinct from the monolith `apiBase`. It has its own base URL — set at
+// build via VITE_STREAM_FUNCTIONS_URL or injected at mount via configureGateway({ streamBaseUrl }).
+// Used ONLY by sendMessageStream; all other calls (attachments, recents, reload, non-streaming chat)
+// stay on `apiBase`. When unset, streaming degrades to the non-streaming monolith path.
+let streamBase: string = normalizeBase((import.meta.env as Record<string, unknown>).VITE_STREAM_FUNCTIONS_URL);
 
 // Configured once by the federated TheoSurface mount with the Origin shell's token provider (and,
-// optionally, the Functions base URL). Supplying a token provider switches this gateway mock → live.
-export function configureGateway(opts: { getAccessToken?: TokenProvider | null; baseUrl?: string | null }): void {
+// optionally, the monolith Functions base URL and the streaming sidecar base URL). Supplying a token
+// provider switches this gateway mock → live.
+export function configureGateway(opts: { getAccessToken?: TokenProvider | null; baseUrl?: string | null; streamBaseUrl?: string | null }): void {
   if (opts.getAccessToken !== undefined) tokenProvider = opts.getAccessToken;
   if (opts.baseUrl != null) apiBase = normalizeBase(opts.baseUrl);
+  if (opts.streamBaseUrl != null) streamBase = normalizeBase(opts.streamBaseUrl);
 }
 
 // True once a live backend is wired (token provider or a Functions base URL). Attachments require it.
@@ -279,8 +287,19 @@ export async function sendMessageStream(req: GatewayRequest, handlers: StreamHan
     return;
   }
 
+  // Streaming requires the sidecar base (a different host than the monolith `apiBase`). If it isn't
+  // configured, degrade to the non-streaming monolith call and emit the whole reply once — chat
+  // still works, just not streamed. (apiBase is NEVER used for the stream endpoint.)
+  if (!streamBase) {
+    const res = await sendMessage(req);
+    const text = (res.content || []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("\n");
+    if (text) handlers.onText(text);
+    if (res.conversation_id) handlers.onMeta?.({ conversation_id: res.conversation_id });
+    return;
+  }
+
   const headers = await authHeaders();
-  const resp = await fetch(`${apiBase}/api/theo_message_stream`, {
+  const resp = await fetch(`${streamBase}/api/theo_message_stream`, {
     method: "POST",
     credentials: "same-origin",
     headers,

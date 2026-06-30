@@ -2,24 +2,14 @@
 // - `Formatted` renders full block markdown (CommonMark + GFM: headings, ordered/nested lists,
 //   tables, fenced code, blockquotes, horizontal rules, rich inline) via react-markdown, styled in
 //   the VA-T1 token system (theme `C`/`MONO`) so it reads as the same surface, just polished.
-// - `inline` stays a lightweight inline-only renderer (bold/code/links) for cited-run prose, which
-//   CitedText interleaves with citation chips — react-markdown's block output is unsuitable there.
+//   Cited (web-grounded) answers also render their body through `Formatted` (CitedText appends the
+//   citation chips after the block), so structured cited answers get the same fidelity as plain ones.
 // XSS-safe: markdown only, NO raw HTML (no rehype-raw), so model output cannot inject markup.
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 import Markdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { C, MONO } from "../theme";
-
-export function inline(s: string): ReactNode {
-  return s.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g).filter(Boolean).map((p, i) => {
-    if (/^\*\*[^*]+\*\*$/.test(p)) return <strong key={i} style={{ fontWeight: 650 }}>{p.slice(2, -2)}</strong>;
-    if (/^`[^`]+`$/.test(p)) return <code key={i} style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 5, padding: "1px 5px", fontSize: "0.9em", fontFamily: MONO }}>{p.slice(1, -1)}</code>;
-    const lm = p.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-    if (lm) return <a key={i} href={lm[2]} target="_blank" rel="noopener noreferrer" style={{ color: C.coral, textDecoration: "underline" }}>{lm[1]}</a>;
-    return <span key={i}>{p}</span>;
-  });
-}
 
 const inlineCode: CSSProperties = { background: "#fff", border: `1px solid ${C.line}`, borderRadius: 5, padding: "1px 5px", fontSize: "0.9em", fontFamily: MONO };
 const codeBlockBox: CSSProperties = { margin: "10px 0", padding: "12px 14px", background: C.bubble, border: `1px solid ${C.line2}`, borderRadius: 10, overflowX: "auto", fontFamily: MONO, fontSize: 13, lineHeight: 1.5 };

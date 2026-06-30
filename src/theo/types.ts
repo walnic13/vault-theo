@@ -96,6 +96,19 @@ export interface ConversationDetail {
   messages: PersistedMessage[];
 }
 
+// B8i/B8j reload parity — a conversation's persisted attachments (theo_list_conversation_attachments).
+// `message_seq` is the seq of the user turn the file was sent with (NULL for pre-B8i / never-sent rows);
+// the reload path groups these by message_seq to rehydrate each user turn's SentAttachment chips.
+export interface ConversationAttachment {
+  id: string;
+  filename: string;
+  content_type: string;
+  byte_size: number;
+  ingestion_class: string;
+  message_seq: number | null;
+  created_at: string;
+}
+
 export interface Settings { styleKey: StyleKey; custom: string }
 
 // App-context (Pass B) — the anchor Origin broadcasts to the hosted Theo surface in-process

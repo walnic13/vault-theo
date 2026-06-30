@@ -10,7 +10,7 @@
 // Until a live backend is configured (no `VITE_FUNCTIONS_URL` and no `configureGateway` token/base),
 // this delegates to the in-repo 1A mock so the standalone vault-theo dev harness keeps working.
 import type {
-  AttachmentUpload, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
+  AttachmentUpload, ConversationAttachment, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
 } from "../types";
 import { sendMessage as mockSend, listConversations as mockList, getConversation as mockGet } from "./gateway.mock";
 
@@ -223,4 +223,33 @@ export async function getConversation(id: string): Promise<ConversationDetail> {
     throw new Error("Theo gateway response missing data.conversation/messages.");
   }
   return json.data;
+}
+
+// B8i — list a conversation's persisted attachments (reload parity). Owner-scoped; each row carries
+// `message_seq` so the reload path can rehydrate chips on the matching user turn. Unconfigured dev
+// harness → no persisted attachments (empty), mirroring the mock thread having none.
+export async function listConversationAttachments(conversationId: string): Promise<ConversationAttachment[]> {
+  if (!apiBase && !tokenProvider) {
+    return [];
+  }
+  const headers = await authHeaders();
+  const res = await fetch(
+    `${apiBase}/api/theo_list_conversation_attachments?conversationId=${encodeURIComponent(conversationId)}`,
+    {
+      method: "GET",
+      credentials: "same-origin",
+      headers,
+    }
+  );
+
+  let json: { data?: { attachments?: ConversationAttachment[] }; error?: { message?: string } } | null = null;
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`);
+  }
+  if (!res.ok) {
+    throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  }
+  return Array.isArray(json?.data?.attachments) ? json.data.attachments : [];
 }

@@ -109,12 +109,31 @@ export function useTheoState() {
 
   // Reload a persisted thread (B3b): rehydrate messages, mapping each assistant turn's persisted
   // citations to a single CitedRun so the existing CitedText path renders them (ChatView L53).
-  // (Reloaded threads do not yet show their attachment chips — that needs the B8f list endpoint.)
+  // B8i reload parity: also hydrate each user turn's attachment chips from the persisted attachments
+  // (theo_list_conversation_attachments), grouped by message_seq — the seq of the user turn each file
+  // was sent with — so a reopened thread shows its chips on the matching message (Claude-style). The
+  // chips reuse the existing B8e SentAttachment rendering; previewText is omitted on reload (the
+  // extracted text lives server-side). Attachment fetch is best-effort: a failure just omits the chips,
+  // never blocks the thread from loading.
   async function selectRecent(id: string) {
     setError(""); setChatProjectId(null); setView("chats"); setDetailId(null); clearComposer();
     try {
       const d = await theoClient.getConversation(id);
+      const bySeq = new Map<number, SentAttachment[]>();
+      try {
+        const atts = await theoClient.listConversationAttachments(id);
+        for (const a of atts) {
+          if (a.message_seq == null) continue;            // pre-B8i / never-sent rows group at chat level (not per-message)
+          const sa: SentAttachment = a.filename === "pasted-text.txt"
+            ? { name: "Pasted text", kind: "pasted", contentType: a.content_type, byteSize: a.byte_size }
+            : { name: a.filename, kind: "file", contentType: a.content_type, byteSize: a.byte_size };
+          const list = bySeq.get(a.message_seq) ?? [];
+          list.push(sa);
+          bySeq.set(a.message_seq, list);
+        }
+      } catch { /* attachments are best-effort on reload — never block the thread */ }
       const msgs: Message[] = d.messages.map((m) => {
+        const atts = m.role === "user" ? bySeq.get(m.seq) : undefined;
         const cites = Array.isArray(m.citations) ? m.citations : [];
         if (m.role === "assistant" && cites.length) {
           return {
@@ -122,7 +141,7 @@ export function useTheoState() {
             runs: [{ text: m.content, citations: cites.map((c) => ({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text })) }],
           };
         }
-        return { role: m.role, content: m.content };
+        return { role: m.role, content: m.content, ...(atts && atts.length ? { attachments: atts } : {}) };
       });
       setMessages(msgs); setConversationId(id);
     } catch {

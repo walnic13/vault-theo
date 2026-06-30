@@ -4,7 +4,7 @@
 // swapped for a real `theo_*` API call with NO surface change. NO browser storage
 // (1A handover §2.5) — module memory only.
 import type {
-  AppContext, Artifact, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
+  AppContext, Artifact, ConversationAttachment, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
   KDraft, NpDraft, Project, Settings,
 } from "../types";
 import { INIT_PROJECTS } from "../data";
@@ -12,6 +12,7 @@ import { parseArtifacts, remapToIds, upsert } from "../lib/artifacts";
 import {
   sendMessage as gatewaySend, configureGateway as gatewayConfigure,
   listConversations as gatewayList, getConversation as gatewayGet,
+  listConversationAttachments as gatewayListConvAttachments,
   createAttachmentUpload as gatewayCreateUpload, uploadToBlob as gatewayUploadToBlob,
   finalizeAttachment as gatewayFinalize, deleteAttachment as gatewayDeleteAttachment,
   attachmentsAvailable as gatewayAttachmentsAvailable,
@@ -50,6 +51,10 @@ export const theoClient = {
   },
   getConversation(id: string): Promise<ConversationDetail> {
     return gatewayGet(id);
+  },
+  // B8i reload parity — a conversation's persisted attachments (grouped per user turn by message_seq).
+  listConversationAttachments(id: string): Promise<ConversationAttachment[]> {
+    return gatewayListConvAttachments(id);
   },
 
   // Parse [[ARTIFACT]] blocks out of a reply, upsert them (versioned by reused title),

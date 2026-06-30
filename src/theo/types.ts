@@ -14,7 +14,9 @@ export interface SentAttachment {
   name: string; kind: AttachmentKind; contentType: string; byteSize: number;
   previewText?: string;                              // text/pasted: expandable preview
 }
-export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[] }
+// B9 streaming: `thinking` holds the model's extended-thinking text (streamed via thinking_delta),
+// rendered in a collapsible panel. Presentational/ephemeral — not persisted as message content.
+export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string }
 
 export interface Knowledge { id: string; title: string; content: string }
 export interface Project {

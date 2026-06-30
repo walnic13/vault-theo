@@ -7,7 +7,7 @@ import { stripArtifactRefs } from "./lib/artifacts";
 import { buildSystemPrompt, greeting } from "./lib/prompt";
 import { MODEL } from "./swapBlock";
 import { STYLES } from "./data";
-import type { AppContext, Artifact, ComposerAttachment, ConversationSummary, KDraft, Message, NpDraft, OpenArtifact, Project, SentAttachment, Settings, StyleKey, View } from "./types";
+import type { AppContext, Artifact, Citation, ComposerAttachment, ConversationSummary, KDraft, Message, NpDraft, OpenArtifact, Project, SentAttachment, Settings, StyleKey, View } from "./types";
 
 // B8e: a paste longer than this becomes a "Pasted text" attachment (collapsed, expandable) instead
 // of flooding the composer — the Claude-style behaviour. Tunable; ~a long block, not a sentence.
@@ -160,32 +160,48 @@ export function useTheoState() {
     const sentAtts: SentAttachment[] = ready.map((a) => ({ name: a.name, kind: a.kind, contentType: a.contentType, byteSize: a.byteSize, previewText: a.previewText }));
     const next: Message[] = [...messages, { role: "user", content: userContent, ...(sentAtts.length ? { attachments: sentAtts } : {}) }];
     const keptAttachments = attachments;              // restore on error so the user can retry
-    setMessages(next); setDraft(""); setAttachments([]); setLoading(true);
+    // B9 streaming: append an empty assistant placeholder; tokens stream into it live. The composer
+    // clears immediately; ChatView shows the rotating status word until the first token lands.
+    setMessages([...next, { role: "assistant", content: "" }]);
+    setDraft(""); setAttachments([]); setLoading(true);
+    let acc = "";                                     // accumulated answer text
+    let think = "";                                   // accumulated extended-thinking text
+    const cites: Citation[] = [];                     // web-grounding citations (citations_delta)
+    let convId: string | null = null;
+    // Patch the last message (the streaming assistant turn) in place as deltas arrive.
+    const patchLastAssistant = (patch: Partial<Message>) =>
+      setMessages((m) => {
+        if (!m.length) return m;
+        const li = m.length - 1;
+        if (m[li].role !== "assistant") return m;
+        const copy = m.slice();
+        copy[li] = { ...copy[li], ...patch };
+        return copy;
+      });
     try {
-      const res = await theoClient.sendMessage({
+      await theoClient.sendMessageStream({
         model: MODEL, max_tokens: 1500, system: buildSystemPrompt(styleKey, custom, chatProject),
         messages: next.map((m) => ({ role: m.role, content: stripArtifactRefs(m.content) })),
         ...(conversationId ? { conversation_id: conversationId } : {}),
         app_key: appContext.app_key, app_context: appContext.app_context,
         ...(ready.length ? { attachment_ids: ready.map((a) => a.id as string) } : {}),
+      }, {
+        onText: (d) => { acc += d; patchLastAssistant({ content: acc }); },
+        onThinking: (d) => { think += d; patchLastAssistant({ thinking: think }); },
+        onCitation: (c) => { cites.push({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text }); },
+        onMeta: (mt) => { if (mt.conversation_id) convId = mt.conversation_id; },
       });
-      const blocks = (res.content || []).filter((b) => b.type === "text");
-      const reply = blocks.map((b) => b.text ?? "").join("\n").trim();
-      // Map each text block to a cited run, preserving citation→span association as returned.
-      const runs = blocks.map((b) => ({
-        text: b.text ?? "",
-        citations: (b.citations ?? []).map((c) => ({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text })),
-      }));
-      const hasCites = runs.some((r) => r.citations.length > 0);
-      const { display, openId } = theoClient.ingestReply(reply);
+      // Finalize on stream end: run artifact ingestion over the full text (markers → links) and, if
+      // the model cited sources, attach a single CitedRun so the existing CitedText path renders them.
+      const { display, openId } = theoClient.ingestReply(acc);
       setArtifacts(theoClient.listArtifacts());
-      setMessages((m) => [...m, { role: "assistant", content: display, ...(hasCites ? { runs } : {}) }]);
+      patchLastAssistant({ content: display, ...(cites.length ? { runs: [{ text: display, citations: cites }] } : {}), ...(think ? { thinking: think } : {}) });
       if (openId) setOpenArt({ id: openId, v: -1 });
-      if (res.conversation_id) setConversationId(res.conversation_id);
+      if (convId) setConversationId(convId);
       void loadRecents();  // reflect the new/updated thread in Recents (newest-first)
     } catch {
       setError("Couldn't reach the assistant. Try again.");
-      setMessages((m) => m.slice(0, -1)); setDraft(text); setAttachments(keptAttachments);
+      setMessages((m) => m.slice(0, -2)); setDraft(text); setAttachments(keptAttachments);  // drop placeholder + user turn
     } finally { setLoading(false); }
   }
 

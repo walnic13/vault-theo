@@ -102,6 +102,43 @@ function SentAttachments({ items }: { items: SentAttachment[] }) {
   );
 }
 
+// B9 streaming: whimsical processing words shown until the first token lands (and while the model is
+// only thinking) — the Claude-Code-style affordance that masks the pre-first-token latency.
+const STATUS_WORDS = ["Percolating", "Noodling", "Ruminating", "Tallying", "Reconciling", "Consulting the ledger", "Marshalling thoughts", "Crunching"];
+function StatusLine() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setI((n) => (n + 1) % STATUS_WORDS.length), 1900);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 9, color: C.ink3, fontFamily: SANS, fontSize: 14 }}>
+      <span style={{ fontStyle: "italic" }}>{STATUS_WORDS[i]}…</span>
+      <span style={{ display: "inline-flex", gap: 4 }}>{[0, 1, 2].map((d) => <span key={d} style={{ width: 6, height: 6, borderRadius: "50%", background: C.ink3, display: "inline-block", animation: `vo-bounce 1.2s ${d * 0.16}s infinite ease-in-out` }} />)}</span>
+    </span>
+  );
+}
+
+// B9 streaming: collapsible panel for the model's extended-thinking text (streamed via thinking_delta).
+// Collapsed by default; labelled "Thinking…" while live, "Thought process" once the answer is in.
+function ThinkingPanel({ text, live }: { text: string; live: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "none", background: "transparent", color: C.ink3, cursor: "pointer", fontFamily: SANS, fontSize: 12.5, padding: 0 }}
+      >
+        <span style={{ fontStyle: "italic" }}>{live ? "Thinking…" : "Thought process"}</span>
+        <span style={{ fontSize: 10 }}>{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <pre style={{ margin: "6px 0 0", maxHeight: 240, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", background: C.bubble, border: `1px solid ${C.line2}`, borderRadius: 10, padding: "10px 12px", fontFamily: SANS, fontSize: 12.5, color: C.ink2, lineHeight: 1.5 }}>{text}</pre>
+      )}
+    </div>
+  );
+}
+
 export function ChatView(props: ChatViewProps) {
   const {
     messages, loading, error, draft, attachments, attachmentsAvailable,
@@ -150,10 +187,15 @@ export function ChatView(props: ChatViewProps) {
             ) : (
               <div key={i} style={{ display: "flex", gap: 13, margin: "0 0 26px" }}>
                 <div style={{ marginTop: 2, flexShrink: 0 }}><Burst size={22} /></div>
-                <div style={{ fontSize: 15, paddingTop: 1, minWidth: 0, flex: 1 }}>{m.runs?.some((r) => r.citations.length) ? <CitedText runs={m.runs} /> : renderAssistant(m.content)}</div>
+                <div style={{ fontSize: 15, paddingTop: 1, minWidth: 0, flex: 1 }}>
+                  {m.thinking ? <ThinkingPanel text={m.thinking} live={loading && i === messages.length - 1 && !m.content} /> : null}
+                  {m.content
+                    ? (m.runs?.some((r) => r.citations.length) ? <CitedText runs={m.runs} /> : renderAssistant(m.content))
+                    : (loading && i === messages.length - 1 ? <StatusLine /> : null)}
+                </div>
               </div>
             ))}
-            {loading && (<div style={{ display: "flex", gap: 13, margin: "0 0 26px" }}>
+            {loading && messages.length > 0 && messages[messages.length - 1].role !== "assistant" && (<div style={{ display: "flex", gap: 13, margin: "0 0 26px" }}>
               <div style={{ marginTop: 2 }}><Burst size={22} /></div>
               <div style={{ display: "flex", gap: 5, paddingTop: 9 }}>{[0, 1, 2].map((d) => <span key={d} style={{ width: 7, height: 7, borderRadius: "50%", background: C.ink3, display: "inline-block", animation: `vo-bounce 1.2s ${d * 0.16}s infinite ease-in-out` }} />)}</div>
             </div>)}

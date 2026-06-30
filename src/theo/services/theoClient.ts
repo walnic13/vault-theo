@@ -10,12 +10,13 @@ import type {
 import { INIT_PROJECTS } from "../data";
 import { parseArtifacts, remapToIds, upsert } from "../lib/artifacts";
 import {
-  sendMessage as gatewaySend, configureGateway as gatewayConfigure,
+  sendMessage as gatewaySend, sendMessageStream as gatewaySendStream, configureGateway as gatewayConfigure,
   listConversations as gatewayList, getConversation as gatewayGet,
   listConversationAttachments as gatewayListConvAttachments,
   createAttachmentUpload as gatewayCreateUpload, uploadToBlob as gatewayUploadToBlob,
   finalizeAttachment as gatewayFinalize, deleteAttachment as gatewayDeleteAttachment,
   attachmentsAvailable as gatewayAttachmentsAvailable,
+  type StreamHandlers,
 } from "./gateway.live";
 
 let projects: Project[] = INIT_PROJECTS.map((p) => ({ ...p, knowledge: p.knowledge.slice() }));
@@ -25,13 +26,18 @@ let appContext: AppContext = { app_key: null, app_context: null };
 
 export const theoClient = {
   // ── Gateway wiring (Origin mount supplies the token provider; switches mock → live) ──
-  configureGateway(opts: { getAccessToken?: (() => Promise<string | null>) | null; baseUrl?: string | null }): void {
+  configureGateway(opts: { getAccessToken?: (() => Promise<string | null>) | null; baseUrl?: string | null; streamBaseUrl?: string | null }): void {
     gatewayConfigure(opts);
   },
 
   // ── Chat (the one network-bound call; mocked in 1A) ──────────────────────
   sendMessage(req: GatewayRequest): Promise<GatewayResponse> {
     return gatewaySend(req);
+  },
+  // ── B9 streaming chat (theo_message_stream sidecar) — same request shape; the reply arrives as
+  // SSE deltas via the handlers (live text + thinking + citations + the final conversation id). ──
+  sendMessageStream(req: GatewayRequest, handlers: StreamHandlers): Promise<void> {
+    return gatewaySendStream(req, handlers);
   },
 
   // ── Attachments (B8e) — one network round per file: create SAS → PUT bytes → finalize.

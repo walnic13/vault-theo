@@ -22,12 +22,20 @@ function normalizeBase(v: unknown): string {
 
 let tokenProvider: TokenProvider | null = null;
 let apiBase: string = normalizeBase((import.meta.env as Record<string, unknown>).VITE_FUNCTIONS_URL);
+// B9: the STREAMING endpoint (theo_message_stream) lives on a SEPARATE sidecar Function App
+// (vaultgpt-func-stream), distinct from the monolith `apiBase`. It has its own base URL — set at
+// build via VITE_STREAM_FUNCTIONS_URL or injected at mount via configureGateway({ streamBaseUrl }).
+// Used ONLY by sendMessageStream; all other calls (attachments, recents, reload, non-streaming chat)
+// stay on `apiBase`. When unset, streaming degrades to the non-streaming monolith path.
+let streamBase: string = normalizeBase((import.meta.env as Record<string, unknown>).VITE_STREAM_FUNCTIONS_URL);
 
 // Configured once by the federated TheoSurface mount with the Origin shell's token provider (and,
-// optionally, the Functions base URL). Supplying a token provider switches this gateway mock → live.
-export function configureGateway(opts: { getAccessToken?: TokenProvider | null; baseUrl?: string | null }): void {
+// optionally, the monolith Functions base URL and the streaming sidecar base URL). Supplying a token
+// provider switches this gateway mock → live.
+export function configureGateway(opts: { getAccessToken?: TokenProvider | null; baseUrl?: string | null; streamBaseUrl?: string | null }): void {
   if (opts.getAccessToken !== undefined) tokenProvider = opts.getAccessToken;
   if (opts.baseUrl != null) apiBase = normalizeBase(opts.baseUrl);
+  if (opts.streamBaseUrl != null) streamBase = normalizeBase(opts.streamBaseUrl);
 }
 
 // True once a live backend is wired (token provider or a Functions base URL). Attachments require it.
@@ -252,4 +260,101 @@ export async function listConversationAttachments(conversationId: string): Promi
     throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
   }
   return Array.isArray(json?.data?.attachments) ? json.data.attachments : [];
+}
+
+// ── B9 streaming chat (theo_message_stream on the v4 sidecar) ───────────────────────────────
+// Calls the streaming endpoint and invokes `handlers` as Anthropic SSE events arrive: text deltas
+// (the live answer), thinking deltas (collapsible panel), citations, and the final app-level
+// `vault_meta` event (the conversation id). Pre-stream failures arrive as a normal JSON error body
+// (the handler returns JSON before committing to the stream) and are thrown with the server message,
+// exactly like the non-streaming path; a mid-stream `vault_error` is thrown too. Unconfigured dev
+// harness (no live backend) → falls back to the non-streaming mock and emits the whole reply once.
+export interface StreamCitation { url?: string; title?: string; cited_text?: string }
+export interface StreamHandlers {
+  onText: (delta: string) => void;
+  onThinking?: (delta: string) => void;
+  onCitation?: (c: StreamCitation) => void;
+  onMeta?: (meta: { conversation_id?: string; model?: string }) => void;
+}
+
+export async function sendMessageStream(req: GatewayRequest, handlers: StreamHandlers): Promise<void> {
+  // Dev harness: no live backend → use the mock and emit the whole reply once (keeps the harness usable).
+  if (!apiBase && !tokenProvider) {
+    const res = await mockSend(req);
+    const text = (res.content || []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("\n");
+    if (text) handlers.onText(text);
+    if (res.conversation_id) handlers.onMeta?.({ conversation_id: res.conversation_id });
+    return;
+  }
+
+  // Streaming requires the sidecar base (a different host than the monolith `apiBase`). If it isn't
+  // configured, degrade to the non-streaming monolith call and emit the whole reply once — chat
+  // still works, just not streamed. (apiBase is NEVER used for the stream endpoint.)
+  if (!streamBase) {
+    const res = await sendMessage(req);
+    const text = (res.content || []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("\n");
+    if (text) handlers.onText(text);
+    if (res.conversation_id) handlers.onMeta?.({ conversation_id: res.conversation_id });
+    return;
+  }
+
+  const headers = await authHeaders();
+  const resp = await fetch(`${streamBase}/api/theo_message_stream`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({
+      max_tokens: req.max_tokens,
+      system: req.system,
+      messages: req.messages,
+      ...(req.conversation_id ? { conversation_id: req.conversation_id } : {}),
+      ...(req.app_key != null ? { app_key: req.app_key } : {}),
+      ...(req.app_context != null ? { app_context: req.app_context } : {}),
+      ...(req.attachment_ids && req.attachment_ids.length ? { attachment_ids: req.attachment_ids } : {}),
+    }),
+  });
+
+  // Pre-stream error (auth/validation/ownership/gateway) → JSON error body; surface its message.
+  if (!resp.ok || !resp.body) {
+    let msg = `Theo gateway error (HTTP ${resp.status}).`;
+    try {
+      const j = (await resp.json()) as { error?: { message?: string } };
+      msg = j?.error?.message || msg;
+    } catch { /* non-JSON error body */ }
+    throw new Error(msg);
+  }
+
+  // Read the SSE body incrementally; dispatch one complete event (separated by a blank line) at a time.
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let sep: number;
+    while ((sep = buf.indexOf("\n\n")) >= 0) {
+      const evt = buf.slice(0, sep);
+      buf = buf.slice(sep + 2);
+      const dataLine = evt.split("\n").find((l) => l.startsWith("data:"));
+      if (!dataLine) continue;
+      let j: Record<string, unknown> | null = null;
+      try { j = JSON.parse(dataLine.slice(5).trim()) as Record<string, unknown>; } catch { continue; }
+      if (!j || typeof j !== "object") continue;
+
+      if (evt.includes("event: vault_error")) {
+        throw new Error((j.message as string) || "The model stream was interrupted.");
+      }
+      if (evt.includes("event: vault_meta")) {
+        handlers.onMeta?.({ conversation_id: j.conversation_id as string | undefined, model: j.model as string | undefined });
+        continue;
+      }
+      if (j.type === "content_block_delta" && j.delta && typeof j.delta === "object") {
+        const delta = j.delta as Record<string, unknown>;
+        if (delta.type === "text_delta" && typeof delta.text === "string") handlers.onText(delta.text);
+        else if (delta.type === "thinking_delta" && typeof delta.thinking === "string") handlers.onThinking?.(delta.thinking);
+        else if (delta.type === "citations_delta" && delta.citation && typeof delta.citation === "object") handlers.onCitation?.(delta.citation as StreamCitation);
+      }
+    }
+  }
 }

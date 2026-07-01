@@ -89,7 +89,12 @@ export function useTheoState() {
   // finding); it falls back to a fresh server list only when the project isn't loaded locally.
   // KNOWLEDGE is always from the server (add/remove are immediate, hence authoritative). Awaited by
   // startInProject and reload-restore, so the next `send` sees full, current project context.
-  async function loadChatProject(id: string) {
+  // Returns true only if the REQUESTED project was actually loaded. FAILS CLOSED: on any error (or a
+  // project that can't be resolved) it clears chatProject to null rather than leaving a prior/other
+  // project active — so a failed switch can never start a chat with the wrong project's context, nor
+  // tag the conversation to the wrong project (Codex B4d-FE finding). Callers gate switching/tagging
+  // on the returned boolean.
+  async function loadChatProject(id: string): Promise<boolean> {
     try {
       const knowledge = await theoClient.listProjectKnowledge(id);
       let meta = projects.find((p) => p.id === id);
@@ -97,8 +102,13 @@ export function useTheoState() {
         const list = await theoClient.listProjects();
         meta = list.find((p) => p.id === id);
       }
-      setChatProject(meta ? { ...meta, knowledge } : null);
-    } catch { /* keep the current chatProject */ }
+      if (!meta) { setChatProject(null); return false; }
+      setChatProject({ ...meta, knowledge });
+      return true;
+    } catch {
+      setChatProject(null);
+      return false;
+    }
   }
 
   function go(v: View) { setView(v); setDetailId(null); }
@@ -108,7 +118,9 @@ export function useTheoState() {
   // to chat, so the first turn's system prompt (buildSystemPrompt(…, chatProject)) always includes it.
   // A fire-and-forget load could otherwise race the first send — the "Start a chat" button stays enabled.
   async function startInProject(id: string) {
-    await loadChatProject(id);
+    setChatProject(null);                       // clear first — never carry a prior project if load fails
+    const ok = await loadChatProject(id);
+    if (!ok) { setError("Couldn't open that project. Please try again."); return; }  // fail closed: no switch/tag
     setMessages([]); setConversationId(null); clearComposer(); setView("chats"); setDetailId(null);
   }
   // B4c: open a project and lazy-load its knowledge into the `projects` list (the list endpoint omits

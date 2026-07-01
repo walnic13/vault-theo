@@ -1,6 +1,7 @@
 -- Read-only verification for Tier B4a (SELECT-only; no writes, no transaction control).
 -- V1 — the additive description column exists on theo_projects (text, NOT NULL DEFAULT '').
-SELECT column_name, data_type, is_nullable
+-- column_default is selected so the DEFAULT '' is verified, not just the nullability.
+SELECT column_name, data_type, is_nullable, column_default
 FROM information_schema.columns
 WHERE table_schema = 'public' AND table_name = 'theo_projects'
 ORDER BY ordinal_position;

@@ -4,7 +4,7 @@
 // live `theo_*` calls (with the same mock fallback), replacing the 1A in-memory store; artifacts /
 // settings stay in-memory pending their own tiers. NO browser storage (1A handover §2.5).
 import type {
-  AppContext, Artifact, ConversationAttachment, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
+  AppContext, Artifact, ArtifactBlock, ArtifactSummary, ConversationAttachment, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
   KDraft, Knowledge, NpDraft, Project, Settings,
 } from "../types";
 import { parseArtifacts, remapToIds, upsert } from "../lib/artifacts";
@@ -24,6 +24,8 @@ import {
   setConversationProject as gatewaySetConversationProject,
   renameProject as gatewayRenameProject,
   renameConversation as gatewayRenameConversation, deleteConversation as gatewayDeleteConversation,
+  persistArtifact as gatewayPersistArtifact, listServerArtifacts as gatewayListServerArtifacts,
+  getServerArtifact as gatewayGetServerArtifact,
   type StreamHandlers,
 } from "./gateway.live";
 
@@ -75,13 +77,25 @@ export const theoClient = {
   },
 
   // Parse [[ARTIFACT]] blocks out of a reply, upsert them (versioned by reused title),
-  // and return the display text (artifact sentinels remapped to artifact ids) + the id to open.
-  ingestReply(reply: string): { display: string; openId: string | null } {
+  // and return the display text (artifact sentinels remapped to artifact ids) + the id to open + the
+  // parsed blocks (B4h: send() persists each block via theo_upsert_artifact; the persisted store is
+  // keyed by title, matching this in-memory upsert).
+  ingestReply(reply: string): { display: string; openId: string | null; blocks: ArtifactBlock[] } {
     const { clean, blocks } = parseArtifacts(reply);
     const ids: string[] = [];
     blocks.forEach((b) => { const r = upsert(artifacts, b); artifacts = r.next; ids.push(r.id); });
     const display = remapToIds(clean, ids);
-    return { display: display || "(no response)", openId: ids.length ? ids[ids.length - 1] : null };
+    return { display: display || "(no response)", openId: ids.length ? ids[ids.length - 1] : null, blocks };
+  },
+  // B4h: clear the in-memory artifact working set — called before re-deriving a reopened thread's
+  // artifacts (selectRecent re-runs ingestReply over each persisted assistant turn).
+  resetArtifacts(): void { artifacts = []; },
+  // B4h: merge a fetched persisted artifact (theo_get_artifact) into the in-memory store by id, so the
+  // ArtifactPanel can open a gallery artifact (opened from the Artifacts tab).
+  mergeArtifact(a: Artifact): void {
+    const i = artifacts.findIndex((x) => x.id === a.id);
+    if (i >= 0) { const c = artifacts.slice(); c[i] = a; artifacts = c; }
+    else artifacts = [a, ...artifacts];
   },
 
   // ── Projects + project-knowledge (B4c: live theo_*_project / theo_*_project_knowledge; API Spec
@@ -113,8 +127,18 @@ export const theoClient = {
   },
   deleteConversation(id: string): Promise<void> { return gatewayDeleteConversation(id); },
 
-  // ── Artifacts (in-memory in 1A; theo_artifacts + theo_artifact_versions in 1B) ──
+  // ── Artifacts ──
+  // In-memory working set (the live thread's artifacts, keyed by client id; drives ArtifactCard + panel).
   listArtifacts(): Artifact[] { return artifacts.slice(); },
+  // B4h persistence (theo_upsert/list/get_artifact; API Spec §2.3). Owner-scoped server-side; version
+  // content in Blob. `persistArtifact` (best-effort during send) create-or-add-version by title;
+  // `listServerArtifacts` backs the cross-chat Artifacts gallery; `getServerArtifact` fetches versions
+  // + content to open a gallery artifact in the panel. Unconfigured harness → mock (empty gallery).
+  persistArtifact(input: { title: string; type: string; content: string; conversationId?: string | null }): Promise<{ id: string; currentVersion: number }> {
+    return gatewayPersistArtifact(input);
+  },
+  listServerArtifacts(): Promise<ArtifactSummary[]> { return gatewayListServerArtifacts(); },
+  getServerArtifact(id: string): Promise<Artifact> { return gatewayGetServerArtifact(id); },
 
   // ── Settings (in-memory in 1A; theo_user_settings in 1B) ──
   readSettings(): Settings { return { ...settings }; },

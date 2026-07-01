@@ -62,16 +62,18 @@ export interface TheoSurfaceProps {
 
 export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessToken }: TheoSurfaceProps) {
   const t = useTheoState();
-  const { ingestAppContext, loadRecents, loadProjects } = t;
+  const { ingestAppContext, loadRecents, loadProjects, loadGalleryArtifacts } = t;
 
-  // Wire the live model gateway to the shell's token provider (mock → live), then load Recents and
-  // Projects. configureGateway is synchronous, so the subsequent list calls run against the live
-  // gateway when a provider is present (mock fallback otherwise). Both loaders are useCallback-stable.
+  // Wire the live model gateway to the shell's token provider (mock → live), then load Recents,
+  // Projects, and the Artifacts gallery. configureGateway is synchronous, so the subsequent list calls
+  // run against the live gateway when a provider is present (mock fallback otherwise). All loaders are
+  // useCallback-stable.
   useEffect(() => {
     theoClient.configureGateway({ getAccessToken: getAccessToken ?? null });
     void loadRecents();
     void loadProjects();
-  }, [getAccessToken, loadRecents, loadProjects]);
+    void loadGalleryArtifacts();
+  }, [getAccessToken, loadRecents, loadProjects, loadGalleryArtifacts]);
 
   // Sync inbound app-context into state (context-only; no fetch — VA-T3 §2.4).
   useEffect(() => {

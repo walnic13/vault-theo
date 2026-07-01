@@ -4,7 +4,7 @@
 // behind this contract with no surface change. The real gateway is a vault-theo server-side
 // endpoint (e.g. POST /api/theo/message) holding Foundry creds via Entra managed identity.
 import type {
-  ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
+  Artifact, ArtifactSummary, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
   KDraft, Knowledge, NpDraft, Project,
 } from "../types";
 import { INIT_PROJECTS, RECENTS } from "../data";
@@ -141,4 +141,19 @@ export async function removeProjectKnowledge(knowledgeId: string): Promise<void>
 export async function setConversationProject(conversationId: string, projectId: string): Promise<void> {
   void conversationId; void projectId;   // no persistent conversations to tag in the standalone harness
   return;
+}
+
+// ── B4h artifacts persistence fallback (standalone dev harness) ──────────────────────────────
+// The harness has no backend, so persist is a no-op (returns a stub id) and the gallery is empty.
+// Live theo_upsert/list/get_artifact replace these when a token/base is present (gateway.live).
+export async function persistArtifact(input: { title: string; type: string; content: string; conversationId?: string | null }): Promise<{ id: string; currentVersion: number }> {
+  void input;
+  return { id: "srv" + Date.now().toString(36), currentVersion: 1 };
+}
+export async function listServerArtifacts(): Promise<ArtifactSummary[]> {
+  return [];
+}
+export async function getServerArtifact(id: string): Promise<Artifact> {
+  // Never reached in the harness (the gallery is empty); a clear stub keeps the type honest.
+  return { id, title: "Artifact", type: "document", versions: [{ content: "", ts: 0 }] };
 }

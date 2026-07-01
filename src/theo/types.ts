@@ -28,6 +28,13 @@ export type ArtifactType = "document" | "code" | "html";
 export interface ArtifactVersion { content: string; ts: number }
 export interface Artifact { id: string; title: string; type: ArtifactType; versions: ArtifactVersion[] }
 export interface ArtifactBlock { title: string; type: ArtifactType; content: string }
+// B4h: a persisted-artifact summary row for the cross-chat Artifacts gallery (theo_list_artifacts —
+// metadata only, no version content). Distinct from the in-memory `Artifact` (which carries versions);
+// opening a summary fetches the full Artifact via theo_get_artifact.
+export interface ArtifactSummary {
+  id: string; title: string; type: ArtifactType;
+  currentVersion: number; updated: string;
+}
 
 export type StyleKey = "normal" | "concise" | "explanatory" | "formal";
 export interface Style { key: StyleKey; label: string; desc: string; mod: string }

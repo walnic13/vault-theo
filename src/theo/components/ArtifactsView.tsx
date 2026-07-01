@@ -1,10 +1,14 @@
 // ArtifactsView — VA-T1 L434–455. Owns its scroll container (identical pixels).
+// B4h: renders the persisted cross-chat Artifacts gallery (theo_list_artifacts summaries). A summary
+// carries metadata only (title/type/current_version/updated) — no version content — so the card shows
+// the type + version + last-updated instead of a body preview; clicking fetches the full artifact
+// (theo_get_artifact) and opens it in the panel.
 import { C } from "../theme";
 import { IcArtifacts, IcDoc } from "./icons";
-import type { Artifact } from "../types";
+import type { ArtifactSummary } from "../types";
 
 export interface ArtifactsViewProps {
-  artifacts: Artifact[];
+  artifacts: ArtifactSummary[];
   onOpenArtifact: (id: string) => void;
 }
 
@@ -23,10 +27,10 @@ export function ArtifactsView({ artifacts, onOpenArtifact }: ArtifactsViewProps)
             {artifacts.map((a) => (<div key={a.id} className="vo-card" onClick={() => onOpenArtifact(a.id)} style={{ background: C.card, border: `1px solid ${C.line2}`, borderRadius: 14, padding: 18, cursor: "pointer", transition: "all .15s" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                 <span style={{ color: C.coral }}><IcDoc s={18} /></span>
-                <span style={{ fontSize: 11.5, color: C.ink3, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 999, padding: "2px 9px" }}>{a.type}{a.versions.length > 1 ? ` · v${a.versions.length}` : ""}</span>
+                <span style={{ fontSize: 11.5, color: C.ink3, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 999, padding: "2px 9px" }}>{a.type}{a.currentVersion > 1 ? ` · v${a.currentVersion}` : ""}</span>
               </div>
               <div style={{ fontWeight: 600, fontSize: 14.5, marginBottom: 6 }}>{a.title}</div>
-              <div style={{ fontSize: 13, color: C.ink2, lineHeight: 1.5, minHeight: 38, overflow: "hidden" }}>{a.versions[a.versions.length - 1].content.replace(/[#*`]/g, "").slice(0, 96)}…</div>
+              <div style={{ fontSize: 13, color: C.ink3, lineHeight: 1.5, minHeight: 38 }}>{a.updated ? `Updated ${a.updated} · ` : ""}Click to open</div>
             </div>))}
           </div>
         )}

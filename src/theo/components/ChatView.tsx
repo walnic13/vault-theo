@@ -190,7 +190,7 @@ export function ChatView(props: ChatViewProps) {
                 <div style={{ fontSize: 15, paddingTop: 1, minWidth: 0, flex: 1 }}>
                   {m.thinking ? <ThinkingPanel text={m.thinking} live={loading && i === messages.length - 1 && !m.content} /> : null}
                   {m.content
-                    ? (m.runs?.some((r) => r.citations.length) ? <CitedText runs={m.runs} /> : renderAssistant(m.content))
+                    ? (m.runs?.some((r) => r.citations.length) ? <CitedText runs={m.runs} renderText={renderAssistant} /> : renderAssistant(m.content))
                     : (loading && i === messages.length - 1 ? <StatusLine /> : null)}
                 </div>
               </div>

@@ -76,7 +76,7 @@ export function TheoMain({ t, mode }: TheoMainProps) {
             <ProjectDetail project={t.detail} chats={t.projectChats} kdraft={t.kdraft} onKdraftChange={t.setKdraft} onAddKnowledge={t.addKnowledge} onRemoveKnowledge={t.removeKnowledge} onPatchInstructions={t.patchInstructions} onStartChat={() => t.startInProject(t.detail!.id)} onSelectChat={t.selectRecent} onRenameChat={t.renameConversation} onDeleteChat={t.deleteConversation} onPatchDescription={t.patchDescription} />
           )}
           {t.view === "artifacts" && (
-            <ArtifactsView artifacts={t.artifacts} onOpenArtifact={t.openArtifact} />
+            <ArtifactsView artifacts={t.galleryArtifacts} onOpenArtifact={t.openGalleryArtifact} />
           )}
           {t.view === "customize" && (
             <Customize styles={STYLES} styleKey={t.styleKey} onSelectStyle={t.selectStyle} custom={t.custom} onCustomChange={t.setCustom} onSave={t.save} saved={t.saved} productName={PRODUCT_NAME} />

@@ -6,6 +6,7 @@
 // Hardenings beyond the reference: (G-1) favicon onError → inline Globe (zero-egress
 // fallback); (G-2) viewport-edge collision handling for the source card.
 import { useState, useRef, useLayoutEffect } from "react";
+import type { ReactNode } from "react";
 import { C, SANS } from "../theme";
 import { Formatted } from "../lib/markdown";
 import type { Citation, CitedRun } from "../types";
@@ -137,20 +138,25 @@ function CitationMarker({ index, citation }: { index: number; citation: Citation
 
 // `runs` is the assistant message mapped to ordered { text, citations[] } spans.
 // Index numbering is sequential across the whole message.
-export function CitedText({ runs, startIndex = 1 }: { runs: CitedRun[]; startIndex?: number }) {
+// B4h: `renderText` lets the caller render a run's body through the artifact-aware assistant renderer
+// (splitAssistant → ArtifactCard/Formatted) instead of plain Formatted — so a cited answer that also
+// emits an artifact renders the card, not the raw `\0A:<id>\0` placeholder. Defaults to Formatted
+// (unchanged behaviour for plain cited answers).
+export function CitedText({ runs, startIndex = 1, renderText }: { runs: CitedRun[]; startIndex?: number; renderText?: (text: string) => ReactNode }) {
   let n = startIndex - 1;
+  const body = (text: string): ReactNode => (renderText ? renderText(text) : <Formatted text={text} />);
   return (
     <div style={{ fontFamily: SANS, fontSize: 15, lineHeight: 1.7, color: C.ink }}>
       {runs.map((run, ri) => {
         const cites = run.citations || [];
-        // Non-cited runs: full block markdown (lists/paragraphs/headings/links/bold).
-        if (cites.length === 0) return <Formatted key={ri} text={run.text} />;
-        // Cited runs: render the body through the full block renderer (Formatted) so a structured
-        // web-grounded answer (headings/tables/lists/code/rules) gets the same fidelity as a plain
-        // one, then append the citation chips as a trailing row.
+        // Non-cited runs: full block markdown (lists/paragraphs/headings/links/bold), artifact-aware.
+        if (cites.length === 0) return <div key={ri}>{body(run.text)}</div>;
+        // Cited runs: render the body through the full block renderer so a structured web-grounded
+        // answer (headings/tables/lists/code/rules) gets the same fidelity as a plain one (and any
+        // artifact card renders too), then append the citation chips as a trailing row.
         return (
           <div key={ri}>
-            <Formatted text={run.text} />
+            {body(run.text)}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
               {cites.map((cit) => {
                 n += 1;

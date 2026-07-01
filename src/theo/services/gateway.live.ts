@@ -10,7 +10,7 @@
 // Until a live backend is configured (no `VITE_FUNCTIONS_URL` and no `configureGateway` token/base),
 // this delegates to the in-repo 1A mock so the standalone vault-theo dev harness keeps working.
 import type {
-  AttachmentUpload, ConversationAttachment, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
+  Artifact, ArtifactSummary, AttachmentUpload, ConversationAttachment, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
   KDraft, Knowledge, NpDraft, Project,
 } from "../types";
 import {
@@ -24,6 +24,8 @@ import {
   setConversationProject as mockSetConversationProject,
   renameProject as mockRenameProject,
   renameConversation as mockRenameConversation, deleteConversation as mockDeleteConversation,
+  persistArtifact as mockPersistArtifact, listServerArtifacts as mockListServerArtifacts,
+  getServerArtifact as mockGetServerArtifact,
 } from "./gateway.mock";
 
 type TokenProvider = () => Promise<string | null>;
@@ -555,6 +557,91 @@ export async function setConversationProject(conversationId: string, projectId: 
     try { json = await res.json(); } catch { /* non-JSON error body */ }
     throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
   }
+}
+
+// ── B4h artifacts persistence (theo_upsert/list/get_artifact; API Spec §2.3) ─────────────────
+// Owner-scoped server-side; version content lives in Blob (the row holds the pointer). Unconfigured
+// dev harness → the in-memory mock (empty gallery). Deployed rows carry id/title/type/current_version
+// /timestamps (+ versions[{version_number,content,byte_size,content_type,created_at}] on get); these
+// mappers project them onto the FE ArtifactSummary / Artifact shapes.
+interface RawArtifact {
+  id: string;
+  title: string;
+  type: string;
+  current_version?: number;
+  updated_at?: string;
+  versions?: { version_number: number; content?: string | null; byte_size?: number | null; content_type?: string | null; created_at?: string }[];
+}
+
+function toArtifactType(t: string): Artifact["type"] {
+  return t === "code" || t === "html" ? t : "document";
+}
+
+function toArtifactSummary(r: RawArtifact): ArtifactSummary {
+  return {
+    id: r.id,
+    title: r.title,
+    type: toArtifactType(r.type),
+    currentVersion: typeof r.current_version === "number" ? r.current_version : 1,
+    updated: relTime(r.updated_at),
+  };
+}
+
+// theo_get_artifact → the in-memory Artifact shape (versions ordered ascending; content from Blob).
+function toArtifact(r: RawArtifact): Artifact {
+  const versions = Array.isArray(r.versions) ? r.versions : [];
+  return {
+    id: r.id,
+    title: r.title,
+    type: toArtifactType(r.type),
+    versions: versions.map((v) => ({ content: v.content ?? "", ts: v.created_at ? Date.parse(v.created_at) || v.version_number : v.version_number })),
+  };
+}
+
+// Persist (create-or-add-version, keyed by title server-side). Best-effort caller; returns id + version.
+export async function persistArtifact(input: { title: string; type: string; content: string; conversationId?: string | null }): Promise<{ id: string; currentVersion: number }> {
+  if (!apiBase && !tokenProvider) return mockPersistArtifact(input);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_upsert_artifact`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({
+      title: input.title,
+      type: input.type,
+      content: input.content,
+      ...(input.conversationId ? { conversation_id: input.conversationId } : {}),
+    }),
+  });
+  let json: { data?: { artifact?: { id?: string; current_version?: number } }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const a = json?.data?.artifact;
+  if (!a || typeof a.id !== "string") throw new Error("Theo gateway response missing data.artifact.");
+  return { id: a.id, currentVersion: typeof a.current_version === "number" ? a.current_version : 1 };
+}
+
+export async function listServerArtifacts(): Promise<ArtifactSummary[]> {
+  if (!apiBase && !tokenProvider) return mockListServerArtifacts();
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_list_artifacts`, { method: "GET", credentials: "same-origin", headers });
+  let json: { data?: { artifacts?: RawArtifact[] }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const arr = json?.data?.artifacts;
+  return Array.isArray(arr) ? arr.map(toArtifactSummary) : [];
+}
+
+export async function getServerArtifact(id: string): Promise<Artifact> {
+  if (!apiBase && !tokenProvider) return mockGetServerArtifact(id);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_get_artifact?artifactId=${encodeURIComponent(id)}`, { method: "GET", credentials: "same-origin", headers });
+  let json: { data?: { artifact?: RawArtifact }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const a = json?.data?.artifact;
+  if (!a || typeof a.id !== "string") throw new Error("Theo gateway response missing data.artifact.");
+  return toArtifact(a);
 }
 
 // ── B9 streaming chat (theo_message_stream on the v4 sidecar) ───────────────────────────────

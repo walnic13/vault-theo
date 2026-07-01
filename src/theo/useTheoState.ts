@@ -7,7 +7,7 @@ import { stripArtifactRefs } from "./lib/artifacts";
 import { buildSystemPrompt, greeting } from "./lib/prompt";
 import { MODEL } from "./swapBlock";
 import { STYLES } from "./data";
-import type { AppContext, Artifact, Citation, ComposerAttachment, ConversationSummary, KDraft, Message, NpDraft, OpenArtifact, Project, SentAttachment, Settings, StyleKey, View } from "./types";
+import type { AppContext, Artifact, ArtifactSummary, Citation, ComposerAttachment, ConversationSummary, KDraft, Message, NpDraft, OpenArtifact, Project, SentAttachment, Settings, StyleKey, View } from "./types";
 
 // B8e: a paste longer than this becomes a "Pasted text" attachment (collapsed, expandable) instead
 // of flooding the composer — the Claude-style behaviour. Tunable; ~a long block, not a sentence.
@@ -31,6 +31,9 @@ export function useTheoState() {
   // knowledge:[]) can never strip the active chat's project context (Codex B4d-FE finding).
   const [chatProject, setChatProject] = useState<Project | null>(null);
   const [artifacts, setArtifacts] = useState<Artifact[]>(() => theoClient.listArtifacts());
+  // B4h: the cross-chat Artifacts gallery (persisted summaries via theo_list_artifacts), distinct from
+  // the in-memory `artifacts` working set that drives the open thread's cards + panel.
+  const [galleryArtifacts, setGalleryArtifacts] = useState<ArtifactSummary[]>([]);
   const [openArt, setOpenArt] = useState<OpenArtifact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
@@ -78,6 +81,13 @@ export function useTheoState() {
   // per-project on open (theo_list_projects omits it).
   const loadProjects = useCallback(async () => {
     try { setProjects(await theoClient.listProjects()); } catch { /* keep current list */ }
+  }, []);
+
+  // B4h: load the cross-chat Artifacts gallery (live → theo_list_artifacts; mock → empty). Called by
+  // TheoSurface's mount effect, on navigating to the Artifacts view, and after a send that produced
+  // artifacts. Best-effort — a failure keeps the current list.
+  const loadGalleryArtifacts = useCallback(async () => {
+    try { setGalleryArtifacts(await theoClient.listServerArtifacts()); } catch { /* keep current list */ }
   }, []);
 
   // B4c: (re)load one project's knowledge items into state (theo_list_project_knowledge). Best-effort.
@@ -131,9 +141,9 @@ export function useTheoState() {
     }
   }
 
-  function go(v: View) { setView(v); setDetailId(null); }
+  function go(v: View) { setView(v); setDetailId(null); if (v === "artifacts") void loadGalleryArtifacts(); }  // B4h: refresh the gallery on open
   function clearComposer() { setAttachments([]); }
-  function newChat() { setMessages([]); setConversationId(null); setChatProject(null); setOpenArt(null); clearComposer(); go("chats"); }
+  function newChat() { setMessages([]); setConversationId(null); setChatProject(null); setOpenArt(null); theoClient.resetArtifacts(); setArtifacts([]); clearComposer(); go("chats"); }  // B4h: fresh thread = fresh in-memory artifact set
   // B4c/B4d: AWAIT the project's full load (metadata + knowledge, held in chatProject) before switching
   // to chat, so the first turn's system prompt (buildSystemPrompt(…, chatProject)) always includes it.
   // A fire-and-forget load could otherwise race the first send — the "Start a chat" button stays enabled.
@@ -141,7 +151,7 @@ export function useTheoState() {
     setChatProject(null);                       // clear first — never carry a prior project if load fails
     const ok = await loadChatProject(id);
     if (!ok) { setError("Couldn't open that project. Please try again."); return; }  // fail closed: no switch/tag
-    setMessages([]); setConversationId(null); setOpenArt(null); clearComposer(); setView("chats"); setDetailId(null);
+    setMessages([]); setConversationId(null); setOpenArt(null); theoClient.resetArtifacts(); setArtifacts([]); clearComposer(); setView("chats"); setDetailId(null);
   }
   // B4c/B4e: open a project and lazy-load its knowledge into the `projects` list (the list endpoint
   // omits it) so the DETAIL view shows it, plus its chats (theo_list_conversations?projectId) for the
@@ -230,17 +240,28 @@ export function useTheoState() {
           bySeq.set(a.message_seq, list);
         }
       } catch { /* attachments are best-effort on reload — never block the thread */ }
+      // B4h: rebuild this thread's artifacts from its persisted assistant turns. The raw [[ARTIFACT]]
+      // blocks are retained in theo_messages.content, so re-running the ingest pipeline (in seq order)
+      // reconstructs the in-memory artifacts AND swaps the markers for artifact-card placeholders — the
+      // same result as when the turns first streamed. resetArtifacts() first so the working set is
+      // exactly this thread's (not a prior thread's).
+      theoClient.resetArtifacts();
       const msgs: Message[] = d.messages.map((m) => {
         const atts = m.role === "user" ? bySeq.get(m.seq) : undefined;
         const cites = Array.isArray(m.citations) ? m.citations : [];
-        if (m.role === "assistant" && cites.length) {
-          return {
-            role: "assistant", content: m.content,
-            runs: [{ text: m.content, citations: cites.map((c) => ({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text })) }],
-          };
+        if (m.role === "assistant") {
+          const { display } = theoClient.ingestReply(m.content);   // parse+upsert artifacts; markers → placeholders
+          if (cites.length) {
+            return {
+              role: "assistant", content: display,
+              runs: [{ text: display, citations: cites.map((c) => ({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text })) }],
+            };
+          }
+          return { role: "assistant", content: display };
         }
         return { role: m.role, content: m.content, ...(atts && atts.length ? { attachments: atts } : {}) };
       });
+      setArtifacts(theoClient.listArtifacts());
       setMessages(msgs); setConversationId(id);
     } catch {
       setError("Couldn't load that conversation.");
@@ -291,11 +312,21 @@ export function useTheoState() {
       });
       // Finalize on stream end: run artifact ingestion over the full text (markers → links) and, if
       // the model cited sources, attach a single CitedRun so the existing CitedText path renders them.
-      const { display, openId } = theoClient.ingestReply(acc);
+      const { display, openId, blocks } = theoClient.ingestReply(acc);
       setArtifacts(theoClient.listArtifacts());
       patchLastAssistant({ content: display, ...(cites.length ? { runs: [{ text: display, citations: cites }] } : {}), ...(think ? { thinking: think } : {}) });
       if (openId) setOpenArt({ id: openId, v: -1 });
       if (convId) setConversationId(convId);
+      // B4h: persist each artifact block server-side (theo_upsert_artifact — create-or-add-version by
+      // title, matching the in-memory upsert), tagged with this conversation, then refresh the gallery.
+      // Best-effort — a failed persist never disrupts the delivered turn; the artifact still shows live
+      // (in-memory) and the raw [[ARTIFACT]] blocks in the persisted turn let a reload re-derive it.
+      if (blocks.length) {
+        const convForTag = convId || conversationId;
+        void Promise.all(blocks.map((b) => theoClient.persistArtifact({ title: b.title, type: b.type, content: b.content, conversationId: convForTag })))
+          .then(() => loadGalleryArtifacts())
+          .catch(() => {});
+      }
       // B4d: link this conversation to the active project (idempotent set-once server-side), so it
       // shows in the project's chat list and restores the project chip on reload. Best-effort — a
       // failed link never disrupts the delivered turn. Only on the first turn does convId become new;
@@ -437,6 +468,18 @@ export function useTheoState() {
     } catch { setError("Couldn't delete the chat."); }
   }
 
+  // B4h: open a persisted artifact from the gallery (Artifacts tab) — fetch its versions + content
+  // (theo_get_artifact; content from Blob), merge it into the in-memory working set by id, and open it
+  // in the panel. The panel resolves it via `art` (artifacts.find by openArt.id).
+  async function openGalleryArtifact(id: string) {
+    try {
+      const a = await theoClient.getServerArtifact(id);
+      theoClient.mergeArtifact(a);
+      setArtifacts(theoClient.listArtifacts());
+      setOpenArt({ id: a.id, v: -1 });
+    } catch { setError("Couldn't open that artifact."); }
+  }
+
   function save() { theoClient.writeSettings({ styleKey, custom }); setSaved(true); setTimeout(() => setSaved(false), 2000); }
   async function copyArt() {
     if (!art) return;
@@ -446,17 +489,17 @@ export function useTheoState() {
 
   return {
     // state
-    view, collapsed, search, projects, projectChats, artifacts, detail, chatProject, art, openArt, messages, draft, attachments, attachmentsAvailable, loading, error,
+    view, collapsed, search, projects, projectChats, artifacts, galleryArtifacts, detail, chatProject, art, openArt, messages, draft, attachments, attachmentsAvailable, loading, error,
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
     // setters / handlers
     go, toggleCollapse: () => setCollapsed((v) => !v), setSearch, setDraft, newChat, startInProject, openProject,
-    clearChatProject: () => setChatProject(null), send, ingestAppContext, selectRecent, loadRecents, loadProjects,
+    clearChatProject: () => setChatProject(null), send, ingestAppContext, selectRecent, loadRecents, loadProjects, loadGalleryArtifacts,
     addFiles, addPastedText, removeAttachment,
     toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, patchDescription, setKdraft, addKnowledge, removeKnowledge,
     renameProject, deleteProject, renameConversation, deleteConversation,
     selectStyle: setStyleKey, setCustom, save, copyArt,
     selectVersion: (v: number) => setOpenArt(openArt ? { id: openArt.id, v } : null),
-    openArtifact: (id: string) => setOpenArt({ id, v: -1 }), closeArt: () => setOpenArt(null),
+    openArtifact: (id: string) => setOpenArt({ id, v: -1 }), openGalleryArtifact, closeArt: () => setOpenArt(null),
     greeting: greeting(),
   };
 }

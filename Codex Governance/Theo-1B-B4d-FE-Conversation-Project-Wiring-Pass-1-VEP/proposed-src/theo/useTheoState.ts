@@ -149,9 +149,16 @@ export function useTheoState() {
     setError(""); setChatProjectId(null); setView("chats"); setDetailId(null); clearComposer();
     try {
       const d = await theoClient.getConversation(id);
-      // B4d: restore the project chip when reopening a chat that belongs to a project (the reloaded
-      // conversation carries project_id; theo_conversations.project_id, set via theo_set_conversation_project).
-      if (d.conversation && d.conversation.project_id) setChatProjectId(d.conversation.project_id);
+      // B4d: restore the project when reopening a chat that belongs to one (the reloaded conversation
+      // carries project_id). Load the project's knowledge too — the projects list maps knowledge:[] —
+      // and AWAIT it, so the restored chat's next turn injects project knowledge, not just the chip.
+      // (Codex B4d-FE finding: a chip without loaded knowledge broke project-context parity on reload,
+      // since buildSystemPrompt only injects when chatProject.knowledge.length is populated.)
+      if (d.conversation && d.conversation.project_id) {
+        const pid = d.conversation.project_id;
+        setChatProjectId(pid);
+        await refreshProjectKnowledge(pid);
+      }
       const bySeq = new Map<number, SentAttachment[]>();
       try {
         const atts = await theoClient.listConversationAttachments(id);

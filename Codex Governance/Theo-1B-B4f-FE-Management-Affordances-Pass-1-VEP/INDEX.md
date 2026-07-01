@@ -11,6 +11,7 @@
   - `components/TheoMain.tsx` (forward project handlers), `TheoSurface.tsx` (forward chat handlers to Sidebar + `.vo-actions` hover-reveal in `STYLE_BLOCK`).
   - `useTheoState.ts` (4 handlers: optimistic rename, non-optimistic delete + open-thread/detail reset), `services/theoClient.ts` + `gateway.live.ts` + `gateway.mock.ts` (`renameProject`, `renameConversation`, `deleteConversation`).
 - **Classification:** VISUAL-AUTHORITY-DEVIATION (Walter-authorized management affordances; cited + classified + Rule-Anchored per FE Governor; Walter = exemption authority). Native `window.confirm` for delete = deliberate quick-win (G-2).
-- **Validation this turn:** applied to a scratch copy of `src` → `tsc` (exit 0) + `eslint .` (exit 0) + `build` green (TheoSurface 232.13 KB / 69.48 KB gzip); `src` reverted (package carries only `proposed-src/`). Microstep lint → PASS.
-- **Currency:** vault-theo HEAD `3559b83`. API-Spec §2.1 conversation rename/delete rows land via the in-flight B4f API-Spec Role-C (G-3 PRE-LAND).
+- **Validation this turn:** applied to a scratch copy of `src` → `tsc` (exit 0) + `eslint .` (exit 0) + `build` green (TheoSurface 232.22 KB / 69.51 KB gzip); `src` reverted (package carries only `proposed-src/`). Microstep lint → PASS.
+- **Codex Pass-2 REJECT round 1 → fixed:** `renameProject`'s catch path now rolls back the independently-held `chatProject` chip (snapshot-and-restore), not only the `projects` list — a failed rename no longer leaves the stale optimistic name on the active chip (TC-7).
+- **Currency:** vault-theo HEAD `3684a3d`. API-Spec §2.1 conversation rename/delete rows **landed** via the B4f API-Spec Role-C @ `3684a3d` (G-3 PROCEED).
 - **Pipeline:** Author = Claude Code (Pass 1). Reviewer = Codex (Pass 2). On APPROVAL → Pass 3 apply to `development` + Walter redeploys the Theo SWA.

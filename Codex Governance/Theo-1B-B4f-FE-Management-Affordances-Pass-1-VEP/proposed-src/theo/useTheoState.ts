@@ -353,17 +353,25 @@ export function useTheoState() {
 
   // B4f: rename a project (theo_update_project {id, name}; deployed B4a). Optimistic across the projects
   // list AND the held chatProject (so an open chat's chip updates immediately); resync from the server
-  // row on success, reload on failure. Blank names are ignored (the handler also rejects them).
+  // row on success, roll back BOTH surfaces on failure. Blank names are ignored (the handler also
+  // rejects them). chatProject is held INDEPENDENTLY of `projects` (B4d/B4e), so the failure path must
+  // roll it back explicitly — a server-resync of the list alone would leave the stale optimistic name
+  // on the active chip (Codex B4f-FE finding). We snapshot the prior chip name and restore it in catch.
   async function renameProject(id: string, name: string) {
     const n = name.trim();
     if (!n) return;
+    const prevChatName = chatProject && chatProject.id === id ? chatProject.name : null;
     setProjects((ps) => ps.map((p) => (p.id === id ? { ...p, name: n } : p)));
     setChatProject((cp) => (cp && cp.id === id ? { ...cp, name: n } : cp));
     try {
       const p = await theoClient.renameProject(id, n);
       setProjects((ps) => ps.map((x) => (x.id === id ? { ...x, name: p.name, updated: p.updated } : x)));
       setChatProject((cp) => (cp && cp.id === id ? { ...cp, name: p.name } : cp));
-    } catch { setError("Couldn't rename the project."); void loadProjects(); }
+    } catch {
+      setError("Couldn't rename the project.");
+      void loadProjects();                                                                 // resync the list from the server
+      if (prevChatName != null) setChatProject((cp) => (cp && cp.id === id ? { ...cp, name: prevChatName } : cp));  // roll back the held chip
+    }
   }
   // B4f: delete a project (theo_delete_project; deployed B4a). Its conversations are kept but unlinked
   // (theo_conversations.project_id FK ON DELETE SET NULL). On success: drop it from the list; if its

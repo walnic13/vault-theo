@@ -1076,7 +1076,7 @@ Uses the deployed B4a `theo_create_project` to make a parent project, then:
 3. **List** — `GET theo_list_project_knowledge?projectId=P` → 200; includes K; own rows only; chronological.
 4. **Remove** — `POST theo_remove_project_knowledge {knowledge_id:K}` → 200 `{deleted:true}`; re-list omits K.
 5. **Validation** — add with blank `title` → 400; add with empty `content` → 400; add with bad `project_id` uuid → 400; list without `projectId` → 400.
-6. **Project-ownership guard** — add/list with a random nonexistent `project_id` → **404**; (existing-foreign project → 403, needs a 2nd identity — not curl-run).
+6. **Project-ownership guard** — add/list with a random nonexistent `project_id` → **404**. Endpoint difference (by design, mirroring the deployed create-vs-update idiom): `theo_add_project_knowledge` collapses a **non-owned or absent** parent project to **404** (single `SELECT 1 … created_by=$oid` → no existence leak, like the memory create Primary Reference); `theo_list_project_knowledge` splits an **existing-foreign** project as **403** (via `theo_project_exists_unscoped`) vs absent **404** (the 403 path needs a 2nd identity — not curl-run).
 7. **Cleanup** — delete project P (`theo_delete_project`) → 200 (cascades any remaining knowledge).
 
 **Requested Pass 2 verdict:** Codex APPROVED or REJECTED.

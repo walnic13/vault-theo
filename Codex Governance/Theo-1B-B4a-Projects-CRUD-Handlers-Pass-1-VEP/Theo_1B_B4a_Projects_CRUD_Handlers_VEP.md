@@ -56,24 +56,24 @@ No ChatGPT advisory cited (§4D / T18). No `reporting_*`/`corporate-reporting` c
 - **Family-B.** `pg` Pool over `POSTGRES_CONNECTION_STRING`; per-request `set_config` triad; mutations `connect→BEGIN→…→COMMIT` with `catch ROLLBACK`; read is the same minus `BEGIN/COMMIT`. Identical helper block to the deployed Theo handlers (`getPrincipal`/`getClaimValue`/`send`/`errorBody`/`successBody`/`parseBody`/`buildKnownError`/`isUuid`).
 - **Explicit ownership (SEC-fix discipline).** Every SELECT/UPDATE/DELETE carries `created_by = $oid`; the shared connection role bypasses RLS, so the predicate — not RLS — enforces per-user isolation. Update/delete on a non-owned id → 0 rows → `theo_project_exists_unscoped` → 403/404 (no leakage).
 - **Validation before SQL.** `isUuid` on `id`; non-blank `name` ≤200; length-bounded `description`/`instructions`/`app_key`; `update` requires ≥1 updatable field — all deterministic 400s before any query.
-- **Boundary.** Reads/writes only `theo_projects` (deployed B2); **no `reporting_*` access**; no Blob, no model gateway, no external system. The additive `description` column is a net-new nullable column on an existing Theo table; 23514 (name CHECK) mapped defensively to 400.
+- **Boundary.** Reads/writes only `theo_projects` (deployed B2); **no `reporting_*` access**; no Blob, no model gateway, no external system. The additive `description` column is a net-new `NOT NULL DEFAULT ''` column on an existing Theo table (mirrors `instructions`); 23514 (name CHECK) mapped defensively to 400.
 
 ## P2.5 / GR — Gap Register
 Grounded against Governor §8 (closed vocabulary `PROCEED`/`PRE-LAND`/`ESCALATE`/`NO-GAPS`).
 | Gap | Disclosure | Pivot |
 | --- | --- | --- |
-| G-1 | **Migration + deploy (Walter).** One additive column (`theo_projects.description text`, §MIGRATION) then four new functions on the shared `vaultgpt-func-premium` app. `pg` + connection vars already present (B2/B3); the column inherits the table's four ownership policies. | **PRE-LAND** — §MIGRATION + §DEPLOY; Claude Code golden curls confirm (incl. cross-user isolation) + §b4a_verify read-only. |
+| G-1 | **Migration + deploy (Walter).** One additive column (`theo_projects.description text NOT NULL DEFAULT ''`, §MIGRATION) then four new functions on the shared `vaultgpt-func-premium` app. `pg` + connection vars already present (B2/B3); the column inherits the table's four ownership policies. | **PRE-LAND** — §MIGRATION + §DEPLOY; Claude Code golden curls confirm (incl. cross-user isolation) + §b4a_verify read-only. |
 | G-2 | **Authority-doc updates post-deploy.** API Spec §2.2 Projects row is finalized to name the four endpoints (`theo_list/create/update/delete_project`) — the deployed contract generalizes the v0.1 "patch-instructions" line to a full `update` and adds `delete` (Claude parity); the Golden Handler family registry already lists HF-T2 over `theo_projects`. | **PRE-LAND** — a short API-Spec Projects Role-C follows deploy (mirrors the B3b / B7a Role-C), before any FE projects-live VEP (B4c) cites it (T22 prevention). |
 | G-3 | **Project knowledge CRUD + FE swap + conversation↔project wiring.** `theo_project_knowledge` add/remove (B4b); `theoClient` mock→live + `useTheoState` async (B4c); `project_id` send/persist/restore + per-project chat list (B4d). | **PROCEED (future-trigger).** Separate, sequenced microsteps; `theo_list_projects` here intentionally returns project rows without the `knowledge[]` array (B4b adds the knowledge read/write). Not in this pack. |
 
 No write SQL executes in this pack (plan only); the additive migration is Walter-executed at Pass 3 per §MIGRATION. No `reporting_*` change.
 
 ## P3 — Backend / contract grounding
-Contract basis = the deployed `theo_projects` table (Schema §3/§5; columns `name` (CHECK not-blank) / `instructions` / `app_key` + `id`/`created_by`/timestamps) **plus** the additive `description text` column (§MIGRATION). Response envelope = the standard `{ data, meta }` / `{ error }` shape used by every Theo handler. Endpoints (new): `GET /api/theo_list_projects`; `POST /api/theo_create_project`; `POST /api/theo_update_project`; `POST /api/theo_delete_project` — route naming `theo_<operation>_<entity>` (API Spec §1, anchor "theo_create_project"). API Spec §2.2 Projects row is finalized to these four post-deploy (G-2).
+Contract basis = the deployed `theo_projects` table (Schema §3/§5; columns `name` (CHECK not-blank) / `instructions` (NOT NULL DEFAULT '') / `app_key` (NULL) + `id`/`created_by`/timestamps) **plus** the additive `description text NOT NULL DEFAULT ''` column (§MIGRATION). Omitted `description`/`instructions` insert `""` (never NULL, honouring the NOT NULL columns); omitted `app_key` inserts NULL (nullable). Response envelope = the standard `{ data, meta }` / `{ error }` shape used by every Theo handler. Endpoints (new): `GET /api/theo_list_projects`; `POST /api/theo_create_project`; `POST /api/theo_update_project`; `POST /api/theo_delete_project` — route naming `theo_<operation>_<entity>` (API Spec §1, anchor "theo_create_project"). API Spec §2.2 Projects row is finalized to these four post-deploy (G-2).
 
 ## P4 — Per-handler contract
 - **`theo_list_projects`** (GET): no params; `SELECT id, name, description, instructions, app_key, created_at, updated_at WHERE created_by=$1 ORDER BY updated_at DESC, id DESC LIMIT 500` → **200** `{ projects: [...] }` (own rows only).
-- **`theo_create_project`** (POST): validates `name` (non-blank ≤200) + optional `description` (≤500) / `instructions` (≤8000) / `app_key` (≤200); `INSERT (created_by, name, description, instructions, app_key) RETURNING …` → **201** `{ project }`; 23514→400.
+- **`theo_create_project`** (POST): validates `name` (non-blank ≤200) + optional `description` (≤500) / `instructions` (≤8000) / `app_key` (≤200); omitted `description`/`instructions` default to `""` (both NOT NULL columns), omitted `app_key` → NULL; `INSERT (created_by, name, description, instructions, app_key) RETURNING …` → **201** `{ project }`; 23514→400.
 - **`theo_update_project`** (POST): `id` uuid + ≥1 of `name`(non-blank)/`description`/`instructions`/`app_key`; `UPDATE … SET …, updated_at=now() WHERE id=$ AND created_by=$ RETURNING …`; 0 rows → 403/404 via helper → **200** `{ project }`; 23514→400. (`description`/`instructions`/`app_key` may be `""` to clear; `name` must stay non-blank.)
 - **`theo_delete_project`** (POST): `id` uuid; `DELETE … WHERE id=$ AND created_by=$ RETURNING id`; 0 rows → 403/404 → **200** `{ deleted:true, id }`. Dependents follow the deployed FKs (Schema §3): `theo_project_knowledge` + `theo_user_memory` CASCADE; `theo_conversations` + `theo_artifacts` `project_id` SET NULL (chats survive, unlinked).
 
@@ -84,7 +84,7 @@ Primary Reference (Golden §2) = the **deployed** `theo_create_user_memory` **pa
 New artifacts (this package): four `*.index.js` + four `*.function.json` + one additive migration (`b4a_migration.sql`) + read-only verify (`b4a_verify.sql`). No existing source changed. Guardrails: no browser storage (backend); no `reporting_*`; explicit `created_by` on every query; `node --check` clean for all four handlers; `function.json` methods = GET (list) / POST (mutations), routes match handler names, `authLevel` anonymous. The additive column inherits the table's four ownership RLS policies (RLS is table-scoped), so no policy change is needed.
 
 ## P7 — Risk / regression
-- **Migration:** additive, nullable, no CHECK (`ADD COLUMN IF NOT EXISTS`) — no rewrite of existing rows, no default backfill, no policy change; reversible by `DROP COLUMN` if ever needed.
+- **Migration:** additive `NOT NULL DEFAULT ''` column (`ADD COLUMN IF NOT EXISTS`) — existing rows backfill to `''` (Postgres applies the default), no CHECK, no policy change; reversible by `DROP COLUMN` if ever needed.
 - **Greenfield handlers:** four new functions; no change to deployed handlers/tables/policies.
 - **Isolation:** explicit `created_by` on every query (verified by the cross-user golden curl).
 - **Permanent delete:** `theo_delete_project` hard-deletes; ownership-checked first; dependents follow deployed FK actions (knowledge/memory cascade; conversations/artifacts unlink, not deleted).
@@ -95,22 +95,23 @@ GCR (§3) + Rule Anchors (§5) open the pack; P1–P8 walked; Gap Register prese
 ---
 
 ## §MIGRATION — Walter-executable additive migration (`b4a_migration.sql`)
-Additive, nullable column; no transaction control per the Golden SQL Standard §5.2; inherits the table's four ownership policies (RLS is table-scoped).
+Additive `NOT NULL DEFAULT ''` column (mirrors the same table's `instructions text NOT NULL DEFAULT ''` from B2 line 16, and the FE `desc: string` shape — never null; existing rows backfill to `''`); no transaction control per the Golden SQL Standard §5.2; inherits the table's four ownership policies (RLS is table-scoped).
 ```sql
 -- Theo Tier B4a — additive: project description column.
 -- theo_projects gained name / instructions / app_key in B2 (§5). The Projects surface (and the
--- Claude-parity project cards) also carry a short, optional description. This adds it additively:
--- nullable, no CHECK (promotable, same posture as app_key / ingestion_class / message_seq).
--- New columns inherit the table's four ownership RLS policies automatically (RLS is table-scoped),
--- so no policy change is required. No top-level transaction control per the Golden SQL Standard
--- (§5.2); Walter executes.
-ALTER TABLE public.theo_projects ADD COLUMN IF NOT EXISTS description text;
+-- Claude-parity project cards) also carry a short description. This adds it additively as
+-- NOT NULL DEFAULT '' — mirroring the same table's `instructions text NOT NULL DEFAULT ''` column
+-- (B2 line 16) and the FE `desc: string` shape, so the column is never null (existing rows backfill
+-- to ''). New columns inherit the table's four ownership RLS policies automatically (RLS is
+-- table-scoped), so no policy change is required. No top-level transaction control per the Golden
+-- SQL Standard (§5.2); Walter executes.
+ALTER TABLE public.theo_projects ADD COLUMN IF NOT EXISTS description text NOT NULL DEFAULT '';
 ```
 
 ### §b4a_verify — read-only post-migration verification (`b4a_verify.sql`)
 ```sql
 -- Read-only verification for Tier B4a (SELECT-only; no writes, no transaction control).
--- V1 — the additive description column exists on theo_projects (text, nullable).
+-- V1 — the additive description column exists on theo_projects (text, NOT NULL DEFAULT '').
 SELECT column_name, data_type, is_nullable
 FROM information_schema.columns
 WHERE table_schema = 'public' AND table_name = 'theo_projects'
@@ -694,8 +695,10 @@ module.exports = async function (context, req) {
     return send(context, 400, errorBody("INVALID_REQUEST", `Field 'name' must be at most ${NAME_MAX_LEN} characters.`, 400));
   }
 
-  // description / instructions / app_key are optional; null when omitted.
-  let description = null;
+  // description / instructions are optional; they default to "" (both columns are
+  // NOT NULL DEFAULT '' — instructions from B2, description from the B4a migration), so an
+  // omitted value must insert "" not NULL. app_key is nullable, so it stays null when omitted.
+  let description = "";
   if (body.description != null) {
     if (typeof body.description !== "string") {
       return send(context, 400, errorBody("INVALID_REQUEST", "Field 'description', when supplied, must be a string.", 400));
@@ -706,7 +709,7 @@ module.exports = async function (context, req) {
     description = body.description;
   }
 
-  let instructions = null;
+  let instructions = "";
   if (body.instructions != null) {
     if (typeof body.instructions !== "string") {
       return send(context, 400, errorBody("INVALID_REQUEST", "Field 'instructions', when supplied, must be a string.", 400));
@@ -1335,7 +1338,7 @@ No new external-system helper; no DEVIATION.
 3. **Update (rename + instructions)** — `POST theo_update_project {id, name:"Da Vinci Capital — 2025", instructions:"Flag any 1446(f) trigger."}` → 200; fields changed, `updated_at` advanced.
 4. **Delete** — `POST theo_delete_project {id}` → 200 `{deleted:true}`; subsequent list omits it.
 5. **Validation** — empty `name` on create → 400; `update` with only `{id}` (no updatable field) → 400; bad `id` uuid → 400.
-6. **Cross-user isolation** — update/delete a foreign-owned `id` → **404** (never another user's project); list returns only own.
+6. **Cross-user isolation** — update/delete an **existing foreign-owned** `id` → **403** (via `theo_project_exists_unscoped` = true; never another user's project data), and a random **nonexistent** `id` → **404** (helper = false); list returns only the caller's own rows.
 
 **Requested Pass 2 verdict:** Codex APPROVED or REJECTED.
 

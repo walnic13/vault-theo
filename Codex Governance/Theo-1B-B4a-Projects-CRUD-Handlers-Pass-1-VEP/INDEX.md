@@ -6,7 +6,7 @@
   - `theo_create_project` (POST) — `name` + optional `description`/`instructions`/`app_key` → 201.
   - `theo_update_project` (POST) — rename + edit description/instructions/app_key (generalizes the v0.1 "patch-instructions" contract, Claude-style).
   - `theo_delete_project` (POST) — permanent; dependents cascade (`theo_project_knowledge`, `theo_user_memory`) / SET NULL (`theo_conversations`, `theo_artifacts`).
-- **Migration:** `b4a_migration.sql` — one additive nullable column `theo_projects.description text` (the Projects cards surface a description; B2 deployed `name`/`instructions`/`app_key` only). Read-only verify: `b4a_verify.sql`.
+- **Migration:** `b4a_migration.sql` — one additive `theo_projects.description text NOT NULL DEFAULT ''` column (mirrors the same table's `instructions` column + the FE `desc: string`; B2 deployed `name`/`instructions`/`app_key` only). Read-only verify: `b4a_verify.sql`.
 - **Primary Reference:** the **deployed** `theo_create_user_memory` pair (B7a) — same-repo Theo mutation pattern (`set_config` triad, FK-ownership→404, `_exists_unscoped` 403/404, error mapping); inlined byte-identical (§SM/§SM-FJ).
 - **Pattern:** Family-B; every query explicitly `created_by = $oid` (connection role bypasses RLS); `theo_project_exists_unscoped` for 403/404; deterministic 400s before SQL.
 - **Validation:** all four handlers `node --check` clean; four `function.json` JSON-valid; microstep lint → PASS; HEAD `f3530c4`.

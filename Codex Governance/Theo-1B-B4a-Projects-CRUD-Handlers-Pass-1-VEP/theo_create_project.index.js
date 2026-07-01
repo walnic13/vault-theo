@@ -119,8 +119,10 @@ module.exports = async function (context, req) {
     return send(context, 400, errorBody("INVALID_REQUEST", `Field 'name' must be at most ${NAME_MAX_LEN} characters.`, 400));
   }
 
-  // description / instructions / app_key are optional; null when omitted.
-  let description = null;
+  // description / instructions are optional; they default to "" (both columns are
+  // NOT NULL DEFAULT '' — instructions from B2, description from the B4a migration), so an
+  // omitted value must insert "" not NULL. app_key is nullable, so it stays null when omitted.
+  let description = "";
   if (body.description != null) {
     if (typeof body.description !== "string") {
       return send(context, 400, errorBody("INVALID_REQUEST", "Field 'description', when supplied, must be a string.", 400));
@@ -131,7 +133,7 @@ module.exports = async function (context, req) {
     description = body.description;
   }
 
-  let instructions = null;
+  let instructions = "";
   if (body.instructions != null) {
     if (typeof body.instructions !== "string") {
       return send(context, 400, errorBody("INVALID_REQUEST", "Field 'instructions', when supplied, must be a string.", 400));

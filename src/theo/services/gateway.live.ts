@@ -11,8 +11,15 @@
 // this delegates to the in-repo 1A mock so the standalone vault-theo dev harness keeps working.
 import type {
   AttachmentUpload, ConversationAttachment, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
+  KDraft, Knowledge, NpDraft, Project,
 } from "../types";
-import { sendMessage as mockSend, listConversations as mockList, getConversation as mockGet } from "./gateway.mock";
+import {
+  sendMessage as mockSend, listConversations as mockList, getConversation as mockGet,
+  listProjects as mockListProjects, createProject as mockCreateProject,
+  updateProjectInstructions as mockUpdateProjectInstructions, deleteProject as mockDeleteProject,
+  listProjectKnowledge as mockListProjectKnowledge, addProjectKnowledge as mockAddProjectKnowledge,
+  removeProjectKnowledge as mockRemoveProjectKnowledge,
+} from "./gateway.mock";
 
 type TokenProvider = () => Promise<string | null>;
 
@@ -25,8 +32,8 @@ let apiBase: string = normalizeBase((import.meta.env as Record<string, unknown>)
 // B9: the STREAMING endpoint (theo_message_stream) lives on a SEPARATE sidecar Function App
 // (vaultgpt-func-stream), distinct from the monolith `apiBase`. It has its own base URL — set at
 // build via VITE_STREAM_FUNCTIONS_URL or injected at mount via configureGateway({ streamBaseUrl }).
-// Used ONLY by sendMessageStream; all other calls (attachments, recents, reload, non-streaming chat)
-// stay on `apiBase`. When unset, streaming degrades to the non-streaming monolith path.
+// Used ONLY by sendMessageStream; all other calls (attachments, recents, reload, projects,
+// non-streaming chat) stay on `apiBase`. When unset, streaming degrades to the non-streaming monolith path.
 let streamBase: string = normalizeBase((import.meta.env as Record<string, unknown>).VITE_STREAM_FUNCTIONS_URL);
 
 // Configured once by the federated TheoSurface mount with the Origin shell's token provider (and,
@@ -260,6 +267,169 @@ export async function listConversationAttachments(conversationId: string): Promi
     throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
   }
   return Array.isArray(json?.data?.attachments) ? json.data.attachments : [];
+}
+
+// ── B4c projects + project-knowledge (theo_*_project / theo_*_project_knowledge; API Spec §2.2) ──
+// Live CRUD for the Projects surface. Every call is owner-scoped server-side (created_by = the
+// signed-in user); the browser attaches the same Bearer as the chat calls. Unconfigured dev harness
+// → the in-memory mock (gateway.mock), mirroring the chat/recents fallbacks. The deployed rows carry
+// name/description/instructions/app_key/timestamps (projects) and title/source_type/content/created_at
+// (knowledge); these mappers project them onto the FE Project/Knowledge shapes with NO surface change.
+// theo_list_projects intentionally omits knowledge (loaded per-project via listProjectKnowledge).
+interface RawProject {
+  id: string;
+  name: string;
+  description?: string | null;
+  instructions?: string | null;
+  app_key?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+interface RawKnowledge {
+  id: string;
+  project_id: string;
+  title: string;
+  source_type?: string;
+  content?: string | null;
+  created_at?: string;
+}
+
+// updated_at (ISO) → the FE `updated` display string (mirrors the mock's "just now"/"2d ago" idiom).
+function relTime(iso?: string): string {
+  if (!iso) return "";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "";
+  const diff = Date.now() - t;
+  const min = 60000, hour = 3600000, day = 86400000;
+  if (diff < min) return "just now";
+  if (diff < hour) return `${Math.max(1, Math.floor(diff / min))}m ago`;
+  if (diff < day) return `${Math.floor(diff / hour)}h ago`;
+  if (diff < 7 * day) return `${Math.floor(diff / day)}d ago`;
+  return new Date(t).toLocaleDateString();
+}
+
+function toProject(r: RawProject): Project {
+  return {
+    id: r.id,
+    name: r.name,
+    desc: r.description ?? "",
+    instructions: r.instructions ?? "",
+    knowledge: [],                 // loaded per-project via listProjectKnowledge (list omits it)
+    updated: relTime(r.updated_at),
+  };
+}
+
+function toKnowledge(r: RawKnowledge): Knowledge {
+  return { id: r.id, title: r.title, content: r.content ?? "" };
+}
+
+export async function listProjects(): Promise<Project[]> {
+  if (!apiBase && !tokenProvider) return mockListProjects();
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_list_projects`, { method: "GET", credentials: "same-origin", headers });
+  let json: { data?: { projects?: RawProject[] }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const arr = json?.data?.projects;
+  return Array.isArray(arr) ? arr.map(toProject) : [];
+}
+
+export async function createProject(d: NpDraft): Promise<Project> {
+  if (!apiBase && !tokenProvider) return mockCreateProject(d);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_create_project`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ name: d.name.trim(), description: d.desc.trim(), instructions: d.instructions.trim() }),
+  });
+  let json: { data?: { project?: RawProject }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const p = json?.data?.project;
+  if (!p) throw new Error("Theo gateway response missing data.project.");
+  return toProject(p);
+}
+
+export async function updateProjectInstructions(id: string, instructions: string): Promise<Project> {
+  if (!apiBase && !tokenProvider) return mockUpdateProjectInstructions(id, instructions);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_update_project`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ id, instructions }),
+  });
+  let json: { data?: { project?: RawProject }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const p = json?.data?.project;
+  if (!p) throw new Error("Theo gateway response missing data.project.");
+  return toProject(p);
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  if (!apiBase && !tokenProvider) return mockDeleteProject(id);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_delete_project`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ id }),
+  });
+  if (!res.ok) {
+    let json: { error?: { message?: string } } | null = null;
+    try { json = await res.json(); } catch { /* non-JSON error body */ }
+    throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  }
+}
+
+export async function listProjectKnowledge(projectId: string): Promise<Knowledge[]> {
+  if (!apiBase && !tokenProvider) return mockListProjectKnowledge(projectId);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_list_project_knowledge?projectId=${encodeURIComponent(projectId)}`, {
+    method: "GET",
+    credentials: "same-origin",
+    headers,
+  });
+  let json: { data?: { knowledge?: RawKnowledge[] }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const arr = json?.data?.knowledge;
+  return Array.isArray(arr) ? arr.map(toKnowledge) : [];
+}
+
+export async function addProjectKnowledge(projectId: string, k: KDraft): Promise<Knowledge> {
+  if (!apiBase && !tokenProvider) return mockAddProjectKnowledge(projectId, k);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_add_project_knowledge`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ project_id: projectId, title: k.title.trim(), content: k.content.trim() }),
+  });
+  let json: { data?: { knowledge?: RawKnowledge }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const item = json?.data?.knowledge;
+  if (!item) throw new Error("Theo gateway response missing data.knowledge.");
+  return toKnowledge(item);
+}
+
+export async function removeProjectKnowledge(knowledgeId: string): Promise<void> {
+  if (!apiBase && !tokenProvider) return mockRemoveProjectKnowledge(knowledgeId);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_remove_project_knowledge`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ knowledge_id: knowledgeId }),
+  });
+  if (!res.ok) {
+    let json: { error?: { message?: string } } | null = null;
+    try { json = await res.json(); } catch { /* non-JSON error body */ }
+    throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  }
 }
 
 // ── B9 streaming chat (theo_message_stream on the v4 sidecar) ───────────────────────────────

@@ -1,7 +1,7 @@
 // App state + handlers for the Theo shell — ports VaultOriginShell's state/logic (VA-T1
 // L155–237) but routes every backend-bound call through `theoClient` (the single service
 // boundary). No browser storage; React/in-memory only.
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { theoClient } from "./services/theoClient";
 import { stripArtifactRefs } from "./lib/artifacts";
 import { buildSystemPrompt, greeting } from "./lib/prompt";
@@ -12,6 +12,9 @@ import type { AppContext, Artifact, Citation, ComposerAttachment, ConversationSu
 // B8e: a paste longer than this becomes a "Pasted text" attachment (collapsed, expandable) instead
 // of flooding the composer — the Claude-style behaviour. Tunable; ~a long block, not a sentence.
 const PASTE_AS_ATTACHMENT_CHARS = 1500;
+// B4c: debounce for persisting project-instruction edits (avoids a PATCH per keystroke — the
+// keystroke updates local state immediately; the network save fires once typing pauses).
+const INSTRUCTIONS_SAVE_DEBOUNCE_MS = 800;
 
 let attCounter = 0;
 function newLocalId() { attCounter += 1; return "att" + Date.now().toString(36) + "_" + attCounter; }
@@ -21,7 +24,7 @@ export function useTheoState() {
   const [view, setView] = useState<View>("chats");
   const [collapsed, setCollapsed] = useState(false);
   const [search, setSearch] = useState("");
-  const [projects, setProjects] = useState<Project[]>(() => theoClient.listProjects());
+  const [projects, setProjects] = useState<Project[]>([]);   // B4c: loaded live on mount (was in-memory seed)
   const [detailId, setDetailId] = useState<string | null>(null);
   const [chatProjectId, setChatProjectId] = useState<string | null>(null);
   const [artifacts, setArtifacts] = useState<Artifact[]>(() => theoClient.listArtifacts());
@@ -41,6 +44,7 @@ export function useTheoState() {
   const [appContext, setAppContext] = useState<AppContext>(() => theoClient.getAppContext());
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [recentsList, setRecentsList] = useState<ConversationSummary[]>([]);
+  const instrTimer = useRef<ReturnType<typeof setTimeout> | null>(null);  // B4c: instruction-save debounce
 
   // Pass B: ingest the inbound app-context anchor (from the Origin shell, in-process) and carry it
   // on the conversation (in-memory). Presentational — no app-data fetch (VA-T3 §2.4).
@@ -58,11 +62,37 @@ export function useTheoState() {
     try { setRecentsList(await theoClient.listConversations(50)); } catch { /* keep current list */ }
   }, []);
 
+  // B4c: load the signed-in user's projects (live → theo_list_projects; mock fallback). Called by
+  // TheoSurface's mount effect right after configureGateway (same reason as loadRecents — so the
+  // first call runs against the live gateway once the Origin token is set). Knowledge is loaded
+  // per-project on open (theo_list_projects omits it).
+  const loadProjects = useCallback(async () => {
+    try { setProjects(await theoClient.listProjects()); } catch { /* keep current list */ }
+  }, []);
+
+  // B4c: (re)load one project's knowledge items into state (theo_list_project_knowledge). Best-effort.
+  const refreshProjectKnowledge = useCallback(async (id: string) => {
+    try {
+      const items = await theoClient.listProjectKnowledge(id);
+      setProjects((ps) => ps.map((p) => (p.id === id ? { ...p, knowledge: items } : p)));
+    } catch { /* keep current knowledge */ }
+  }, []);
+
   function go(v: View) { setView(v); setDetailId(null); }
   function clearComposer() { setAttachments([]); }
   function newChat() { setMessages([]); setConversationId(null); setChatProjectId(null); clearComposer(); go("chats"); }
-  function startInProject(id: string) { setChatProjectId(id); setMessages([]); setConversationId(null); clearComposer(); setView("chats"); setDetailId(null); }
-  function openProject(id: string) { setDetailId(id); setView("project"); }
+  // B4c: AWAIT the project's knowledge load before switching to chat, so the first turn's system
+  // prompt (buildSystemPrompt(…, chatProject)) always includes it. A fire-and-forget load could
+  // otherwise race the first send — the "Start a chat" button stays enabled — and drop the project
+  // knowledge from that first message (Codex B4c finding). refreshProjectKnowledge sets the loaded
+  // items into `projects` state, so the derived `chatProject` carries them once the chat view renders.
+  async function startInProject(id: string) {
+    await refreshProjectKnowledge(id);
+    setChatProjectId(id); setMessages([]); setConversationId(null); clearComposer(); setView("chats"); setDetailId(null);
+  }
+  // B4c: open a project and lazy-load its knowledge (the list endpoint omits it) so the detail view
+  // shows it. startInProject re-loads-and-awaits regardless, so a chat never races the fetch.
+  function openProject(id: string) { setDetailId(id); setView("project"); void refreshProjectKnowledge(id); }
 
   // ── B8e attachments ───────────────────────────────────────────────────────
   const attachmentsAvailable = theoClient.attachmentsAvailable();
@@ -205,18 +235,47 @@ export function useTheoState() {
     } finally { setLoading(false); }
   }
 
-  function createProject() {
+  // B4c: create a project live (theo_create_project); prepend the returned row to state.
+  async function createProject() {
     if (!np.name.trim()) return;
-    setProjects(theoClient.createProject(np));
-    setNp({ name: "", desc: "", instructions: "" }); setNpOpen(false);
+    try {
+      const p = await theoClient.createProject(np);
+      setProjects((ps) => [p, ...ps]);
+      setNp({ name: "", desc: "", instructions: "" }); setNpOpen(false);
+    } catch { setError("Couldn't create the project. Try again."); }
   }
-  function patchInstructions(text: string) { if (detailId) setProjects(theoClient.patchInstructions(detailId, text)); }
-  function addKnowledge() {
+  // B4c: instruction edits update local state immediately (optimistic); the network save
+  // (theo_update_project) is debounced so we don't PATCH on every keystroke. chatProject reads the
+  // local value, so a chat started before the debounced save still injects the latest instructions.
+  function patchInstructions(text: string) {
+    if (!detailId) return;
+    const id = detailId;
+    setProjects((ps) => ps.map((p) => (p.id === id ? { ...p, instructions: text } : p)));
+    if (instrTimer.current) clearTimeout(instrTimer.current);
+    instrTimer.current = setTimeout(() => {
+      void theoClient.updateProjectInstructions(id, text)
+        .then((p) => setProjects((ps) => ps.map((x) => (x.id === id ? { ...x, instructions: p.instructions, updated: p.updated } : x))))
+        .catch(() => setError("Couldn't save the project instructions."));
+    }, INSTRUCTIONS_SAVE_DEBOUNCE_MS);
+  }
+  // B4c: add a knowledge item live (theo_add_project_knowledge); append the returned row.
+  async function addKnowledge() {
     if (!detailId || !kdraft.title.trim() || !kdraft.content.trim()) return;
-    setProjects(theoClient.addKnowledge(detailId, kdraft));
-    setKdraft({ title: "", content: "" });
+    const id = detailId;
+    try {
+      const k = await theoClient.addProjectKnowledge(id, kdraft);
+      setProjects((ps) => ps.map((p) => (p.id === id ? { ...p, knowledge: [...p.knowledge, k] } : p)));
+      setKdraft({ title: "", content: "" });
+    } catch { setError("Couldn't add the knowledge item."); }
   }
-  function removeKnowledge(kid: string) { if (detailId) setProjects(theoClient.removeKnowledge(detailId, kid)); }
+  // B4c: remove a knowledge item live (theo_remove_project_knowledge); optimistic, resync on failure.
+  async function removeKnowledge(kid: string) {
+    if (!detailId) return;
+    const id = detailId;
+    setProjects((ps) => ps.map((p) => (p.id === id ? { ...p, knowledge: p.knowledge.filter((k) => k.id !== kid) } : p)));
+    try { await theoClient.removeProjectKnowledge(kid); }
+    catch { setError("Couldn't remove the knowledge item."); void refreshProjectKnowledge(id); }
+  }
 
   function save() { theoClient.writeSettings({ styleKey, custom }); setSaved(true); setTimeout(() => setSaved(false), 2000); }
   async function copyArt() {
@@ -231,7 +290,7 @@ export function useTheoState() {
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
     // setters / handlers
     go, toggleCollapse: () => setCollapsed((v) => !v), setSearch, setDraft, newChat, startInProject, openProject,
-    clearChatProject: () => setChatProjectId(null), send, ingestAppContext, selectRecent, loadRecents,
+    clearChatProject: () => setChatProjectId(null), send, ingestAppContext, selectRecent, loadRecents, loadProjects,
     addFiles, addPastedText, removeAttachment,
     toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, setKdraft, addKnowledge, removeKnowledge,
     selectStyle: setStyleKey, setCustom, save, copyArt,

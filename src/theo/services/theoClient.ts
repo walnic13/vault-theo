@@ -1,13 +1,12 @@
 // THE single service / contracts boundary (FE Governor §6.2; 1A handover §2.3).
-// Every backend-bound call routes through here. In 1A: chat → mock gateway; projects /
-// artifacts / settings → in-memory store seeded from the reference. In 1B each method is
-// swapped for a real `theo_*` API call with NO surface change. NO browser storage
-// (1A handover §2.5) — module memory only.
+// Every backend-bound call routes through here. Chat → gateway (mock in the standalone harness,
+// live model gateway when a token/base is configured). B4c: projects + project-knowledge are now
+// live `theo_*` calls (with the same mock fallback), replacing the 1A in-memory store; artifacts /
+// settings stay in-memory pending their own tiers. NO browser storage (1A handover §2.5).
 import type {
   AppContext, Artifact, ConversationAttachment, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
-  KDraft, NpDraft, Project, Settings,
+  KDraft, Knowledge, NpDraft, Project, Settings,
 } from "../types";
-import { INIT_PROJECTS } from "../data";
 import { parseArtifacts, remapToIds, upsert } from "../lib/artifacts";
 import {
   sendMessage as gatewaySend, sendMessageStream as gatewaySendStream, configureGateway as gatewayConfigure,
@@ -16,10 +15,13 @@ import {
   createAttachmentUpload as gatewayCreateUpload, uploadToBlob as gatewayUploadToBlob,
   finalizeAttachment as gatewayFinalize, deleteAttachment as gatewayDeleteAttachment,
   attachmentsAvailable as gatewayAttachmentsAvailable,
+  listProjects as gatewayListProjects, createProject as gatewayCreateProject,
+  updateProjectInstructions as gatewayUpdateProjectInstructions, deleteProject as gatewayDeleteProject,
+  listProjectKnowledge as gatewayListProjectKnowledge, addProjectKnowledge as gatewayAddProjectKnowledge,
+  removeProjectKnowledge as gatewayRemoveProjectKnowledge,
   type StreamHandlers,
 } from "./gateway.live";
 
-let projects: Project[] = INIT_PROJECTS.map((p) => ({ ...p, knowledge: p.knowledge.slice() }));
 let artifacts: Artifact[] = [];
 let settings: Settings = { styleKey: "normal", custom: "" };
 let appContext: AppContext = { app_key: null, app_context: null };
@@ -73,27 +75,18 @@ export const theoClient = {
     return { display: display || "(no response)", openId: ids.length ? ids[ids.length - 1] : null };
   },
 
-  // ── Projects (in-memory in 1A; theo_projects / theo_project_knowledge in 1B) ──
-  listProjects(): Project[] { return projects.slice(); },
-  createProject(d: NpDraft): Project[] {
-    const id = "p" + Date.now().toString(36);
-    projects = [{ id, name: d.name.trim(), desc: d.desc.trim() || "New project.", instructions: d.instructions.trim(), knowledge: [], updated: "just now" }, ...projects];
-    return projects.slice();
+  // ── Projects + project-knowledge (B4c: live theo_*_project / theo_*_project_knowledge; API Spec
+  // §2.2). Owner-scoped server-side; mock fallback in the standalone harness. Each returns the
+  // FE-mapped shape (gateway.live maps the deployed rows) so the surface is unchanged. ──
+  listProjects(): Promise<Project[]> { return gatewayListProjects(); },
+  createProject(d: NpDraft): Promise<Project> { return gatewayCreateProject(d); },
+  updateProjectInstructions(id: string, instructions: string): Promise<Project> {
+    return gatewayUpdateProjectInstructions(id, instructions);
   },
-  patchInstructions(id: string, instructions: string): Project[] {
-    projects = projects.map((p) => (p.id === id ? { ...p, instructions } : p));
-    return projects.slice();
-  },
-  addKnowledge(id: string, k: KDraft): Project[] {
-    projects = projects.map((p) => p.id === id
-      ? { ...p, knowledge: [...p.knowledge, { id: "k" + Date.now().toString(36), title: k.title.trim(), content: k.content.trim() }] }
-      : p);
-    return projects.slice();
-  },
-  removeKnowledge(id: string, kid: string): Project[] {
-    projects = projects.map((p) => p.id === id ? { ...p, knowledge: p.knowledge.filter((k) => k.id !== kid) } : p);
-    return projects.slice();
-  },
+  deleteProject(id: string): Promise<void> { return gatewayDeleteProject(id); },
+  listProjectKnowledge(projectId: string): Promise<Knowledge[]> { return gatewayListProjectKnowledge(projectId); },
+  addProjectKnowledge(projectId: string, k: KDraft): Promise<Knowledge> { return gatewayAddProjectKnowledge(projectId, k); },
+  removeProjectKnowledge(knowledgeId: string): Promise<void> { return gatewayRemoveProjectKnowledge(knowledgeId); },
 
   // ── Artifacts (in-memory in 1A; theo_artifacts + theo_artifact_versions in 1B) ──
   listArtifacts(): Artifact[] { return artifacts.slice(); },

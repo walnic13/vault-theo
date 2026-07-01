@@ -3,8 +3,11 @@
 // STANDARD ANTHROPIC MESSAGES API shape, so the real Foundry-backed gateway (1B) drops in
 // behind this contract with no surface change. The real gateway is a vault-theo server-side
 // endpoint (e.g. POST /api/theo/message) holding Foundry creds via Entra managed identity.
-import type { ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse } from "../types";
-import { RECENTS } from "../data";
+import type {
+  ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
+  KDraft, Knowledge, NpDraft, Project,
+} from "../types";
+import { INIT_PROJECTS, RECENTS } from "../data";
 
 export async function sendMessage(req: GatewayRequest): Promise<GatewayResponse> {
   const last = [...req.messages].reverse().find((m) => m.role === "user")?.content ?? "";
@@ -46,4 +49,54 @@ export async function getConversation(id: string): Promise<ConversationDetail> {
     },
     messages: [],
   };
+}
+
+// ── B4c projects fallback for the standalone dev harness (no Functions backend) ──────────────
+// In-memory projects store (seeded from the reference), previously held in theoClient. gateway.live
+// delegates here when no live backend is wired, mirroring the chat/recents mock fallbacks; the
+// live handlers (theo_*_project / theo_*_project_knowledge) replace it when a token/base is present.
+let mockProjects: Project[] = INIT_PROJECTS.map((p) => ({ ...p, knowledge: p.knowledge.slice() }));
+
+function cloneProject(p: Project): Project {
+  return { ...p, knowledge: p.knowledge.slice() };
+}
+
+export async function listProjects(): Promise<Project[]> {
+  return mockProjects.map(cloneProject);
+}
+
+export async function createProject(d: NpDraft): Promise<Project> {
+  const id = "p" + Date.now().toString(36);
+  const p: Project = {
+    id, name: d.name.trim(), desc: d.desc.trim() || "New project.",
+    instructions: d.instructions.trim(), knowledge: [], updated: "just now",
+  };
+  mockProjects = [p, ...mockProjects];
+  return cloneProject(p);
+}
+
+export async function updateProjectInstructions(id: string, instructions: string): Promise<Project> {
+  mockProjects = mockProjects.map((p) => (p.id === id ? { ...p, instructions, updated: "just now" } : p));
+  const found = mockProjects.find((p) => p.id === id);
+  if (!found) throw new Error("Project not found.");
+  return cloneProject(found);
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  mockProjects = mockProjects.filter((p) => p.id !== id);
+}
+
+export async function listProjectKnowledge(projectId: string): Promise<Knowledge[]> {
+  const p = mockProjects.find((x) => x.id === projectId);
+  return p ? p.knowledge.slice() : [];
+}
+
+export async function addProjectKnowledge(projectId: string, k: KDraft): Promise<Knowledge> {
+  const item: Knowledge = { id: "k" + Date.now().toString(36), title: k.title.trim(), content: k.content.trim() };
+  mockProjects = mockProjects.map((p) => (p.id === projectId ? { ...p, knowledge: [...p.knowledge, item] } : p));
+  return { ...item };
+}
+
+export async function removeProjectKnowledge(knowledgeId: string): Promise<void> {
+  mockProjects = mockProjects.map((p) => ({ ...p, knowledge: p.knowledge.filter((k) => k.id !== knowledgeId) }));
 }

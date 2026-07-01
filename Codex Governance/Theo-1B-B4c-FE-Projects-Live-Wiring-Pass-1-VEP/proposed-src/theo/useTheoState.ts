@@ -81,9 +81,17 @@ export function useTheoState() {
   function go(v: View) { setView(v); setDetailId(null); }
   function clearComposer() { setAttachments([]); }
   function newChat() { setMessages([]); setConversationId(null); setChatProjectId(null); clearComposer(); go("chats"); }
-  function startInProject(id: string) { setChatProjectId(id); setMessages([]); setConversationId(null); clearComposer(); setView("chats"); setDetailId(null); }
-  // B4c: open a project and lazy-load its knowledge (the list endpoint omits it). Knowledge is thus
-  // present before "Start a chat in this project" (reachable only from the open detail) injects it.
+  // B4c: AWAIT the project's knowledge load before switching to chat, so the first turn's system
+  // prompt (buildSystemPrompt(…, chatProject)) always includes it. A fire-and-forget load could
+  // otherwise race the first send — the "Start a chat" button stays enabled — and drop the project
+  // knowledge from that first message (Codex B4c finding). refreshProjectKnowledge sets the loaded
+  // items into `projects` state, so the derived `chatProject` carries them once the chat view renders.
+  async function startInProject(id: string) {
+    await refreshProjectKnowledge(id);
+    setChatProjectId(id); setMessages([]); setConversationId(null); clearComposer(); setView("chats"); setDetailId(null);
+  }
+  // B4c: open a project and lazy-load its knowledge (the list endpoint omits it) so the detail view
+  // shows it. startInProject re-loads-and-awaits regardless, so a chat never races the fetch.
   function openProject(id: string) { setDetailId(id); setView("project"); void refreshProjectKnowledge(id); }
 
   // ── B8e attachments ───────────────────────────────────────────────────────

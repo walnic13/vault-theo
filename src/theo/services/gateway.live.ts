@@ -19,6 +19,7 @@ import {
   updateProjectInstructions as mockUpdateProjectInstructions, deleteProject as mockDeleteProject,
   listProjectKnowledge as mockListProjectKnowledge, addProjectKnowledge as mockAddProjectKnowledge,
   removeProjectKnowledge as mockRemoveProjectKnowledge,
+  setConversationProject as mockSetConversationProject,
 } from "./gateway.mock";
 
 type TokenProvider = () => Promise<string | null>;
@@ -424,6 +425,25 @@ export async function removeProjectKnowledge(knowledgeId: string): Promise<void>
     credentials: "same-origin",
     headers,
     body: JSON.stringify({ knowledge_id: knowledgeId }),
+  });
+  if (!res.ok) {
+    let json: { error?: { message?: string } } | null = null;
+    try { json = await res.json(); } catch { /* non-JSON error body */ }
+    throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  }
+}
+
+// B4d: link a conversation to a project (theo_set_conversation_project). Owner-scoped, idempotent
+// set-once server-side; the FE calls it once after a project chat's first turn returns a
+// conversation_id. Unconfigured dev harness → mock no-op (no persistent conversations to tag).
+export async function setConversationProject(conversationId: string, projectId: string): Promise<void> {
+  if (!apiBase && !tokenProvider) return mockSetConversationProject(conversationId, projectId);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_set_conversation_project`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ conversation_id: conversationId, project_id: projectId }),
   });
   if (!res.ok) {
     let json: { error?: { message?: string } } | null = null;

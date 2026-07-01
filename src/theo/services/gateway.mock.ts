@@ -100,3 +100,10 @@ export async function addProjectKnowledge(projectId: string, k: KDraft): Promise
 export async function removeProjectKnowledge(knowledgeId: string): Promise<void> {
   mockProjects = mockProjects.map((p) => ({ ...p, knowledge: p.knowledge.filter((k) => k.id !== knowledgeId) }));
 }
+
+// B4d: the standalone harness has no persistent conversations to tag — a no-op keeps the surface
+// working (mock conversations come from the static RECENTS seed, which carries no project link).
+export async function setConversationProject(conversationId: string, projectId: string): Promise<void> {
+  void conversationId; void projectId;   // no persistent conversations to tag in the standalone harness
+  return;
+}

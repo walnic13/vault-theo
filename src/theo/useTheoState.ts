@@ -26,7 +26,10 @@ export function useTheoState() {
   const [search, setSearch] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);   // B4c: loaded live on mount (was in-memory seed)
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [chatProjectId, setChatProjectId] = useState<string | null>(null);
+  // B4d: the chat's active project is a SELF-CONTAINED held object (metadata + its knowledge), NOT
+  // derived from the `projects` list — so an empty/late list or a later loadProjects() (which maps
+  // knowledge:[]) can never strip the active chat's project context (Codex B4d-FE finding).
+  const [chatProject, setChatProject] = useState<Project | null>(null);
   const [artifacts, setArtifacts] = useState<Artifact[]>(() => theoClient.listArtifacts());
   const [openArt, setOpenArt] = useState<OpenArtifact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -51,7 +54,6 @@ export function useTheoState() {
   function ingestAppContext(ctx: AppContext) { setAppContext(ctx); theoClient.setAppContext(ctx); }
 
   const detail = projects.find((p) => p.id === detailId) ?? null;
-  const chatProject = projects.find((p) => p.id === chatProjectId) ?? null;
   const art = openArt ? (artifacts.find((a) => a.id === openArt.id) ?? null) : null;
   const recents = recentsList.filter((c) => c.title.toLowerCase().includes(search.toLowerCase()));
   const activeStyle = STYLES.find((s) => s.key === styleKey) ?? STYLES[0];
@@ -78,20 +80,52 @@ export function useTheoState() {
     } catch { /* keep current knowledge */ }
   }, []);
 
+  // B4d: load the chat's active project as a self-contained object (metadata + knowledge) held in
+  // `chatProject`, independent of the `projects` list ordering/timing — so neither an empty/late list
+  // nor a later loadProjects() (which maps knowledge:[]) can strip the active chat's context.
+  // METADATA (name/desc/instructions) prefers the LOCAL `projects` entry when present: it holds any
+  // un-saved optimistic instruction edit (patchInstructions is debounced 800ms), so a chat started
+  // right after an edit uses the fresh local instructions, not stale server ones (Codex B4d-FE
+  // finding); it falls back to a fresh server list only when the project isn't loaded locally.
+  // KNOWLEDGE is always from the server (add/remove are immediate, hence authoritative). Awaited by
+  // startInProject and reload-restore, so the next `send` sees full, current project context.
+  // Returns true only if the REQUESTED project was actually loaded. FAILS CLOSED: on any error (or a
+  // project that can't be resolved) it clears chatProject to null rather than leaving a prior/other
+  // project active — so a failed switch can never start a chat with the wrong project's context, nor
+  // tag the conversation to the wrong project (Codex B4d-FE finding). Callers gate switching/tagging
+  // on the returned boolean.
+  async function loadChatProject(id: string): Promise<boolean> {
+    try {
+      const knowledge = await theoClient.listProjectKnowledge(id);
+      let meta = projects.find((p) => p.id === id);
+      if (!meta) {
+        const list = await theoClient.listProjects();
+        meta = list.find((p) => p.id === id);
+      }
+      if (!meta) { setChatProject(null); return false; }
+      setChatProject({ ...meta, knowledge });
+      return true;
+    } catch {
+      setChatProject(null);
+      return false;
+    }
+  }
+
   function go(v: View) { setView(v); setDetailId(null); }
   function clearComposer() { setAttachments([]); }
-  function newChat() { setMessages([]); setConversationId(null); setChatProjectId(null); clearComposer(); go("chats"); }
-  // B4c: AWAIT the project's knowledge load before switching to chat, so the first turn's system
-  // prompt (buildSystemPrompt(…, chatProject)) always includes it. A fire-and-forget load could
-  // otherwise race the first send — the "Start a chat" button stays enabled — and drop the project
-  // knowledge from that first message (Codex B4c finding). refreshProjectKnowledge sets the loaded
-  // items into `projects` state, so the derived `chatProject` carries them once the chat view renders.
+  function newChat() { setMessages([]); setConversationId(null); setChatProject(null); clearComposer(); go("chats"); }
+  // B4c/B4d: AWAIT the project's full load (metadata + knowledge, held in chatProject) before switching
+  // to chat, so the first turn's system prompt (buildSystemPrompt(…, chatProject)) always includes it.
+  // A fire-and-forget load could otherwise race the first send — the "Start a chat" button stays enabled.
   async function startInProject(id: string) {
-    await refreshProjectKnowledge(id);
-    setChatProjectId(id); setMessages([]); setConversationId(null); clearComposer(); setView("chats"); setDetailId(null);
+    setChatProject(null);                       // clear first — never carry a prior project if load fails
+    const ok = await loadChatProject(id);
+    if (!ok) { setError("Couldn't open that project. Please try again."); return; }  // fail closed: no switch/tag
+    setMessages([]); setConversationId(null); clearComposer(); setView("chats"); setDetailId(null);
   }
-  // B4c: open a project and lazy-load its knowledge (the list endpoint omits it) so the detail view
-  // shows it. startInProject re-loads-and-awaits regardless, so a chat never races the fetch.
+  // B4c: open a project and lazy-load its knowledge into the `projects` list (the list endpoint omits
+  // it) so the DETAIL view shows it. The chat's own project context is loaded separately via
+  // loadChatProject (startInProject / reload-restore), so it never depends on this list entry.
   function openProject(id: string) { setDetailId(id); setView("project"); void refreshProjectKnowledge(id); }
 
   // ── B8e attachments ───────────────────────────────────────────────────────
@@ -146,9 +180,17 @@ export function useTheoState() {
   // extracted text lives server-side). Attachment fetch is best-effort: a failure just omits the chips,
   // never blocks the thread from loading.
   async function selectRecent(id: string) {
-    setError(""); setChatProjectId(null); setView("chats"); setDetailId(null); clearComposer();
+    setError(""); setChatProject(null); setView("chats"); setDetailId(null); clearComposer();
     try {
       const d = await theoClient.getConversation(id);
+      // B4d: restore the project when reopening a chat that belongs to one (the reloaded conversation
+      // carries project_id). loadChatProject fetches the project's metadata + knowledge into the
+      // self-contained `chatProject` (NOT the `projects` list), and is AWAITed, so the restored chat's
+      // next turn injects full project context — robust to an empty list or a later loadProjects()
+      // clobbering knowledge:[] (Codex B4d-FE finding).
+      if (d.conversation && d.conversation.project_id) {
+        await loadChatProject(d.conversation.project_id);
+      }
       const bySeq = new Map<number, SentAttachment[]>();
       try {
         const atts = await theoClient.listConversationAttachments(id);
@@ -228,6 +270,12 @@ export function useTheoState() {
       patchLastAssistant({ content: display, ...(cites.length ? { runs: [{ text: display, citations: cites }] } : {}), ...(think ? { thinking: think } : {}) });
       if (openId) setOpenArt({ id: openId, v: -1 });
       if (convId) setConversationId(convId);
+      // B4d: link this conversation to the active project (idempotent set-once server-side), so it
+      // shows in the project's chat list and restores the project chip on reload. Best-effort — a
+      // failed link never disrupts the delivered turn. Only on the first turn does convId become new;
+      // later turns re-call harmlessly (the handler no-ops once linked).
+      const cpId = chatProject?.id;
+      if (convId && cpId) void theoClient.setConversationProject(convId, cpId).catch(() => {});
       void loadRecents();  // reflect the new/updated thread in Recents (newest-first)
     } catch {
       setError("Couldn't reach the assistant. Try again.");
@@ -290,7 +338,7 @@ export function useTheoState() {
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
     // setters / handlers
     go, toggleCollapse: () => setCollapsed((v) => !v), setSearch, setDraft, newChat, startInProject, openProject,
-    clearChatProject: () => setChatProjectId(null), send, ingestAppContext, selectRecent, loadRecents, loadProjects,
+    clearChatProject: () => setChatProject(null), send, ingestAppContext, selectRecent, loadRecents, loadProjects,
     addFiles, addPastedText, removeAttachment,
     toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, setKdraft, addKnowledge, removeKnowledge,
     selectStyle: setStyleKey, setCustom, save, copyArt,

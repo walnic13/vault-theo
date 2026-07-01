@@ -19,6 +19,7 @@ import {
   updateProjectInstructions as gatewayUpdateProjectInstructions, deleteProject as gatewayDeleteProject,
   listProjectKnowledge as gatewayListProjectKnowledge, addProjectKnowledge as gatewayAddProjectKnowledge,
   removeProjectKnowledge as gatewayRemoveProjectKnowledge,
+  setConversationProject as gatewaySetConversationProject,
   type StreamHandlers,
 } from "./gateway.live";
 
@@ -87,6 +88,11 @@ export const theoClient = {
   listProjectKnowledge(projectId: string): Promise<Knowledge[]> { return gatewayListProjectKnowledge(projectId); },
   addProjectKnowledge(projectId: string, k: KDraft): Promise<Knowledge> { return gatewayAddProjectKnowledge(projectId, k); },
   removeProjectKnowledge(knowledgeId: string): Promise<void> { return gatewayRemoveProjectKnowledge(knowledgeId); },
+  // B4d: link a conversation to a project (owner-scoped, idempotent set-once). Called once after a
+  // project chat's first turn returns a conversation_id (theo_conversations.project_id).
+  setConversationProject(conversationId: string, projectId: string): Promise<void> {
+    return gatewaySetConversationProject(conversationId, projectId);
+  },
 
   // ── Artifacts (in-memory in 1A; theo_artifacts + theo_artifact_versions in 1B) ──
   listArtifacts(): Artifact[] { return artifacts.slice(); },

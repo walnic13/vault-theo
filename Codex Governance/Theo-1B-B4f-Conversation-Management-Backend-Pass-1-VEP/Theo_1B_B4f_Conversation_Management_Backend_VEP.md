@@ -7,7 +7,7 @@
 ## GROUNDING CONFORMANCE RECEIPT
 Role: Claude Code
 Turn Type: Verified Evidence Pack (backend plan)
-Turn issued against HEAD: `089fec0e74fac8ea533dfa6ccc93317c24c7fa7f` (vault-theo, `development`)
+Turn issued against HEAD: `ae98ac7` (vault-theo, `development`; grounding blobs below were read at `089fec0` and are unchanged — the package commit only added this pack)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P8

@@ -7,6 +7,6 @@
 - **No migration** — `theo_conversations` + `theo_conversation_exists_unscoped` deployed from B2.
 - **Primary Reference:** deployed `theo_update_user_memory` pair (owner-scoped UPDATE + `_exists_unscoped`); inlined byte-identical.
 - **Gateway handlers untouched** (`theo_message`/`theo_message_stream`).
-- **Validation:** both `node --check` clean; function.json JSON-valid; microstep lint → PASS; HEAD `089fec0`.
+- **Validation:** both `node --check` clean; function.json JSON-valid; microstep lint → PASS; HEAD `ae98ac7` (APPROVED).
 - **Pairs with B4f-FE:** rename/delete chat wire to these; rename/delete **project** reuse the deployed `theo_update_project`/`theo_delete_project` (B4a).
 - **Pipeline:** Author = Claude Code (Pass 1). Reviewer = Codex (Pass 2).

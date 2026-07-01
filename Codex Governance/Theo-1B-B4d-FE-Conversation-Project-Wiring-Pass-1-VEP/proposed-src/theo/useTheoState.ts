@@ -81,20 +81,25 @@ export function useTheoState() {
   }, []);
 
   // B4d: load the chat's active project as a self-contained object (metadata + knowledge) held in
-  // `chatProject`, independent of the `projects` list — so neither an empty/late list nor a later
-  // loadProjects() (which maps knowledge:[]) can strip the active chat's project context. Fetches the
-  // list for metadata (name/desc/instructions) + the project's knowledge in parallel; used by
-  // startInProject and reload-restore. Awaited by both, so the next `send` sees full project context.
-  const loadChatProject = useCallback(async (id: string) => {
+  // `chatProject`, independent of the `projects` list ordering/timing — so neither an empty/late list
+  // nor a later loadProjects() (which maps knowledge:[]) can strip the active chat's context.
+  // METADATA (name/desc/instructions) prefers the LOCAL `projects` entry when present: it holds any
+  // un-saved optimistic instruction edit (patchInstructions is debounced 800ms), so a chat started
+  // right after an edit uses the fresh local instructions, not stale server ones (Codex B4d-FE
+  // finding); it falls back to a fresh server list only when the project isn't loaded locally.
+  // KNOWLEDGE is always from the server (add/remove are immediate, hence authoritative). Awaited by
+  // startInProject and reload-restore, so the next `send` sees full, current project context.
+  async function loadChatProject(id: string) {
     try {
-      const [list, knowledge] = await Promise.all([
-        theoClient.listProjects(),
-        theoClient.listProjectKnowledge(id),
-      ]);
-      const meta = list.find((p) => p.id === id);
+      const knowledge = await theoClient.listProjectKnowledge(id);
+      let meta = projects.find((p) => p.id === id);
+      if (!meta) {
+        const list = await theoClient.listProjects();
+        meta = list.find((p) => p.id === id);
+      }
       setChatProject(meta ? { ...meta, knowledge } : null);
     } catch { /* keep the current chatProject */ }
-  }, []);
+  }
 
   function go(v: View) { setView(v); setDetailId(null); }
   function clearComposer() { setAttachments([]); }

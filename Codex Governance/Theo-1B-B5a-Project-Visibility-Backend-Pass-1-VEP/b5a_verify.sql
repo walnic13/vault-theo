@@ -9,13 +9,13 @@ SELECT conname, pg_get_constraintdef(oid) AS def
 FROM pg_constraint WHERE conname = 'theo_projects_visibility_chk';
 
 -- V3: the broadened SELECT policies (own OR group-visible).
-SELECT tablename, polname, pg_get_expr(polqual, polrelid) AS using_expr
+SELECT c.relname AS tablename, p.polname, pg_get_expr(p.polqual, p.polrelid) AS using_expr
 FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid
 WHERE c.relname IN ('theo_projects','theo_project_knowledge') AND p.polcmd = 'r'
-ORDER BY tablename, polname;
+ORDER BY c.relname, p.polname;
 
 -- V4: conversations/messages RLS UNCHANGED (still owner-only) — confirm no group clause leaked in.
-SELECT c.relname, p.polname, p.polcmd, pg_get_expr(polqual, polrelid) AS using_expr
+SELECT c.relname AS tablename, p.polname, p.polcmd, pg_get_expr(p.polqual, p.polrelid) AS using_expr
 FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid
 WHERE c.relname IN ('theo_conversations','theo_messages')
 ORDER BY c.relname, p.polname;

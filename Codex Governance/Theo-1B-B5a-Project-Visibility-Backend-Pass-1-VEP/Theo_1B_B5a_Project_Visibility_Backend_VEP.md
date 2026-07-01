@@ -11,7 +11,7 @@ Turn issued against HEAD: `87de16e` (vault-theo, `development`)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P8
-Detail: Pass 1 backend VEP; P1–P8 walked; includes an **additive schema migration** (§MIGRATION). Primary Reference (Golden §2) = the **deployed** `theo_update_project` **pair** (B4a) — owner-scoped UPDATE over `theo_projects` with the `set_config` triad / `UPDATE … WHERE id AND created_by` / 0-row → `theo_project_exists_unscoped` → 403-404 / 42501-isKnown-500 mapping, inlined verbatim §SM/§SM-FJ. `theo_set_project_visibility` mirrors it (sets `visibility`; owner-only). The three MODIFIED handlers are their own deployed selves with the single ALLOWED DELTA of broadening the project predicate from `created_by = $oid` to `created_by = $oid OR visibility = 'group'` (list_projects also returns `visibility` + `is_owner`; list_project_knowledge lists all of an accessible project's knowledge). Contract basis = deployed `theo_projects` + `theo_project_knowledge` (Schema §3/§5) + Backend Plan Tier B4 (projects CRUD). Config-only sharing: `theo_conversations`/`theo_messages` RLS UNCHANGED. Schema change is Walter-authorized (sharing-model decision, 2026-07-01). Validation precedes SQL. Full Baseline per Conformance §4.
+Detail: **Codex-fix revision** (Pass-2 REJECT round 1): `b5a_verify.sql` V3 selected an unqualified `tablename` while joining `pg_policy`/`pg_class` (pg_policy has no `tablename` column) — the read-only verify would error; fixed to `c.relname AS tablename` + `ORDER BY c.relname, p.polname` (V4 columns qualified likewise). Pass 1 backend VEP; P1–P8 walked; includes an **additive schema migration** (§MIGRATION). Primary Reference (Golden §2) = the **deployed** `theo_update_project` **pair** (B4a) — owner-scoped UPDATE over `theo_projects` with the `set_config` triad / `UPDATE … WHERE id AND created_by` / 0-row → `theo_project_exists_unscoped` → 403-404 / 42501-isKnown-500 mapping, inlined verbatim §SM/§SM-FJ. `theo_set_project_visibility` mirrors it (sets `visibility`; owner-only). The three MODIFIED handlers are their own deployed selves with the single ALLOWED DELTA of broadening the project predicate from `created_by = $oid` to `created_by = $oid OR visibility = 'group'` (list_projects also returns `visibility` + `is_owner`; list_project_knowledge lists all of an accessible project's knowledge). Contract basis = deployed `theo_projects` + `theo_project_knowledge` (Schema §3/§5) + Backend Plan Tier B4 (projects CRUD). Config-only sharing: `theo_conversations`/`theo_messages` RLS UNCHANGED. Schema change is Walter-authorized (sharing-model decision, 2026-07-01). Validation precedes SQL. Full Baseline per Conformance §4.
 Currency anchors: blob SHA via `git rev-parse HEAD:<path>`; verifiable via `git cat-file -p <sha>`.
 
 | # | Document (name + path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
@@ -153,13 +153,13 @@ SELECT conname, pg_get_constraintdef(oid) AS def
 FROM pg_constraint WHERE conname = 'theo_projects_visibility_chk';
 
 -- V3: the broadened SELECT policies (own OR group-visible).
-SELECT tablename, polname, pg_get_expr(polqual, polrelid) AS using_expr
+SELECT c.relname AS tablename, p.polname, pg_get_expr(p.polqual, p.polrelid) AS using_expr
 FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid
 WHERE c.relname IN ('theo_projects','theo_project_knowledge') AND p.polcmd = 'r'
-ORDER BY tablename, polname;
+ORDER BY c.relname, p.polname;
 
 -- V4: conversations/messages RLS UNCHANGED (still owner-only) — confirm no group clause leaked in.
-SELECT c.relname, p.polname, p.polcmd, pg_get_expr(polqual, polrelid) AS using_expr
+SELECT c.relname AS tablename, p.polname, p.polcmd, pg_get_expr(p.polqual, p.polrelid) AS using_expr
 FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid
 WHERE c.relname IN ('theo_conversations','theo_messages')
 ORDER BY c.relname, p.polname;

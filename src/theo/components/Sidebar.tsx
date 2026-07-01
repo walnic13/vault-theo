@@ -1,6 +1,10 @@
 // Sidebar — VA-T1 L297–328. Presentational; state + handlers come from TheoSurface (Pass B).
+// B4f: each Recents row gains hover-revealed manage actions — Rename (edit-in-place) and Delete
+// (native confirm) — wired to theo_rename_conversation / theo_delete_conversation (deployed B4f).
+import { useState } from "react";
 import { C, SANS } from "../theme";
 import { Burst, IcCompose, IcSearch, IcPanel } from "./icons";
+import { InlineEdit, RowActions } from "./RowManage";
 import type { NavItem, View } from "../types";
 
 export interface SidebarProps {
@@ -13,6 +17,8 @@ export interface SidebarProps {
   onSearch: (s: string) => void;
   recents: { id: string; title: string }[];
   onSelectRecent: (id: string) => void;
+  onRenameRecent: (id: string, title: string) => void;   // B4f
+  onDeleteRecent: (id: string) => void;                   // B4f
   onNewChat: () => void;
   workspaceName: string;
   productName: string;
@@ -23,8 +29,9 @@ export interface SidebarProps {
 }
 
 export function Sidebar(props: SidebarProps) {
-  const { collapsed, onToggleCollapse, view, onNavigate, nav, search, onSearch, recents, onSelectRecent, onNewChat, workspaceName, productName, fluid } = props;
+  const { collapsed, onToggleCollapse, view, onNavigate, nav, search, onSearch, recents, onSelectRecent, onRenameRecent, onDeleteRecent, onNewChat, workspaceName, productName, fluid } = props;
   const railW = collapsed ? 58 : 270;
+  const [editingId, setEditingId] = useState<string | null>(null);   // B4f: recents row being renamed in place
 
   const navBtn = (item: NavItem) => {
     const active = view === item.key;
@@ -61,7 +68,29 @@ export function Sidebar(props: SidebarProps) {
       {!collapsed && (<>
         <div style={{ padding: "14px 18px 6px", fontSize: 11.5, letterSpacing: 0.4, textTransform: "uppercase", color: C.ink3, fontWeight: 600 }}>Recents</div>
         <div className="vo-scroll" style={{ flex: 1, overflowY: "auto", padding: "0 8px" }}>
-          {recents.map((ch) => (<div key={ch.id} className="vo-row" onClick={() => onSelectRecent(ch.id)} style={{ padding: "8px 10px", borderRadius: 8, fontSize: 13.5, color: C.ink2, cursor: "pointer", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ch.title}</div>))}
+          {recents.map((ch) => {
+            const editing = editingId === ch.id;
+            return (
+              <div key={ch.id} className="vo-row" onClick={() => { if (!editing) onSelectRecent(ch.id); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", borderRadius: 8, fontSize: 13.5, color: C.ink2, cursor: "pointer" }}>
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+                  <InlineEdit
+                    value={ch.title} editing={editing}
+                    onCommit={(next) => { setEditingId(null); if (next !== ch.title) onRenameRecent(ch.id, next); }}
+                    onCancel={() => setEditingId(null)}
+                    labelStyle={{ display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                    inputStyle={{ fontSize: 13.5 }}
+                  />
+                </span>
+                {!editing && (
+                  <RowActions
+                    renameTitle="Rename chat" deleteTitle="Delete chat"
+                    onRename={() => setEditingId(ch.id)}
+                    onDelete={() => { if (window.confirm(`Delete chat "${ch.title || "Untitled chat"}"? This permanently removes the conversation and its messages.`)) onDeleteRecent(ch.id); }}
+                  />
+                )}
+              </div>
+            );
+          })}
           {recents.length === 0 && <div style={{ padding: "8px 10px", fontSize: 13, color: C.ink3 }}>No matches.</div>}
         </div>
       </>)}

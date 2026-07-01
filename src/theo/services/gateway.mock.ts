@@ -58,6 +58,18 @@ export async function getConversation(id: string): Promise<ConversationDetail> {
   };
 }
 
+// B4f: rename/delete a conversation. The standalone harness has no persistent conversations (Recents
+// comes from the static RECENTS seed), so rename echoes the trimmed title and delete is a no-op — the
+// caller's optimistic local update reflects the change until the next mock listConversations.
+export async function renameConversation(id: string, title: string): Promise<{ id: string; title: string }> {
+  return { id, title: title.trim() };
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+  void id;
+  return;
+}
+
 // ── B4c projects fallback for the standalone dev harness (no Functions backend) ──────────────
 // In-memory projects store (seeded from the reference), previously held in theoClient. gateway.live
 // delegates here when no live backend is wired, mirroring the chat/recents mock fallbacks; the
@@ -84,6 +96,14 @@ export async function createProject(d: NpDraft): Promise<Project> {
 
 export async function updateProjectInstructions(id: string, instructions: string): Promise<Project> {
   mockProjects = mockProjects.map((p) => (p.id === id ? { ...p, instructions, updated: "just now" } : p));
+  const found = mockProjects.find((p) => p.id === id);
+  if (!found) throw new Error("Project not found.");
+  return cloneProject(found);
+}
+
+// B4f: rename a project (theo_update_project {id, name}). Mirrors updateProjectInstructions.
+export async function renameProject(id: string, name: string): Promise<Project> {
+  mockProjects = mockProjects.map((p) => (p.id === id ? { ...p, name: name.trim(), updated: "just now" } : p));
   const found = mockProjects.find((p) => p.id === id);
   if (!found) throw new Error("Project not found.");
   return cloneProject(found);

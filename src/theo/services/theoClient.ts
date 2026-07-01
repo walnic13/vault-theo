@@ -21,6 +21,8 @@ import {
   listProjectKnowledge as gatewayListProjectKnowledge, addProjectKnowledge as gatewayAddProjectKnowledge,
   removeProjectKnowledge as gatewayRemoveProjectKnowledge,
   setConversationProject as gatewaySetConversationProject,
+  renameProject as gatewayRenameProject,
+  renameConversation as gatewayRenameConversation, deleteConversation as gatewayDeleteConversation,
   type StreamHandlers,
 } from "./gateway.live";
 
@@ -89,6 +91,8 @@ export const theoClient = {
   updateProjectInstructions(id: string, instructions: string): Promise<Project> {
     return gatewayUpdateProjectInstructions(id, instructions);
   },
+  // B4f: rename a project (theo_update_project {id, name}; deployed B4a).
+  renameProject(id: string, name: string): Promise<Project> { return gatewayRenameProject(id, name); },
   deleteProject(id: string): Promise<void> { return gatewayDeleteProject(id); },
   listProjectKnowledge(projectId: string): Promise<Knowledge[]> { return gatewayListProjectKnowledge(projectId); },
   addProjectKnowledge(projectId: string, k: KDraft): Promise<Knowledge> { return gatewayAddProjectKnowledge(projectId, k); },
@@ -98,6 +102,11 @@ export const theoClient = {
   setConversationProject(conversationId: string, projectId: string): Promise<void> {
     return gatewaySetConversationProject(conversationId, projectId);
   },
+  // B4f: rename / delete a conversation (theo_rename_conversation / theo_delete_conversation; deployed B4f).
+  renameConversation(id: string, title: string): Promise<{ id: string; title: string }> {
+    return gatewayRenameConversation(id, title);
+  },
+  deleteConversation(id: string): Promise<void> { return gatewayDeleteConversation(id); },
 
   // ── Artifacts (in-memory in 1A; theo_artifacts + theo_artifact_versions in 1B) ──
   listArtifacts(): Artifact[] { return artifacts.slice(); },

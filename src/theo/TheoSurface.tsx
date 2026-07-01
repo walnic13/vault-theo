@@ -29,6 +29,8 @@ const STYLE_BLOCK = `
   .vo-chip:hover { background: ${C.coralSoft}; border-color: ${C.coral}; }
   .vo-card:hover { border-color: ${C.coral}; box-shadow: 0 4px 18px rgba(40,38,31,.07); }
   .vo-ghost:hover { background: rgba(0,0,0,0.04); }
+  .vo-actions { opacity: 0; transition: opacity .12s; }
+  .vo-row:hover .vo-actions, .vo-card:hover .vo-actions, .vo-actions:focus-within { opacity: 1; }
   button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid ${C.coral}; outline-offset: 2px; }
   textarea:focus, input:focus { outline: none; }
   @keyframes vo-bounce { 0%,80%,100%{transform:translateY(0);opacity:.4} 40%{transform:translateY(-4px);opacity:1} }
@@ -80,6 +82,7 @@ export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessTo
     <Sidebar
       collapsed={t.collapsed} onToggleCollapse={t.toggleCollapse} view={t.view} onNavigate={t.go} nav={NAV}
       search={t.search} onSearch={t.setSearch} recents={t.recents} onSelectRecent={t.selectRecent}
+      onRenameRecent={t.renameConversation} onDeleteRecent={t.deleteConversation}
       onNewChat={t.newChat} workspaceName={WORKSPACE_NAME} productName={PRODUCT_NAME}
       fluid={!!(navSlot && mainSlot)}
     />

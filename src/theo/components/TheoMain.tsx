@@ -3,6 +3,8 @@
 // all state/handlers come from useTheoState via the `t` prop (owned by TheoSurface), so this same
 // surface renders identically as the 9/10 landing (mode "full") and as the in-app right panel
 // (mode "panel"). Faithful reproduction — no redesign. Adds the app-context chip (Pass B).
+// B4f: forwards the project rename/delete handlers to ProjectsView and the chat rename/delete
+// handlers to ProjectDetail (management affordances; deployed B4a/B4f backends).
 import type { ReactNode } from "react";
 import { C } from "../theme";
 import { ASSISTANT_NAME, PRODUCT_NAME, MODEL_LABEL } from "../swapBlock";
@@ -68,10 +70,10 @@ export function TheoMain({ t, mode }: TheoMainProps) {
             />
           )}
           {t.view === "projects" && (
-            <ProjectsView projects={t.projects} npOpen={t.npOpen} np={t.np} onNpChange={t.setNp} onToggleNp={t.toggleNp} onCreate={t.createProject} onOpenProject={t.openProject} />
+            <ProjectsView projects={t.projects} npOpen={t.npOpen} np={t.np} onNpChange={t.setNp} onToggleNp={t.toggleNp} onCreate={t.createProject} onOpenProject={t.openProject} onRenameProject={t.renameProject} onDeleteProject={t.deleteProject} />
           )}
           {t.view === "project" && t.detail && (
-            <ProjectDetail project={t.detail} chats={t.projectChats} kdraft={t.kdraft} onKdraftChange={t.setKdraft} onAddKnowledge={t.addKnowledge} onRemoveKnowledge={t.removeKnowledge} onPatchInstructions={t.patchInstructions} onStartChat={() => t.startInProject(t.detail!.id)} onSelectChat={t.selectRecent} />
+            <ProjectDetail project={t.detail} chats={t.projectChats} kdraft={t.kdraft} onKdraftChange={t.setKdraft} onAddKnowledge={t.addKnowledge} onRemoveKnowledge={t.removeKnowledge} onPatchInstructions={t.patchInstructions} onStartChat={() => t.startInProject(t.detail!.id)} onSelectChat={t.selectRecent} onRenameChat={t.renameConversation} onDeleteChat={t.deleteConversation} />
           )}
           {t.view === "artifacts" && (
             <ArtifactsView artifacts={t.artifacts} onOpenArtifact={t.openArtifact} />

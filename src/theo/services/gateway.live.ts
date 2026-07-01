@@ -21,6 +21,8 @@ import {
   listProjectKnowledge as mockListProjectKnowledge, addProjectKnowledge as mockAddProjectKnowledge,
   removeProjectKnowledge as mockRemoveProjectKnowledge,
   setConversationProject as mockSetConversationProject,
+  renameProject as mockRenameProject,
+  renameConversation as mockRenameConversation, deleteConversation as mockDeleteConversation,
 } from "./gateway.mock";
 
 type TokenProvider = () => Promise<string | null>;
@@ -266,6 +268,45 @@ export async function getConversation(id: string): Promise<ConversationDetail> {
   return json.data;
 }
 
+// B4f: rename a conversation (theo_rename_conversation {id, title}; deployed B4f). Owner-scoped;
+// returns the server-confirmed { id, title }. Unconfigured dev harness → mock (echoes trimmed title).
+export async function renameConversation(id: string, title: string): Promise<{ id: string; title: string }> {
+  if (!apiBase && !tokenProvider) return mockRenameConversation(id, title);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_rename_conversation`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ id, title }),
+  });
+  let json: { data?: { conversation?: { id?: string; title?: string } }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const c = json?.data?.conversation;
+  if (!c || typeof c.id !== "string" || typeof c.title !== "string") {
+    throw new Error("Theo gateway response missing data.conversation.");
+  }
+  return { id: c.id, title: c.title };
+}
+
+// B4f: delete a conversation permanently (theo_delete_conversation {id}; deployed B4f). Owner-scoped;
+// theo_messages cascade, theo_attachments.conversation_id → NULL. Unconfigured dev harness → mock no-op.
+export async function deleteConversation(id: string): Promise<void> {
+  if (!apiBase && !tokenProvider) return mockDeleteConversation(id);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_delete_conversation`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ id }),
+  });
+  if (!res.ok) {
+    let json: { error?: { message?: string } } | null = null;
+    try { json = await res.json(); } catch { /* non-JSON error body */ }
+    throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  }
+}
+
 // B8i — list a conversation's persisted attachments (reload parity). Owner-scoped; each row carries
 // `message_seq` so the reload path can rehydrate chips on the matching user turn. Unconfigured dev
 // harness → no persisted attachments (empty), mirroring the mock thread having none.
@@ -385,6 +426,25 @@ export async function updateProjectInstructions(id: string, instructions: string
     credentials: "same-origin",
     headers,
     body: JSON.stringify({ id, instructions }),
+  });
+  let json: { data?: { project?: RawProject }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const p = json?.data?.project;
+  if (!p) throw new Error("Theo gateway response missing data.project.");
+  return toProject(p);
+}
+
+// B4f: rename a project (theo_update_project {id, name}; deployed B4a). Reuses the generalized
+// update handler — only `name` is sent. Returns the mapped Project (name/desc/instructions/updated).
+export async function renameProject(id: string, name: string): Promise<Project> {
+  if (!apiBase && !tokenProvider) return mockRenameProject(id, name);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_update_project`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ id, name }),
   });
   let json: { data?: { project?: RawProject }; error?: { message?: string } } | null = null;
   try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }

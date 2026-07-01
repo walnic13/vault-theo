@@ -351,6 +351,70 @@ export function useTheoState() {
     catch { setError("Couldn't remove the knowledge item."); void refreshProjectKnowledge(id); }
   }
 
+  // B4f: rename a project (theo_update_project {id, name}; deployed B4a). Optimistic across the projects
+  // list AND the held chatProject (so an open chat's chip updates immediately); resync from the server
+  // row on success, roll back BOTH surfaces on failure. Blank names are ignored (the handler also
+  // rejects them). chatProject is held INDEPENDENTLY of `projects` (B4d/B4e), so the failure path must
+  // roll it back explicitly — a server-resync of the list alone would leave the stale optimistic name
+  // on the active chip (Codex B4f-FE finding). We snapshot the prior chip name and restore it in catch.
+  async function renameProject(id: string, name: string) {
+    const n = name.trim();
+    if (!n) return;
+    const prevChatName = chatProject && chatProject.id === id ? chatProject.name : null;
+    setProjects((ps) => ps.map((p) => (p.id === id ? { ...p, name: n } : p)));
+    setChatProject((cp) => (cp && cp.id === id ? { ...cp, name: n } : cp));
+    try {
+      const p = await theoClient.renameProject(id, n);
+      setProjects((ps) => ps.map((x) => (x.id === id ? { ...x, name: p.name, updated: p.updated } : x)));
+      setChatProject((cp) => (cp && cp.id === id ? { ...cp, name: p.name } : cp));
+    } catch {
+      setError("Couldn't rename the project.");
+      void loadProjects();                                                                 // resync the list from the server
+      if (prevChatName != null) setChatProject((cp) => (cp && cp.id === id ? { ...cp, name: prevChatName } : cp));  // roll back the held chip
+    }
+  }
+  // B4f: delete a project (theo_delete_project; deployed B4a). Its conversations are kept but unlinked
+  // (theo_conversations.project_id FK ON DELETE SET NULL). On success: drop it from the list; if its
+  // detail is open, return to the grid; clear its cached chat list; and clear the chip if the open
+  // chat belonged to it. Non-optimistic (removes only after the server confirms) so a failed delete
+  // never vanishes the card.
+  async function deleteProject(id: string) {
+    try {
+      await theoClient.deleteProject(id);
+      setProjects((ps) => ps.filter((p) => p.id !== id));
+      setChatProject((cp) => (cp && cp.id === id ? null : cp));
+      if (projectChatsReq.current === id) projectChatsReq.current = null;
+      setProjectChatsState((s) => (s && s.projectId === id ? null : s));
+      if (detailId === id) { setDetailId(null); setView("projects"); }
+    } catch { setError("Couldn't delete the project."); }
+  }
+  // B4f: rename a conversation (theo_rename_conversation {id, title}; deployed B4f). Optimistic across
+  // Recents AND the open project's chat list; resync (reload) on failure. Blank titles are ignored.
+  async function renameConversation(id: string, title: string) {
+    const tl = title.trim();
+    if (!tl) return;
+    setRecentsList((rs) => rs.map((c) => (c.id === id ? { ...c, title: tl } : c)));
+    setProjectChatsState((s) => (s ? { ...s, chats: s.chats.map((c) => (c.id === id ? { ...c, title: tl } : c)) } : s));
+    try { await theoClient.renameConversation(id, tl); }
+    catch {
+      setError("Couldn't rename the chat.");
+      void loadRecents();
+      if (detailId) void loadProjectChats(detailId);
+    }
+  }
+  // B4f: delete a conversation permanently (theo_delete_conversation {id}; deployed B4f — theo_messages
+  // cascade, attachments unlinked). On success drop it from Recents + the project chat list; if it is
+  // the currently-open thread, reset to a fresh chat. Non-optimistic (removes only after the server
+  // confirms) so a failed delete never vanishes the row.
+  async function deleteConversation(id: string) {
+    try {
+      await theoClient.deleteConversation(id);
+      setRecentsList((rs) => rs.filter((c) => c.id !== id));
+      setProjectChatsState((s) => (s ? { ...s, chats: s.chats.filter((c) => c.id !== id) } : s));
+      if (conversationId === id) newChat();
+    } catch { setError("Couldn't delete the chat."); }
+  }
+
   function save() { theoClient.writeSettings({ styleKey, custom }); setSaved(true); setTimeout(() => setSaved(false), 2000); }
   async function copyArt() {
     if (!art) return;
@@ -367,6 +431,7 @@ export function useTheoState() {
     clearChatProject: () => setChatProject(null), send, ingestAppContext, selectRecent, loadRecents, loadProjects,
     addFiles, addPastedText, removeAttachment,
     toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, setKdraft, addKnowledge, removeKnowledge,
+    renameProject, deleteProject, renameConversation, deleteConversation,
     selectStyle: setStyleKey, setCustom, save, copyArt,
     selectVersion: (v: number) => setOpenArt(openArt ? { id: openArt.id, v } : null),
     openArtifact: (id: string) => setOpenArt({ id, v: -1 }), closeArt: () => setOpenArt(null),

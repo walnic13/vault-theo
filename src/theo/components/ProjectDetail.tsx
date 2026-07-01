@@ -4,10 +4,14 @@
 // does — the Claude idiom). Consumes the live per-project chat list (theo_list_conversations?projectId,
 // B4d) via the `chats` prop; selecting a chat reopens it (restoring the project). Knowledge/instructions
 // editing is unchanged from B4c (now inside collapsibles). Tokens per VA-T1 (../theme).
+// B4f: each chat row gains hover-revealed manage actions — Rename (edit-in-place) and Delete (native
+// confirm) — wired to theo_rename_conversation / theo_delete_conversation (deployed B4f), same as the
+// Sidebar recents rows.
 import { useState } from "react";
 import { C, SANS } from "../theme";
 import { IcChat, IcCompose, IcDoc, IcTrash } from "./icons";
 import { InputBox } from "./ui";
+import { InlineEdit, RowActions } from "./RowManage";
 import type { ConversationSummary, KDraft, Project } from "../types";
 
 export interface ProjectDetailProps {
@@ -20,6 +24,8 @@ export interface ProjectDetailProps {
   onPatchInstructions: (text: string) => void;
   onStartChat: () => void;                       // "+ New chat in this project"
   onSelectChat: (id: string) => void;            // B4e: open an existing project chat (restores the project)
+  onRenameChat: (id: string, title: string) => void;   // B4f
+  onDeleteChat: (id: string) => void;                   // B4f
 }
 
 // A collapsible section header (caret + title) with a conditional body. Local, inline — no new dep.
@@ -39,12 +45,13 @@ function Section({ title, open, onToggle, children }: { title: string; open: boo
   );
 }
 
-export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKnowledge, onRemoveKnowledge, onPatchInstructions, onStartChat, onSelectChat }: ProjectDetailProps) {
+export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKnowledge, onRemoveKnowledge, onPatchInstructions, onStartChat, onSelectChat, onRenameChat, onDeleteChat }: ProjectDetailProps) {
   // Adaptive default: sections start expanded while the project has no chats (setup-first), and
   // collapse once it has chats (chats-first) — until the user explicitly toggles (null = follow default).
   const hasChats = chats.length > 0;
   const [kOpen, setKOpen] = useState<boolean | null>(null);
   const [iOpen, setIOpen] = useState<boolean | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);   // B4f: chat row being renamed in place
   const knowledgeOpen = kOpen ?? !hasChats;
   const instructionsOpen = iOpen ?? !hasChats;
 
@@ -70,15 +77,33 @@ export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKno
           </div>
         ) : (
           <div style={{ background: C.card, border: `1px solid ${C.line2}`, borderRadius: 14, overflow: "hidden" }}>
-            {chats.map((c) => (
-              <div
-                key={c.id} className="vo-row" onClick={() => onSelectChat(c.id)}
-                style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", cursor: "pointer", borderBottom: `1px solid ${C.line}` }}
-              >
-                <span style={{ color: C.ink3, display: "flex", flexShrink: 0 }}><IcChat s={16} /></span>
-                <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title || "Untitled chat"}</span>
-              </div>
-            ))}
+            {chats.map((c) => {
+              const editing = editingId === c.id;
+              return (
+                <div
+                  key={c.id} className="vo-row" onClick={() => { if (!editing) onSelectChat(c.id); }}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", cursor: "pointer", borderBottom: `1px solid ${C.line}` }}
+                >
+                  <span style={{ color: C.ink3, display: "flex", flexShrink: 0 }}><IcChat s={16} /></span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: C.ink, overflow: "hidden" }}>
+                    <InlineEdit
+                      value={c.title || "Untitled chat"} editing={editing}
+                      onCommit={(next) => { setEditingId(null); if (next !== c.title) onRenameChat(c.id, next); }}
+                      onCancel={() => setEditingId(null)}
+                      labelStyle={{ display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                      inputStyle={{ fontSize: 13.5 }}
+                    />
+                  </span>
+                  {!editing && (
+                    <RowActions
+                      renameTitle="Rename chat" deleteTitle="Delete chat"
+                      onRename={() => setEditingId(c.id)}
+                      onDelete={() => { if (window.confirm(`Delete chat "${c.title || "Untitled chat"}"? This permanently removes the conversation and its messages.`)) onDeleteChat(c.id); }}
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 

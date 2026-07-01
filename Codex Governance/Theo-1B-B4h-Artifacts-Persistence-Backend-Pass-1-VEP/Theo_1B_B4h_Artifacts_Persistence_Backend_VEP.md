@@ -7,11 +7,11 @@
 ## GROUNDING CONFORMANCE RECEIPT
 Role: Claude Code
 Turn Type: Verified Evidence Pack (backend plan)
-Turn issued against HEAD: `3a480dd` (vault-theo, `development`)
+Turn issued against HEAD: `a21e3e3` (vault-theo, `development`)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P8
-Detail: Pass 1 backend VEP; P1–P8 walked. Primary Reference (Golden §2) = the **deployed** `theo_finalize_attachment` **pair** (B8h) — the one deployed Theo handler combining owner-scoped DB writes with **managed-identity data-plane Blob access** (`getManagedIdentityAccessToken` / `putTextBlob` / `downloadBlob` / `deleteBlobBestEffort`), inlined verbatim §SM/§SM-FJ. The four artifact handlers reuse its Blob helper block **byte-identical** (EXACT) and its Family-B skeleton (Pool / `set_config` triad / owner-scoped SQL / `_exists_unscoped` 403-404 / `{data,meta}` envelope); the artifact CRUD verbs are the ALLOWED DELTA (upsert-by-title, list, get, delete over `theo_artifacts`/`theo_artifact_versions`). Contract basis = deployed `theo_artifacts` + `theo_artifact_versions` (Schema §3/§5: version content is a **Blob pointer** — `blob_container`/`blob_path` NOT NULL, `byte_size`/`content_type`; `current_version int`; FK `theo_artifact_versions.artifact_id` ON DELETE CASCADE; `theo_artifact_exists_unscoped` helper). **No migration.** API Spec gains an Artifacts section post-deploy (§GR G-2). Validation precedes SQL. Full Baseline per Conformance §4.
+Detail: **Codex-fix revision** (Pass-2 REJECT round 1): `theo_upsert_artifact` now verifies any supplied `conversation_id`/`project_id` is **owned by the caller** (`WHERE id AND created_by`) before linking — a foreign-owned or absent parent fails 404 with no leakage, mirroring the B8h owner-scoped parent-link precedent (the FKs alone would let a foreign-owned parent satisfy the constraint and leak a cross-user link). Pass 1 backend VEP; P1–P8 walked. Primary Reference (Golden §2) = the **deployed** `theo_finalize_attachment` **pair** (B8h) — the one deployed Theo handler combining owner-scoped DB writes with **managed-identity data-plane Blob access** (`getManagedIdentityAccessToken` / `putTextBlob` / `downloadBlob` / `deleteBlobBestEffort`), inlined verbatim §SM/§SM-FJ. The four artifact handlers reuse its Blob helper block **byte-identical** (EXACT) and its Family-B skeleton (Pool / `set_config` triad / owner-scoped SQL / `_exists_unscoped` 403-404 / `{data,meta}` envelope); the artifact CRUD verbs are the ALLOWED DELTA (upsert-by-title, list, get, delete over `theo_artifacts`/`theo_artifact_versions`). Contract basis = deployed `theo_artifacts` + `theo_artifact_versions` (Schema §3/§5: version content is a **Blob pointer** — `blob_container`/`blob_path` NOT NULL, `byte_size`/`content_type`; `current_version int`; FK `theo_artifact_versions.artifact_id` ON DELETE CASCADE; `theo_artifact_exists_unscoped` helper). **No migration.** API Spec gains an Artifacts section post-deploy (§GR G-2). Validation precedes SQL. Full Baseline per Conformance §4.
 Currency anchors: blob SHA via `git rev-parse HEAD:<path>`; verifiable via `git cat-file -p <sha>`.
 
 | # | Document (name + path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
@@ -60,6 +60,7 @@ User-managed CRUD; no model/index traffic; `theo_message`/`theo_message_stream` 
 - **Family-B.** `pg` Pool over `POSTGRES_CONNECTION_STRING`; per-request `set_config` triad; mutations `connect→BEGIN→…→COMMIT` with `catch ROLLBACK` (`theo_list_artifacts`/`theo_get_artifact` are read-only, no txn). Identical helper block to the deployed Theo handlers.
 - **Managed-identity Blob (EXACT lift).** Version content lives in Blob per the deployed schema (`theo_artifact_versions` has no content column — only `blob_container`/`blob_path` NOT NULL). The handlers write/read/delete blobs **server-side via managed identity**, reusing the deployed `theo_finalize_attachment` (B8h) helper block byte-identical (`getManagedIdentityAccessToken`, `requestUrl`/`requestBinary`, `blobUrlFor`, `putTextBlob`, `downloadBlob`, `deleteBlobBestEffort`). Container `theo-content`; key `artifacts/<oid>/<artifactId>/v<n>.txt`. **No SAS, no browser upload** (content is model-authored text already in the reply).
 - **Explicit ownership (SEC-fix discipline).** Every query carries `created_by = $oid`; the shared connection role bypasses RLS, so the predicate enforces isolation. 0-row get/delete → `theo_artifact_exists_unscoped` → 403 (existing-foreign) / 404 (absent).
+- **Owner-scoped parent-link (Codex round-1 fix).** Before linking an artifact to a `conversation_id`/`project_id`, `theo_upsert_artifact` verifies the parent is **owned by the caller** (`SELECT 1 … WHERE id AND created_by`) — the FKs alone would let a foreign-owned parent row satisfy the constraint and create a cross-user link. A foreign-owned or absent parent fails 404 (no existence leak), matching the deployed `theo_finalize_attachment` parent-ownership precedent.
 - **Validation before SQL.** `isUuid` on ids; `title` non-blank ≤200; `type` ∈ {document,code,html}; `content` string ≤1 MiB — deterministic 400s before any query/Blob call.
 - **Boundary.** Reads/writes only `theo_artifacts` + `theo_artifact_versions` (deployed B2) + the `theo-content` Blob container; **no `reporting_*`**; no model gateway; **no change to `theo_message`/`theo_message_stream`**. Delete relies on the deployed `theo_artifact_versions` FK (ON DELETE CASCADE) for version rows; version blobs are best-effort cleaned.
 
@@ -78,7 +79,7 @@ No write SQL executes in this pack (plan only); no migration. No `reporting_*` c
 Contract basis = deployed `theo_artifacts` (`title` CHECK not-blank; `type` CHECK document/code/html; `current_version int`; optional `conversation_id`/`project_id` FK ON DELETE SET NULL) + `theo_artifact_versions` (`artifact_id` FK ON DELETE CASCADE; `version_number` UNIQUE per artifact; **Blob-pointer content** `blob_container`/`blob_path` NOT NULL + `byte_size`/`content_type`) + `theo_artifact_exists_unscoped(uuid)` (Schema §3/§5). Response envelope = standard `{ data, meta }` / `{ error }`. Endpoints (new): `POST /api/theo_upsert_artifact` `{ title, type, content, conversation_id?, project_id? }` → `{ artifact }` (201 create / 200 new-version); `GET /api/theo_list_artifacts[?conversationId]` → `{ artifacts: [...] }`; `GET /api/theo_get_artifact?artifactId` → `{ artifact: { …, versions: [{ version_number, content, byte_size, content_type, created_at }] } }`; `POST /api/theo_delete_artifact` `{ id }` → `{ deleted: true, id }`. API Spec rows land post-deploy (G-2).
 
 ## P4 — Per-handler contract
-- **`theo_upsert_artifact`** (POST): validate `title`≤200 non-blank, `type`∈{document,code,html}, `content` string ≤1 MiB, optional `conversation_id`/`project_id` uuids. Find `(created_by,lower(title))`; if present → `version_number = current_version+1`; else INSERT artifact (v1). `putTextBlob(artifacts/<oid>/<id>/v<n>.txt)`; INSERT version row (pointer + `byte_size` + `content_type`); UPDATE artifact `current_version`+`type`+`updated_at`. → **201** (new) / **200** (new version) `{ artifact }`. FK violation (bad conv/project) → 404; blob failure → ROLLBACK + best-effort blob delete + 500.
+- **`theo_upsert_artifact`** (POST): validate `title`≤200 non-blank, `type`∈{document,code,html}, `content` string ≤1 MiB, optional `conversation_id`/`project_id` uuids. **Verify any supplied parent is owned** (`theo_conversations`/`theo_projects` `WHERE id AND created_by`) → foreign-owned/absent → **404**. Find `(created_by,lower(title))`; if present → `version_number = current_version+1`; else INSERT artifact (v1). `putTextBlob(artifacts/<oid>/<id>/v<n>.txt)`; INSERT version row (pointer + `byte_size` + `content_type`); UPDATE artifact `current_version`+`type`+`updated_at`. → **201** (new) / **200** (new version) `{ artifact }`. FK violation (bad conv/project) → 404; blob failure → ROLLBACK + best-effort blob delete + 500.
 - **`theo_list_artifacts`** (GET): optional `?conversationId` (uuid → else 400). `SELECT … WHERE created_by=$oid [AND conversation_id=$c] ORDER BY updated_at DESC, id DESC LIMIT 500` → **200** `{ artifacts }` (metadata; no content).
 - **`theo_get_artifact`** (GET): `artifactId` uuid. Owner-scoped SELECT; 0-row → `_exists_unscoped` 403/404. SELECT versions ASC; `downloadBlob` each (failed read degrades to `""`) → **200** `{ artifact: { …, versions } }`.
 - **`theo_delete_artifact`** (POST): `id` uuid. Capture version pointers; `DELETE FROM theo_artifacts WHERE id AND created_by RETURNING id`; 0-row → `_exists_unscoped` 403/404; COMMIT (versions cascade); best-effort blob delete each → **200** `{ deleted: true, id }`.
@@ -92,6 +93,7 @@ New artifacts: `theo_upsert_artifact` / `theo_list_artifacts` / `theo_get_artifa
 ## P7 — Risk / regression
 - **Greenfield:** four new functions; no change to deployed handlers/tables/policies; no migration.
 - **Isolation:** explicit `created_by` on every query (verified by the cross-user golden curl).
+- **Parent-link ownership (Codex round-1 fix):** a supplied `conversation_id`/`project_id` is verified owned before linking → foreign-owned/absent → 404 (no cross-user link, no existence leak).
 - **Blob:** content in `theo-content` (same container as attachments), server-side MI write/read; a failed version-blob read degrades to `""` (never fails the artifact fetch); on upsert failure the written blob is best-effort deleted after ROLLBACK.
 - **Permanent delete:** hard-deletes; ownership-checked first; version rows cascade (FK); version blobs best-effort deleted.
 - **Upsert-by-title:** case-insensitive title match (mirrors FE); concurrent same-title create race disclosed (G-3), non-blocking.
@@ -828,6 +830,25 @@ module.exports = async function (context, req) {
       [oid]
     );
 
+    // Verify any supplied parent is OWNED by the caller BEFORE linking (owner-scoped parent-link pattern;
+    // mirrors the deployed theo_finalize_attachment, which checks theo_conversations WHERE id AND created_by).
+    // The FKs alone are not enough — a foreign-owned parent row would satisfy the constraint and leak a
+    // cross-user link. A foreign-owned OR absent parent fails deterministically 404 (no existence leak).
+    if (conversationId) {
+      const c = await client.query(
+        `SELECT 1 FROM public.theo_conversations WHERE id = $1 AND created_by = $2`,
+        [conversationId, oid]
+      );
+      if (c.rowCount === 0) throw buildKnownError("NOT_FOUND", "Referenced conversation not found.", 404);
+    }
+    if (projectId) {
+      const p = await client.query(
+        `SELECT 1 FROM public.theo_projects WHERE id = $1 AND created_by = $2`,
+        [projectId, oid]
+      );
+      if (p.rowCount === 0) throw buildKnownError("NOT_FOUND", "Referenced project not found.", 404);
+    }
+
     // Upsert-by-title (owner-scoped, case-insensitive) — mirrors the FE upsert(): a reused title adds
     // a new version; a new title creates the artifact at v1. The connection role bypasses RLS, so the
     // explicit created_by predicate enforces ownership.
@@ -1499,6 +1520,7 @@ module.exports = async function (context, req) {
 | `pg` Pool + `ssl`; `corsHeaders`; `send`/`errorBody`/`successBody`/`getPrincipal`/`getClaimValue`/`parseBody`/`buildKnownError`/`isUuid` helper block | identical | EXACT |
 | Managed-identity Blob helpers (`getManagedIdentityAccessToken`, `requestUrl`/`requestBinary`, `blobUrlFor`, `encodeBlobPath`, `putTextBlob`, `downloadBlob`, `deleteBlobBestEffort`) | identical (lifted byte-identical) | EXACT |
 | OID extraction + 401; `parseBody` + 400; input validation (deterministic 400s) | same discipline; artifact field set (`title`/`type`/`content`/ids) | ALLOWED DELTA (validated field set) |
+| Parent-ownership verify before link (`conversation_id`/`project_id` `WHERE id AND created_by` → 404) | finalize checks `theo_conversations WHERE id AND created_by` before linking the attachment | EXACT (owner-scoped parent-link pattern) |
 | `connect`→`BEGIN`→`set_config` triad (upsert/delete); read-only variants (list/get) | same triad; finalize is a single mutation | ALLOWED DELTA (read-only handlers omit BEGIN/COMMIT) |
 | Owner-scoped SQL over `theo_artifacts`/`theo_artifact_versions` (upsert-by-title INSERT/UPDATE + version INSERT; list SELECT; get SELECT+versions; delete DELETE-RETURNING) | finalize INSERTs the attachment row owner-scoped | ALLOWED DELTA (tables/verbs; version model) |
 | Blob write/read/delete via the MI helpers (`putTextBlob`/`downloadBlob`/`deleteBlobBestEffort`) | finalize `putTextBlob` (extracted text) / `downloadBlob` (source) | EXACT (helpers) / ALLOWED DELTA (call sites) |
@@ -1534,7 +1556,7 @@ No new external-system helper; no DEVIATION. `theo_message`/`theo_message_stream
 3. **List** — `GET theo_list_artifacts` → **200**; A present with `current_version:2` (metadata only, no content).
 4. **Get** — `GET theo_get_artifact?artifactId=A` → **200**; `versions.length===2`, `versions[0].content==="# v1 body"`, `versions[1].content==="# v2 body"` (content read back from Blob).
 5. **Validation** — upsert blank title / bad type / non-string content → 400; get/delete bad `id` uuid → 400; list bad `?conversationId` → 400.
-6. **Ownership** — get/delete a nonexistent `artifactId` → **404** (existing-foreign → 403 needs a 2nd identity — not curl-run).
+6. **Ownership** — get/delete a nonexistent `artifactId` → **404** (existing-foreign → 403 needs a 2nd identity — not curl-run). **Parent-link:** `POST theo_upsert_artifact {title:"x", type:"document", content:"y", conversation_id:"<random-absent-uuid>"}` → **404** (parent not owned/absent; verifies the round-1 fix); a real owned `conversation_id` (from the setup turn) → 201 and links.
 7. **Delete** — `POST theo_delete_artifact {id:A}` → **200** `{deleted:true}`; `GET theo_get_artifact?artifactId=A` → 404 (gone; versions cascaded); `GET theo_list_artifacts` omits A.
 
 **Requested Pass 2 verdict:** Codex APPROVED or REJECTED.

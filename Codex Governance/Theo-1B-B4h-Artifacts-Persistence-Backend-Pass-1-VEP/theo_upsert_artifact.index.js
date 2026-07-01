@@ -206,6 +206,25 @@ module.exports = async function (context, req) {
       [oid]
     );
 
+    // Verify any supplied parent is OWNED by the caller BEFORE linking (owner-scoped parent-link pattern;
+    // mirrors the deployed theo_finalize_attachment, which checks theo_conversations WHERE id AND created_by).
+    // The FKs alone are not enough — a foreign-owned parent row would satisfy the constraint and leak a
+    // cross-user link. A foreign-owned OR absent parent fails deterministically 404 (no existence leak).
+    if (conversationId) {
+      const c = await client.query(
+        `SELECT 1 FROM public.theo_conversations WHERE id = $1 AND created_by = $2`,
+        [conversationId, oid]
+      );
+      if (c.rowCount === 0) throw buildKnownError("NOT_FOUND", "Referenced conversation not found.", 404);
+    }
+    if (projectId) {
+      const p = await client.query(
+        `SELECT 1 FROM public.theo_projects WHERE id = $1 AND created_by = $2`,
+        [projectId, oid]
+      );
+      if (p.rowCount === 0) throw buildKnownError("NOT_FOUND", "Referenced project not found.", 404);
+    }
+
     // Upsert-by-title (owner-scoped, case-insensitive) — mirrors the FE upsert(): a reused title adds
     // a new version; a new title creates the artifact at v1. The connection role bypasses RLS, so the
     // explicit created_by predicate enforces ownership.

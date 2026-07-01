@@ -9,6 +9,7 @@
 - **Content storage:** version body in Blob (`theo-content`), **server-side via managed identity** — matches the deployed `theo_artifact_versions` Blob-pointer schema exactly. **No migration, no schema change.**
 - **Primary Reference:** deployed `theo_finalize_attachment` pair (B8h) — the one deployed handler combining owner-scoped DB writes + managed-identity Blob helpers; inlined byte-verbatim (§SM/§SM-FJ). The four handlers reuse its Blob helper block byte-identical (EXACT).
 - **Gateway handlers untouched** (`theo_message`/`theo_message_stream`).
-- **Validation:** all four `node --check` clean; function.json JSON-valid; microstep lint → PASS; HEAD `3a480dd`.
+- **Codex Pass-2 REJECT round 1 → fixed:** `theo_upsert_artifact` now verifies a supplied `conversation_id`/`project_id` is **owned by the caller** before linking (`WHERE id AND created_by` → foreign-owned/absent → 404), closing a cross-user parent-link leak the FKs alone allowed — mirrors the B8h parent-ownership precedent.
+- **Validation:** all four `node --check` clean; function.json JSON-valid; microstep lint → PASS; HEAD `a21e3e3`.
 - **Pairs with B4h-FE:** persist-on-ingest during `send`, load-on-mount (Artifacts gallery) + reload (re-derive from persisted `[[ARTIFACT]]` blocks, link by title), `ArtifactPanel` version content.
 - **Pipeline:** Author = Claude Code (Pass 1). Reviewer = Codex (Pass 2). On APPROVAL → Walter deploys 4 functions → Claude Code golden curls → API-Spec Role-C → B4h-FE.

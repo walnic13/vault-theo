@@ -36,18 +36,20 @@ export function RowActions({ onRename, onDelete, renameTitle = "Rename", deleteT
 
 // The input is a child component mounted ONLY while editing, so its draft state seeds fresh from
 // `initial` on each edit and autofocus/select runs once on mount.
-function EditInput({ initial, onCommit, onCancel, style }: {
+function EditInput({ initial, onCommit, onCancel, style, allowEmpty = false }: {
   initial: string;
   onCommit: (next: string) => void;
   onCancel: () => void;
   style?: CSSProperties;
+  allowEmpty?: boolean;                                         // B4g: description may be cleared to ""; rename stays non-blank
 }) {
   const [v, setV] = useState(initial);
   const ref = useRef<HTMLInputElement>(null);
   const done = useRef(false);                                   // one-shot: commit XOR cancel, once
   useEffect(() => { const el = ref.current; if (el) { el.focus(); el.select(); } }, []);
   const finish = (fn: () => void) => { if (done.current) return; done.current = true; fn(); };
-  const commit = () => finish(() => { const t = v.trim(); if (t) onCommit(t); else onCancel(); });
+  // Commit a trimmed value; blank commits only when allowEmpty (else it cancels — keeps rename non-blank).
+  const commit = () => finish(() => { const t = v.trim(); if (t || allowEmpty) onCommit(t); else onCancel(); });
   const cancel = () => finish(onCancel);
   return (
     <input
@@ -65,15 +67,16 @@ function EditInput({ initial, onCommit, onCancel, style }: {
   );
 }
 
-export function InlineEdit({ value, editing, onCommit, onCancel, labelStyle, inputStyle }: {
+export function InlineEdit({ value, editing, onCommit, onCancel, labelStyle, inputStyle, allowEmpty = false }: {
   value: string;
   editing: boolean;
   onCommit: (next: string) => void;
   onCancel: () => void;
   labelStyle?: CSSProperties;
   inputStyle?: CSSProperties;
+  allowEmpty?: boolean;                                         // B4g: pass-through so a cleared value commits ""
 }) {
   return editing
-    ? <EditInput initial={value} onCommit={onCommit} onCancel={onCancel} style={inputStyle} />
+    ? <EditInput initial={value} onCommit={onCommit} onCancel={onCancel} style={inputStyle} allowEmpty={allowEmpty} />
     : <span style={labelStyle}>{value}</span>;
 }

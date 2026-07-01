@@ -17,7 +17,8 @@ import {
   finalizeAttachment as gatewayFinalize, deleteAttachment as gatewayDeleteAttachment,
   attachmentsAvailable as gatewayAttachmentsAvailable,
   listProjects as gatewayListProjects, createProject as gatewayCreateProject,
-  updateProjectInstructions as gatewayUpdateProjectInstructions, deleteProject as gatewayDeleteProject,
+  updateProjectInstructions as gatewayUpdateProjectInstructions,
+  updateProjectDescription as gatewayUpdateProjectDescription, deleteProject as gatewayDeleteProject,
   listProjectKnowledge as gatewayListProjectKnowledge, addProjectKnowledge as gatewayAddProjectKnowledge,
   removeProjectKnowledge as gatewayRemoveProjectKnowledge,
   setConversationProject as gatewaySetConversationProject,
@@ -93,6 +94,10 @@ export const theoClient = {
   },
   // B4f: rename a project (theo_update_project {id, name}; deployed B4a).
   renameProject(id: string, name: string): Promise<Project> { return gatewayRenameProject(id, name); },
+  // B4g: edit the project description (theo_update_project {id, description}; deployed B4a).
+  updateProjectDescription(id: string, description: string): Promise<Project> {
+    return gatewayUpdateProjectDescription(id, description);
+  },
   deleteProject(id: string): Promise<void> { return gatewayDeleteProject(id); },
   listProjectKnowledge(projectId: string): Promise<Knowledge[]> { return gatewayListProjectKnowledge(projectId); },
   addProjectKnowledge(projectId: string, k: KDraft): Promise<Knowledge> { return gatewayAddProjectKnowledge(projectId, k); },

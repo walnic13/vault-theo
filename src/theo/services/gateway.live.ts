@@ -17,7 +17,8 @@ import {
   sendMessage as mockSend, listConversations as mockList, getConversation as mockGet,
   listProjectConversations as mockListProjectConversations,
   listProjects as mockListProjects, createProject as mockCreateProject,
-  updateProjectInstructions as mockUpdateProjectInstructions, deleteProject as mockDeleteProject,
+  updateProjectInstructions as mockUpdateProjectInstructions,
+  updateProjectDescription as mockUpdateProjectDescription, deleteProject as mockDeleteProject,
   listProjectKnowledge as mockListProjectKnowledge, addProjectKnowledge as mockAddProjectKnowledge,
   removeProjectKnowledge as mockRemoveProjectKnowledge,
   setConversationProject as mockSetConversationProject,
@@ -426,6 +427,25 @@ export async function updateProjectInstructions(id: string, instructions: string
     credentials: "same-origin",
     headers,
     body: JSON.stringify({ id, instructions }),
+  });
+  let json: { data?: { project?: RawProject }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const p = json?.data?.project;
+  if (!p) throw new Error("Theo gateway response missing data.project.");
+  return toProject(p);
+}
+
+// B4g: edit the project description (theo_update_project {id, description}; deployed B4a). Reuses the
+// generalized update handler — only `description` is sent (may be "" to clear). Returns the mapped Project.
+export async function updateProjectDescription(id: string, description: string): Promise<Project> {
+  if (!apiBase && !tokenProvider) return mockUpdateProjectDescription(id, description);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_update_project`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ id, description }),
   });
   let json: { data?: { project?: RawProject }; error?: { message?: string } } | null = null;
   try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }

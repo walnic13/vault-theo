@@ -26,6 +26,7 @@ export interface ProjectDetailProps {
   onSelectChat: (id: string) => void;            // B4e: open an existing project chat (restores the project)
   onRenameChat: (id: string, title: string) => void;   // B4f
   onDeleteChat: (id: string) => void;                   // B4f
+  onPatchDescription: (text: string) => void;           // B4g: edit the project description (theo_update_project {id, description})
 }
 
 // A collapsible section header (caret + title) with a conditional body. Local, inline — no new dep.
@@ -45,20 +46,39 @@ function Section({ title, open, onToggle, children }: { title: string; open: boo
   );
 }
 
-export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKnowledge, onRemoveKnowledge, onPatchInstructions, onStartChat, onSelectChat, onRenameChat, onDeleteChat }: ProjectDetailProps) {
+export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKnowledge, onRemoveKnowledge, onPatchInstructions, onStartChat, onSelectChat, onRenameChat, onDeleteChat, onPatchDescription }: ProjectDetailProps) {
   // Adaptive default: sections start expanded while the project has no chats (setup-first), and
   // collapse once it has chats (chats-first) — until the user explicitly toggles (null = follow default).
   const hasChats = chats.length > 0;
   const [kOpen, setKOpen] = useState<boolean | null>(null);
   const [iOpen, setIOpen] = useState<boolean | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);   // B4f: chat row being renamed in place
+  const [descEditing, setDescEditing] = useState(false);             // B4g: description edited in place
   const knowledgeOpen = kOpen ?? !hasChats;
   const instructionsOpen = iOpen ?? !hasChats;
 
   return (
     <div className="vo-scroll" style={{ flex: 1, overflowY: "auto" }}>
       <div style={{ maxWidth: 820, margin: "0 auto", padding: "26px 24px" }}>
-        {project.desc && <p style={{ color: C.ink2, fontSize: 14, marginTop: 0, marginBottom: 18 }}>{project.desc}</p>}
+        {/* B4g: editable project description — click the subtitle (or the "Add a description…" placeholder
+            when empty) to edit in place; Enter/blur saves (empty allowed to clear), Esc cancels. */}
+        <div style={{ marginTop: 0, marginBottom: 18 }}>
+          {descEditing ? (
+            <InlineEdit
+              value={project.desc} editing allowEmpty
+              onCommit={(next) => { setDescEditing(false); if (next !== project.desc) onPatchDescription(next); }}
+              onCancel={() => setDescEditing(false)}
+              inputStyle={{ fontSize: 14, color: C.ink2 }}
+            />
+          ) : (
+            <p
+              onClick={() => setDescEditing(true)} title="Edit description"
+              style={{ color: project.desc ? C.ink2 : C.ink3, fontSize: 14, margin: 0, cursor: "text" }}
+            >
+              {project.desc || "Add a description…"}
+            </p>
+          )}
+        </div>
 
         {/* Chats-first: the project's conversations + new-chat */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>

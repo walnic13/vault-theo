@@ -332,6 +332,28 @@ export function useTheoState() {
         .catch(() => setError("Couldn't save the project instructions."));
     }, INSTRUCTIONS_SAVE_DEBOUNCE_MS);
   }
+  // B4g: edit the project description (theo_update_project {id, description}). Committed once on
+  // Enter/blur (edit-in-place), so no debounce — unlike instructions (a continuously-typed textarea).
+  // Optimistic across the projects list AND the held chatProject (independent of the list, B4d/B4e);
+  // on failure resync the list AND roll back the held chip's description (same discipline as renameProject
+  // — a list-only resync would leave the stale optimistic description on the active chat's project).
+  async function patchDescription(text: string) {
+    if (!detailId) return;
+    const id = detailId;
+    const desc = text.trim();
+    const prevChatDesc = chatProject && chatProject.id === id ? chatProject.desc : null;
+    setProjects((ps) => ps.map((p) => (p.id === id ? { ...p, desc } : p)));
+    setChatProject((cp) => (cp && cp.id === id ? { ...cp, desc } : cp));
+    try {
+      const p = await theoClient.updateProjectDescription(id, desc);
+      setProjects((ps) => ps.map((x) => (x.id === id ? { ...x, desc: p.desc, updated: p.updated } : x)));
+      setChatProject((cp) => (cp && cp.id === id ? { ...cp, desc: p.desc } : cp));
+    } catch {
+      setError("Couldn't save the description.");
+      void loadProjects();
+      if (prevChatDesc != null) setChatProject((cp) => (cp && cp.id === id ? { ...cp, desc: prevChatDesc } : cp));
+    }
+  }
   // B4c: add a knowledge item live (theo_add_project_knowledge); append the returned row.
   async function addKnowledge() {
     if (!detailId || !kdraft.title.trim() || !kdraft.content.trim()) return;
@@ -430,7 +452,7 @@ export function useTheoState() {
     go, toggleCollapse: () => setCollapsed((v) => !v), setSearch, setDraft, newChat, startInProject, openProject,
     clearChatProject: () => setChatProject(null), send, ingestAppContext, selectRecent, loadRecents, loadProjects,
     addFiles, addPastedText, removeAttachment,
-    toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, setKdraft, addKnowledge, removeKnowledge,
+    toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, patchDescription, setKdraft, addKnowledge, removeKnowledge,
     renameProject, deleteProject, renameConversation, deleteConversation,
     selectStyle: setStyleKey, setCustom, save, copyArt,
     selectVersion: (v: number) => setOpenArt(openArt ? { id: openArt.id, v } : null),

@@ -101,6 +101,14 @@ export async function updateProjectInstructions(id: string, instructions: string
   return cloneProject(found);
 }
 
+// B4g: edit the project description (theo_update_project {id, description}). Mirrors updateProjectInstructions.
+export async function updateProjectDescription(id: string, description: string): Promise<Project> {
+  mockProjects = mockProjects.map((p) => (p.id === id ? { ...p, desc: description, updated: "just now" } : p));
+  const found = mockProjects.find((p) => p.id === id);
+  if (!found) throw new Error("Project not found.");
+  return cloneProject(found);
+}
+
 // B4f: rename a project (theo_update_project {id, name}). Mirrors updateProjectInstructions.
 export async function renameProject(id: string, name: string): Promise<Project> {
   mockProjects = mockProjects.map((p) => (p.id === id ? { ...p, name: name.trim(), updated: "just now" } : p));

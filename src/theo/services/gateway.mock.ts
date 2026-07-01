@@ -41,6 +41,13 @@ export async function listConversations(limit?: number): Promise<ConversationSum
   }));
 }
 
+// B4e: a project's conversations (theo_list_conversations?projectId). The standalone harness has no
+// project-linked conversations (the RECENTS seed carries project_id:null), so it returns empty.
+export async function listProjectConversations(projectId: string): Promise<ConversationSummary[]> {
+  void projectId;
+  return [];
+}
+
 export async function getConversation(id: string): Promise<ConversationDetail> {
   return {
     conversation: {

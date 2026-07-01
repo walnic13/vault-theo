@@ -15,6 +15,7 @@ import type {
 } from "../types";
 import {
   sendMessage as mockSend, listConversations as mockList, getConversation as mockGet,
+  listProjectConversations as mockListProjectConversations,
   listProjects as mockListProjects, createProject as mockCreateProject,
   updateProjectInstructions as mockUpdateProjectInstructions, deleteProject as mockDeleteProject,
   listProjectKnowledge as mockListProjectKnowledge, addProjectKnowledge as mockAddProjectKnowledge,
@@ -202,6 +203,30 @@ export async function listConversations(limit?: number): Promise<ConversationSum
     headers,
   });
 
+  let json: { data?: { conversations?: ConversationSummary[] }; error?: { message?: string } } | null = null;
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`);
+  }
+  if (!res.ok) {
+    throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  }
+  return Array.isArray(json?.data?.conversations) ? json.data.conversations : [];
+}
+
+// B4e — a project's conversations (theo_list_conversations?projectId; owner-scoped, B4d). Backs the
+// per-project chat list in the project home. Unconfigured harness → mock (empty).
+export async function listProjectConversations(projectId: string): Promise<ConversationSummary[]> {
+  if (!apiBase && !tokenProvider) {
+    return mockListProjectConversations(projectId);
+  }
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_list_conversations?projectId=${encodeURIComponent(projectId)}`, {
+    method: "GET",
+    credentials: "same-origin",
+    headers,
+  });
   let json: { data?: { conversations?: ConversationSummary[] }; error?: { message?: string } } | null = null;
   try {
     json = await res.json();

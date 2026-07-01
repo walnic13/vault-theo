@@ -7,5 +7,5 @@
   - **Artifact-panel scope** — panel shows only in chat/artifacts views (no longer lingers on the project home) and clears on thread switch.
 - **Changed (6 files in `proposed-src/theo/`):** `components/ProjectDetail.tsx` (redesign), `components/TheoMain.tsx` (props + artifact gate), `useTheoState.ts` (`projectChats` + `loadProjectChats` + artifact-close), `services/gateway.live.ts` + `gateway.mock.ts` + `theoClient.ts` (`listProjectConversations`).
 - **No backend change** — consumes the deployed B4d `?projectId` list. API-Spec row lands via the in-flight B4d Role-C (disclosed PRE-LAND G-4).
-- **Validation:** 6 files applied to a scratch `src` → `tsc` + `eslint` (exit 0) + `build` clean (TheoSurface 225.7 KB / 67.8 KB gzip); `src` reverted. Microstep lint → PASS. HEAD `2287265`.
+- **Validation:** 6 files applied to a scratch `src` → `tsc` + `eslint` (exit 0) + `build` clean (TheoSurface 225.7 KB / 67.8 KB gzip); `src` reverted. Microstep lint → PASS. HEAD `2f4b197` (APPROVED; keyed/guarded projectChats fix).
 - **Pipeline:** Author = Claude Code (Pass 1). Reviewer = Codex (Pass 2). On APPROVAL → Pass 3 applies the 6 files, Walter redeploys the Theo SWA (Visual Acceptance Evidence).

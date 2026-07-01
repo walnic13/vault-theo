@@ -11,6 +11,7 @@ import { parseArtifacts, remapToIds, upsert } from "../lib/artifacts";
 import {
   sendMessage as gatewaySend, sendMessageStream as gatewaySendStream, configureGateway as gatewayConfigure,
   listConversations as gatewayList, getConversation as gatewayGet,
+  listProjectConversations as gatewayListProjectConversations,
   listConversationAttachments as gatewayListConvAttachments,
   createAttachmentUpload as gatewayCreateUpload, uploadToBlob as gatewayUploadToBlob,
   finalizeAttachment as gatewayFinalize, deleteAttachment as gatewayDeleteAttachment,
@@ -60,6 +61,10 @@ export const theoClient = {
   },
   getConversation(id: string): Promise<ConversationDetail> {
     return gatewayGet(id);
+  },
+  // B4e: a project's conversations (theo_list_conversations?projectId) — backs the project-home chat list.
+  listProjectConversations(projectId: string): Promise<ConversationSummary[]> {
+    return gatewayListProjectConversations(projectId);
   },
   // B8i reload parity — a conversation's persisted attachments (grouped per user turn by message_seq).
   listConversationAttachments(id: string): Promise<ConversationAttachment[]> {

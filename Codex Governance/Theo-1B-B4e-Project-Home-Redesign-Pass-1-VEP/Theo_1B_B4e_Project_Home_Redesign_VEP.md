@@ -7,7 +7,7 @@
 ## GROUNDING CONFORMANCE RECEIPT
 Role: Claude Code
 Turn Type: Verified Evidence Pack (frontend plan)
-Turn issued against HEAD: `2287265` (vault-theo, `development`)
+Turn issued against HEAD: `2f4b197` (vault-theo, `development`; src-grounding blobs below are unchanged since `2287265` — the fix commits touched only this package's `proposed-src`)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A

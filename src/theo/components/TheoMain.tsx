@@ -71,7 +71,7 @@ export function TheoMain({ t, mode }: TheoMainProps) {
             <ProjectsView projects={t.projects} npOpen={t.npOpen} np={t.np} onNpChange={t.setNp} onToggleNp={t.toggleNp} onCreate={t.createProject} onOpenProject={t.openProject} />
           )}
           {t.view === "project" && t.detail && (
-            <ProjectDetail project={t.detail} kdraft={t.kdraft} onKdraftChange={t.setKdraft} onAddKnowledge={t.addKnowledge} onRemoveKnowledge={t.removeKnowledge} onPatchInstructions={t.patchInstructions} onStartChat={() => t.startInProject(t.detail!.id)} />
+            <ProjectDetail project={t.detail} chats={t.projectChats} kdraft={t.kdraft} onKdraftChange={t.setKdraft} onAddKnowledge={t.addKnowledge} onRemoveKnowledge={t.removeKnowledge} onPatchInstructions={t.patchInstructions} onStartChat={() => t.startInProject(t.detail!.id)} onSelectChat={t.selectRecent} />
           )}
           {t.view === "artifacts" && (
             <ArtifactsView artifacts={t.artifacts} onOpenArtifact={t.openArtifact} />
@@ -81,7 +81,9 @@ export function TheoMain({ t, mode }: TheoMainProps) {
           )}
         </div>
 
-        {t.art && (
+        {/* B4e: the artifact panel belongs to chat/artifacts contexts — hide it on projects/customize
+            so a generated deliverable doesn't linger over the project home (it re-shows on return). */}
+        {t.art && (t.view === "chats" || t.view === "artifacts") && (
           <ArtifactPanel artifact={t.art} openVersion={t.openArt ? t.openArt.v : -1} onSelectVersion={t.selectVersion} onCopy={t.copyArt} copied={t.copied} onClose={t.closeArt} />
         )}
       </div>

@@ -1,0 +1,10 @@
+# Codex Governance Package — Theo 1B B5c-FE Per-Member Invite Pass-1 VEP
+
+- **Main artifact:** `Theo_1B_B5c_FE_Per_Member_Invite_VEP.md` — Pass-1 Frontend VEP (plan only). Reviewer = Codex (Pass 2). FE-VEP shape: GCR + Rule Anchor Table + F-P1…F-P7 + CCT + Mechanical lint block.
+- **Microstep:** Tier **B5c FE** — the invite UI over the deployed B5c backend: (1) an **owner-only invite section** on the project home (current members with revoke + a teammate picker sourced from the `theo_list_people` roster, §2.9); (2) a **"Shared with you" grid badge** for a targeted invite (`shared_with_me`, distinct from team-wide `group`); (3) refined shared-with-me note wording.
+- **Backend: already deployed + golden-verified** (B5c `8200683`; §2.2 Role-C `33d77dd` pending Codex exec). No backend change.
+- **Proposed source (`proposed-src/theo/`)** — 8 modifications: `types.ts` (+`sharedWithMe`, +`ProjectMember`/`Person`), `services/gateway.live.ts` (+4 fns + `shared_with_me` map), `services/gateway.mock.ts` (+4 mock fns + member store), `services/theoClient.ts` (+4 passthroughs), `useTheoState.ts` (member/roster state + `shareMember`/`unshareMember` guarded actions + owner-gated load), `components/ProjectDetail.tsx` (invite section), `components/ProjectsView.tsx` (badge), `components/TheoMain.tsx` (wire props). `data.ts` unchanged.
+- **Classification:** VISUAL-AUTHORITY-DEVIATION (Walter-directed per-member invite). Config-only sharing — transcripts stay private (server-enforced). Per-(project|member) in-flight guard mirrors the B5a `visReq`/`visPending` discipline.
+- **Validation this turn:** applied to `src` → `tsc` (exit 0) + `eslint` (exit 0) + `build` green (TheoSurface 246.64 KB / 72.55 KB gzip); `src` reverted (package carries only `proposed-src/`). Microstep lint → PASS.
+- **Currency:** vault-theo HEAD `33d77dd`.
+- **Pipeline:** Author = Claude Code (Pass 1). Reviewer = Codex (Pass 2). On APPROVAL → Pass 3 apply the 8 files to `src` on `development` + Walter redeploys the Theo SWA. **Completes the B5 sharing/visibility tier** (Phase 1 group-visible + Phase 2 roster/People panel + per-member invite). Native chat is the next, separate project.

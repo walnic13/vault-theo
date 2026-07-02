@@ -1,0 +1,30 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Dependencies
+node_modules
+dist
+dist-ssr
+
+# Local env files (never commit secrets)
+.env
+.env.*
+!.env.example
+*.local
+
+# Local-only Claude Code bootstrap + scratch (NEVER commit)
+CLAUDE.local.md
+.local/
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

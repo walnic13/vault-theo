@@ -1,0 +1,10 @@
+# Codex Governance Package — Theo 1B B5a Project Visibility (backend) Pass-1 VEP
+
+- **Main artifact:** `Theo_1B_B5a_Project_Visibility_Backend_VEP.md` — Pass-1 backend VEP (plan + migration + handlers). Reviewer = Codex (Pass 2).
+- **Microstep:** Tier **B5 (Sharing/Visibility), Phase 1 backend** — group-visible project sharing (Walter's "both, phased" decision → group-visible half now; per-member invite is Phase 2). An owner flips a project to `visibility='group'`; it + its knowledge/instructions become readable by any authenticated Vault user; members chat with their **own** conversations (**config-only sharing** — conversations/messages RLS unchanged, no transcript exposure).
+- **Migration (additive + reversible):** `b5a_migration.sql` — `theo_projects.visibility text NOT NULL DEFAULT 'private' CHECK ('private','group')` + broadened SELECT-only RLS on `theo_projects` + `theo_project_knowledge` (own ∨ group-visible). Read-only `b5a_verify.sql`. **Walter-authorized** (sharing-model decision).
+- **Handlers:** 1 GREENFIELD `theo_set_project_visibility` (owner-only) + 3 MODIFIED (`theo_list_projects` +visibility/is_owner + broadened set; `theo_list_project_knowledge` accessible-project gate; `theo_set_conversation_project` accessible-project link). Each MODIFIED handler needs its own redeploy (B4d lesson).
+- **Primary Reference:** deployed `theo_update_project` pair (owner-scoped UPDATE over `theo_projects`); inlined byte-verbatim (§SM/§SM-FJ).
+- **Boundary:** no Graph, no vault-origin change, no `theo_message`/`theo_message_stream` change, conversations/messages RLS untouched. Phase 2 (roster/presence + invite) needs an admin-consented Graph grant — out of this pack.
+- **Validation:** all four `node --check` clean; function.json JSON-valid; migration/verify plain SQL; microstep lint → PASS; HEAD `87de16e`.
+- **Pipeline:** Author = Claude Code (Pass 1). Reviewer = Codex (Pass 2). On APPROVAL → Walter runs migration + deploys 4 functions → golden curls → API-Spec §2.2 Role-C → B5a-FE (visibility toggle + "Shared" badge).

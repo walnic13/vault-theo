@@ -1,0 +1,10 @@
+{
+  "name": "vaultgpt-func-stream",
+  "version": "1.0.0",
+  "description": "Theo streaming sidecar — theo_message_stream (v4 model, SSE relay of Foundry-Claude).",
+  "main": "src/functions/*.js",
+  "dependencies": {
+    "@azure/functions": "^4.5.0",
+    "pg": "^8.11.0"
+  }
+}

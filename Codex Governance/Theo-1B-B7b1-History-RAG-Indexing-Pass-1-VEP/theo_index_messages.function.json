@@ -1,0 +1,10 @@
+{
+  "bindings": [
+    {
+      "name": "indexTimer",
+      "type": "timerTrigger",
+      "direction": "in",
+      "schedule": "0 5,20,35,50 * * * *"
+    }
+  ]
+}

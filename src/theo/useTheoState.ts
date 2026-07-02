@@ -89,6 +89,12 @@ export function useTheoState() {
   const art = openArt ? (artifacts.find((a) => a.id === openArt.id) ?? null) : null;
   const recents = recentsList.filter((c) => c.title.toLowerCase().includes(search.toLowerCase()));
   const activeStyle = STYLES.find((s) => s.key === styleKey) ?? STYLES[0];
+  // Personalization: the signed-in user's own row in the roster (theo_list_people isSelf) supplies the
+  // display name. `selfFullName` is injected into the system prompt (Theo knows who it's with) and
+  // `selfName` (first name) greets the user on the home landing. Empty until the roster loads (mount);
+  // greeting falls back to the bare time-of-day, so there is no flash of a wrong name.
+  const selfFullName = (people.find((p) => p.isSelf)?.displayName ?? "").trim();
+  const selfName = selfFullName ? selfFullName.split(/\s+/)[0] : "";
 
   // Load the signed-in user's conversations for Recents (live → theo_list_conversations; mock fallback
   // in the standalone harness). useCallback-stable so TheoSurface's mount effect runs it once.
@@ -345,7 +351,7 @@ export function useTheoState() {
       });
     try {
       await theoClient.sendMessageStream({
-        model: MODEL, max_tokens: 1500, system: buildSystemPrompt(styleKey, custom, chatProject),
+        model: MODEL, max_tokens: 1500, system: buildSystemPrompt(styleKey, custom, chatProject, selfFullName),
         messages: next.map((m) => ({ role: m.role, content: stripArtifactRefs(m.content) })),
         ...(conversationId ? { conversation_id: conversationId } : {}),
         app_key: appContext.app_key, app_context: appContext.app_context,
@@ -610,6 +616,6 @@ export function useTheoState() {
     selectStyle: setStyleKey, setCustom, save, copyArt,
     selectVersion: (v: number) => setOpenArt(openArt ? { id: openArt.id, v } : null),
     openArtifact: (id: string) => setOpenArt({ id, v: -1 }), openGalleryArtifact, closeArt: () => setOpenArt(null),
-    greeting: greeting(),
+    greeting: greeting(selfName), loadPeople,
   };
 }

@@ -1,6 +1,6 @@
 -- Theo B5c — read-only verification (run after b5c_migration.sql). SELECT-only; no writes.
 
--- V1) theo_project_members table + PK + FK present.
+-- V1) theo_project_members table + RLS enabled.
 SELECT
   c.relname AS table_name,
   c.relrowsecurity AS rls_enabled
@@ -27,15 +27,9 @@ SELECT indexname FROM pg_indexes
 WHERE schemaname = 'public' AND tablename = 'theo_project_members'
 ORDER BY indexname;
 
--- V5) SECURITY DEFINER helpers present (both prosecdef = true).
-SELECT p.proname, p.prosecdef AS security_definer
-FROM pg_proc p
-JOIN pg_namespace n ON n.oid = p.pronamespace
-WHERE n.nspname = 'public'
-  AND p.proname IN ('theo_project_member_project_ids', 'theo_owned_project_ids')
-ORDER BY p.proname;
-
--- V6) membership policies (3: select/insert/delete) + broadened project/knowledge SELECT policies.
+-- V5) membership policies (3: select/insert/delete) + broadened project/knowledge SELECT policies.
+--     Confirms the membership SELECT policy is present (self-contained) and the projects/knowledge
+--     SELECT policies were re-created with the member clause. No SECURITY DEFINER helper is used.
 SELECT c.relname AS tablename, p.polname, p.polcmd
 FROM pg_policy p
 JOIN pg_class c ON c.oid = p.polrelid

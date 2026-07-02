@@ -1,17 +1,19 @@
 # Theo 1B — B5c Per-Member Project Invite (backend: `theo_share_project` / `theo_unshare_project` / `theo_list_project_members` + member-shared RLS/handler broadening) — Pass 1 Backend VEP
 
-> Pipeline: Vault Theo backend regime. Author = Claude Code (Pass 1). Reviewer = **Codex** (Pass 2). Plan-only; complete migration + handlers provided for Walter to deploy at Pass 3, after which Claude Code runs the golden curls. **Microstep:** the **per-member invite** half of the Sharing/Visibility tier (Tier B5) — the Phase-2 fast-follow to B5a's group-visible sharing (Walter's "both, phased" decision). A project owner invites **specific** Vault users (by Entra OID, the same identity `theo_list_people` returns) to a project; an invited member can read that project + its knowledge/instructions and chat with **their own** conversations in it (**config-only sharing** — `theo_conversations`/`theo_messages` RLS UNCHANGED). **Additive, reversible migration** (new `theo_project_members` table + two SECURITY DEFINER cycle-breaker helpers + broadened SELECT-only RLS on `theo_projects` + `theo_project_knowledge`). Three GREENFIELD handlers (`theo_share_project`, `theo_unshare_project`, `theo_list_project_members`, all owner-only) + three MODIFIED handlers (`theo_list_projects`, `theo_list_project_knowledge`, `theo_set_conversation_project`) broaden their explicit predicate from `owned ∨ group-visible` to `owned ∨ group-visible ∨ shared-with-me`. No Microsoft Graph, no Blob, no model gateway; no vault-origin change (the FE invite picker is the paired B5c-FE microstep).
+> Pipeline: Vault Theo backend regime. Author = Claude Code (Pass 1). Reviewer = **Codex** (Pass 2). Plan-only; complete migration + handlers provided for Walter to deploy at Pass 3, after which Claude Code runs the golden curls. **Microstep:** the **per-member invite** half of the Sharing/Visibility tier (Tier B5) — the Phase-2 fast-follow to B5a's group-visible sharing (Walter's "both, phased" decision). A project owner invites **specific** Vault users (by Entra OID, the same identity `theo_list_people` returns) to a project; an invited member can read that project + its knowledge/instructions and chat with **their own** conversations in it (**config-only sharing** — `theo_conversations`/`theo_messages` RLS UNCHANGED). **Additive, reversible migration** (new `theo_project_members` table + broadened SELECT-only RLS on `theo_projects` + `theo_project_knowledge`; no SECURITY DEFINER helper — see R1 below). Three GREENFIELD handlers (`theo_share_project`, `theo_unshare_project`, `theo_list_project_members`, all owner-only) + three MODIFIED handlers (`theo_list_projects`, `theo_list_project_knowledge`, `theo_set_conversation_project`) broaden their explicit predicate from `owned ∨ group-visible` to `owned ∨ group-visible ∨ shared-with-me`. No Microsoft Graph, no Blob, no model gateway; no vault-origin change (the FE invite picker is the paired B5c-FE microstep).
 
 ---
+
+**R1 REVISION (Codex Pass-2 REJECT, valid — fixed):** R0 broke the `theo_projects`↔`theo_project_members` RLS cycle with two new SECURITY DEFINER enumeration helpers. Codex correctly fired **T12**: that is a *new* elevated-read helper class (not an existing `_exists_unscoped` existence helper, not a scheduled-timer enumeration helper) used by HTTP-path RLS policies, and the pack quoted no prior Walter authorization/amendment for the class. **Fixed by removing both helpers entirely** — no SECURITY DEFINER, no new elevated-read class. The cycle is now broken by keeping the membership SELECT policy **self-contained**: a member is authorized by `member_oid = auth.uid()` and the owner by `invited_by = auth.uid()` (invited_by is always the owning inviter, set by `theo_share_project` + enforced by the INSERT policy; ownership does not transfer). Because that policy references no other table, `theo_projects`' member subquery terminates at it and there is no mutual recursion. This uses only ordinary ownership-family RLS primitives (`auth.uid()`) — the authorized default family (Architecture §5.2) — so no authority amendment is required.
 
 ## GROUNDING CONFORMANCE RECEIPT
 Role: Claude Code
 Turn Type: Verified Evidence Pack (backend plan)
-Turn issued against HEAD: `e288e29` (vault-theo, `development`)
+Turn issued against HEAD: `6504992` (vault-theo, `development`)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P8
-Detail: Pass 1 backend VEP; P1–P8 walked; includes an **additive schema migration** (§MIGRATION) with two **SECURITY DEFINER** helpers that break the `theo_projects`↔`theo_project_members` RLS cross-reference cycle (Postgres "infinite recursion in policy" avoidance), mirroring the deployed `theo_*_exists_unscoped` SECURITY DEFINER pattern. Primary Reference (Golden §2) = the **deployed** `theo_set_project_visibility` **pair** (B5a) — owner-scoped mutation over `theo_projects` with the `set_config` triad / owner predicate / 0-row → `theo_project_exists_unscoped` → 403-404 / 42501-isKnown-500 mapping, inlined verbatim §SM/§SM-FJ. The three GREENFIELD handlers mirror it (owner-only writes/reads over the new membership table). The three MODIFIED handlers are their own deployed B5a selves with the single ALLOWED DELTA of broadening the project predicate to add `OR id IN (member rows)` (list_projects also adds a `shared_with_me` boolean). Contract basis = deployed `theo_projects` + `theo_project_knowledge` (Schema §3/§5) + Backend Plan Tier B4. Config-only sharing: `theo_conversations`/`theo_messages` RLS UNCHANGED. Schema change is Walter-authorized (sharing-model decision — per-member invite, the B5a Phase-2 fast-follow). Validation precedes SQL. Full Baseline per Conformance §4.
+Detail: Pass 1 backend VEP; P1–P8 walked; includes an **additive schema migration** (§MIGRATION) whose RLS avoids the `theo_projects`↔`theo_project_members` cross-reference cycle by a **self-contained membership SELECT policy** (`member_oid = auth.uid() OR invited_by = auth.uid()`) — NO SECURITY DEFINER helper, only ordinary ownership-family `auth.uid()` primitives (R1 fix for Codex T12). Primary Reference (Golden §2) = the **deployed** `theo_set_project_visibility` **pair** (B5a) — owner-scoped mutation over `theo_projects` with the `set_config` triad / owner predicate / 0-row → `theo_project_exists_unscoped` → 403-404 / 42501-isKnown-500 mapping, inlined verbatim §SM/§SM-FJ. The three GREENFIELD handlers mirror it (owner-only writes/reads over the new membership table). The three MODIFIED handlers are their own deployed B5a selves with the single ALLOWED DELTA of broadening the project predicate to add `OR id IN (member rows)` (list_projects also adds a `shared_with_me` boolean). Contract basis = deployed `theo_projects` + `theo_project_knowledge` (Schema §3/§5) + Backend Plan Tier B4. Config-only sharing: `theo_conversations`/`theo_messages` RLS UNCHANGED. Schema change is Walter-authorized (sharing-model decision — per-member invite, the B5a Phase-2 fast-follow). Validation precedes SQL. Full Baseline per Conformance §4.
 Currency anchors: blob SHA via `git rev-parse HEAD:<path>`; verifiable via `git cat-file -p <sha>`.
 
 | # | Document (name + path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
@@ -59,7 +61,7 @@ No ChatGPT advisory cited (§4D / T18). No `reporting_*`/`corporate-reporting` c
 ## P2 — Architecture & boundary reconciliation
 - **Family-B.** `pg` Pool; per-request `set_config` triad; the two write handlers (`theo_share_project`/`theo_unshare_project`) and `theo_set_conversation_project` are mutations `connect→BEGIN→…→COMMIT` with `catch ROLLBACK`; the reads (`theo_list_project_members`, `theo_list_projects`, `theo_list_project_knowledge`) keep the read shape (connect, set_config, query).
 - **Ownership family + a cited membership extension (Architecture §5.2 "Default family: ownership-based").** Writes stay owner-only (only the owner invites/revokes; membership INSERT/DELETE RLS requires project ownership). The **SELECT-only** policies on `theo_projects` + `theo_project_knowledge` gain a deliberate `OR id IN (member rows)` clause — a cited, minimal read-broadening, layered on B5a's `OR visibility = 'group'`. Handlers carry the matching explicit predicate; RLS is the defense layer.
-- **RLS non-recursion (design-critical).** `theo_projects`' SELECT policy references membership and `theo_project_members`' policies reference project ownership — a cross-table cycle Postgres would reject as "infinite recursion detected in policy". The migration breaks it with two **SECURITY DEFINER** helpers (`theo_project_member_project_ids`, `theo_owned_project_ids`) that read the *other* table with RLS bypassed — the same SECURITY DEFINER technique as the deployed `theo_*_exists_unscoped` helpers. Every cross-table lookup in a policy goes through a helper; no policy triggers another RLS-protected table directly.
+- **RLS non-recursion (design-critical; R1 — no SECURITY DEFINER).** `theo_projects`' SELECT policy references membership, so `theo_project_members`' SELECT policy MUST NOT reference `theo_projects` (that mutual cycle is what Postgres rejects as "infinite recursion detected in policy"). We keep the membership **SELECT policy self-contained**: `member_oid = auth.uid() OR invited_by = auth.uid()` — the member sees their own row; the owner sees rows they invited (`invited_by` = the owner, stamped by `theo_share_project` and enforced by the INSERT policy; ownership does not transfer, so `invited_by = auth.uid()` is exactly "members of the projects I own"). Because that policy references no other table, `theo_projects`' member subquery terminates at it. The membership **INSERT/DELETE** policies may reference `theo_projects` for the owner check — that path is `projects.SELECT → members.SELECT` (self-contained) and terminates. No SECURITY DEFINER helper, no new elevated-read class — only the authorized ownership-family `auth.uid()` primitives (Architecture §5.2).
 - **Config-only sharing boundary.** `theo_conversations` + `theo_messages` RLS is **untouched** — a shared project shares its config (knowledge/instructions), never another user's chat transcripts. `theo_set_conversation_project` lets a member link **their own** conversation to a shared project; the conversation stays owner-scoped.
 - **Validation before SQL.** `isUuid` on `project_id` and `member_oid` (Entra OIDs are UUID-shaped); self-invite → deterministic 400 — all before any query.
 - **Boundary.** Reads/writes only `theo_projects` (owner check), `theo_project_knowledge` (read), `theo_project_members` (new), `theo_conversations.project_id` link (owner-scoped); **no `reporting_*`**; no Blob, no model gateway, no Graph; **no change to `theo_message`/`theo_message_stream`**.
@@ -68,7 +70,7 @@ No ChatGPT advisory cited (§4D / T18). No `reporting_*`/`corporate-reporting` c
 Grounded against Governor §8 (closed vocabulary `PROCEED`/`PRE-LAND`/`ESCALATE`/`NO-GAPS`).
 | Gap | Disclosure | Pivot |
 | --- | --- | --- |
-| G-1 | **Migration + deploy (Walter).** One new table + two SECURITY DEFINER helpers + two SELECT-policy broadenings + three membership policies (§MIGRATION); three new functions + three redeployed functions on `vaultgpt-func-premium`. Additive + reversible; Walter-authorized (sharing-model decision — per-member invite). | **PRE-LAND** — §DEPLOY; Claude Code golden curls confirm (owner invites member → member reads shared project + knowledge → member links own chat → non-member still blocked → owner-only invite/revoke/list → private stays isolated). |
+| G-1 | **Migration + deploy (Walter).** One new table + three membership policies + two SELECT-policy broadenings (§MIGRATION; no SECURITY DEFINER helper — R1); three new functions + three redeployed functions on `vaultgpt-func-premium`. Additive + reversible; Walter-authorized (sharing-model decision — per-member invite). | **PRE-LAND** — §DEPLOY; Claude Code golden curls confirm (owner invites member → member reads shared project + knowledge → member links own chat → non-member still blocked → owner-only invite/revoke/list → private stays isolated). |
 | G-2 | **Authority-doc update post-deploy.** API Spec §2.2 gains the `theo_share_project`/`theo_unshare_project`/`theo_list_project_members` rows + the member-shared read semantics + the `shared_with_me` field on list_projects. | **PRE-LAND** — a short API-Spec Role-C follows deploy (mirrors B4x/B5a), before the B5c-FE VEP cites it. |
 
 ## P3 — External-system reconciliation
@@ -91,7 +93,7 @@ Share is idempotent via the PK + `ON CONFLICT DO NOTHING`; unshare is idempotent
 ## P8 — Security / RLS reconciliation
 - Every query runs under the per-request `set_config` triad; the connection role enforces RLS, so handlers keep explicit owner/access predicates as the primary gate and RLS as defense.
 - Writes owner-only (membership INSERT/DELETE RLS requires project ownership; `invited_by = auth.uid()`). Reads broadened SELECT-only to `owned ∨ group ∨ member`.
-- **No RLS recursion** (§P2): SECURITY DEFINER helpers break the projects↔members cycle.
+- **No RLS recursion** (§P2): the self-contained membership SELECT policy (`member_oid = auth.uid() OR invited_by = auth.uid()`) breaks the projects↔members cycle with no SECURITY DEFINER helper and no new elevated-read class.
 - **No transcript exposure**: `theo_conversations`/`theo_messages` RLS untouched.
 - No leakage: exists-but-not-owned → 403, absent → 404 via the deployed SECURITY DEFINER existence helper.
 
@@ -108,33 +110,17 @@ Share is idempotent via the PK + `ON CONFLICT DO NOTHING`; unshare is idempotent
 -- owner-managed. Conversations / messages RLS is UNCHANGED (config-only sharing: members chat with
 -- their own conversations; no one reads another user's transcripts). Idempotent; safe to re-run.
 --
--- RLS non-recursion: theo_projects' SELECT policy references membership, and theo_project_members'
--- policies reference project ownership. To avoid Postgres "infinite recursion detected in policy",
--- each cross-table lookup goes through a SECURITY DEFINER helper (bypasses the other table's RLS),
--- mirroring the deployed theo_*_exists_unscoped SECURITY DEFINER helper pattern.
-
--- 0) SECURITY DEFINER helpers that break the projects<->members RLS cycle.
---    (a) the project_ids a given member is invited to (used by the two broadened SELECT policies).
-CREATE OR REPLACE FUNCTION public.theo_project_member_project_ids(p_member_oid text)
-RETURNS SETOF uuid
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT project_id FROM public.theo_project_members WHERE member_oid = p_member_oid
-$$;
-
---    (b) the project_ids a given user owns (used by the membership-table owner policies).
-CREATE OR REPLACE FUNCTION public.theo_owned_project_ids(p_owner_oid text)
-RETURNS SETOF uuid
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT id FROM public.theo_projects WHERE created_by = p_owner_oid
-$$;
+-- RLS non-recursion (NO new elevated-read helper): theo_projects' SELECT policy references
+-- theo_project_members, so theo_project_members' OWN policies MUST NOT reference theo_projects (that
+-- would create the mutual projects<->members cycle Postgres rejects as "infinite recursion detected
+-- in policy"). We keep the membership SELECT policy SELF-CONTAINED: a member sees rows where
+-- member_oid = auth.uid(); the owner sees rows where invited_by = auth.uid(). Because only a project
+-- owner can insert a membership row (INSERT policy below) and invited_by is stamped with that owner's
+-- OID, `invited_by = auth.uid()` is exactly "the members of the projects I own" — no theo_projects
+-- lookup, no cycle. The membership INSERT/DELETE policies MAY reference theo_projects for the owner
+-- check: that path is projects.SELECT -> members.SELECT (self-contained) and terminates. This uses
+-- only the ordinary ownership-family RLS primitives (auth.uid()); it introduces NO SECURITY DEFINER
+-- helper and NO new elevated-read class.
 
 -- 1) Membership table: (project_id, member_oid) grants READ access to a specific user.
 CREATE TABLE IF NOT EXISTS public.theo_project_members (
@@ -145,29 +131,32 @@ CREATE TABLE IF NOT EXISTS public.theo_project_members (
   PRIMARY KEY (project_id, member_oid)
 );
 
--- Lookup index for the member -> projects direction (RLS helper + list).
+-- Lookup index for the member -> projects direction (RLS member subquery + list).
 CREATE INDEX IF NOT EXISTS theo_project_members_member_idx
   ON public.theo_project_members (member_oid);
 
 ALTER TABLE public.theo_project_members ENABLE ROW LEVEL SECURITY;
 
 -- 2) Membership RLS (owner-managed; a member may see their OWN membership row).
---    SELECT: the member themselves OR the owner of the project (via SECURITY DEFINER owner helper).
+--    SELECT: the member themselves OR the owner who invited them (invited_by). SELF-CONTAINED — no
+--    reference to theo_projects, so no projects<->members recursion. invited_by is always the owning
+--    inviter (set by theo_share_project + enforced by the INSERT policy; ownership does not transfer).
 DROP POLICY IF EXISTS "theo_project_member_select_own" ON public.theo_project_members;
 CREATE POLICY "theo_project_member_select_own" ON public.theo_project_members
   FOR SELECT TO authenticated
   USING (
     member_oid = auth.uid()
-    OR project_id IN (SELECT public.theo_owned_project_ids(auth.uid()))
+    OR invited_by = auth.uid()
   );
 
---    INSERT: only the project OWNER may add a member; invited_by must be the owner themselves.
+--    INSERT: only the project OWNER may add a member; invited_by must be the owner themselves. The
+--    theo_projects subquery is safe (projects.SELECT -> members.SELECT is self-contained; terminates).
 DROP POLICY IF EXISTS "theo_project_member_insert_own" ON public.theo_project_members;
 CREATE POLICY "theo_project_member_insert_own" ON public.theo_project_members
   FOR INSERT TO authenticated
   WITH CHECK (
     invited_by = auth.uid()
-    AND project_id IN (SELECT public.theo_owned_project_ids(auth.uid()))
+    AND project_id IN (SELECT id FROM public.theo_projects WHERE created_by = auth.uid())
   );
 
 --    DELETE: only the project OWNER may remove a member.
@@ -175,30 +164,33 @@ DROP POLICY IF EXISTS "theo_project_member_delete_own" ON public.theo_project_me
 CREATE POLICY "theo_project_member_delete_own" ON public.theo_project_members
   FOR DELETE TO authenticated
   USING (
-    project_id IN (SELECT public.theo_owned_project_ids(auth.uid()))
+    project_id IN (SELECT id FROM public.theo_projects WHERE created_by = auth.uid())
   );
 --    (No UPDATE policy: membership rows are immutable — share/unshare is INSERT/DELETE.)
 
 -- 3) Broaden theo_projects SELECT: own OR group-visible OR shared-with-me (member row).
---    (INSERT/UPDATE/DELETE unchanged — owner-only.)
+--    (INSERT/UPDATE/DELETE unchanged — owner-only.) The member subquery reads theo_project_members
+--    under its SELF-CONTAINED SELECT policy, so this does not recurse.
 DROP POLICY IF EXISTS "theo_project_select_own" ON public.theo_projects;
 CREATE POLICY "theo_project_select_own" ON public.theo_projects
   FOR SELECT TO authenticated
   USING (
     created_by = auth.uid()
     OR visibility = 'group'
-    OR id IN (SELECT public.theo_project_member_project_ids(auth.uid()))
+    OR id IN (SELECT project_id FROM public.theo_project_members WHERE member_oid = auth.uid())
   );
 
 -- 4) Broaden theo_project_knowledge SELECT: own OR belongs to a group-visible OR shared-with-me project.
---    (INSERT/UPDATE/DELETE unchanged — only the project owner adds/removes knowledge.)
+--    (INSERT/UPDATE/DELETE unchanged — only the project owner adds/removes knowledge.) Both subqueries
+--    terminate: the group subquery hits projects.SELECT (-> members.SELECT self-contained); the member
+--    subquery hits members.SELECT (self-contained).
 DROP POLICY IF EXISTS "theo_project_knowledge_select_own" ON public.theo_project_knowledge;
 CREATE POLICY "theo_project_knowledge_select_own" ON public.theo_project_knowledge
   FOR SELECT TO authenticated
   USING (
     created_by = auth.uid()
     OR project_id IN (SELECT id FROM public.theo_projects WHERE visibility = 'group')
-    OR project_id IN (SELECT public.theo_project_member_project_ids(auth.uid()))
+    OR project_id IN (SELECT project_id FROM public.theo_project_members WHERE member_oid = auth.uid())
   );
 ```
 
@@ -207,7 +199,7 @@ CREATE POLICY "theo_project_knowledge_select_own" ON public.theo_project_knowled
 ```sql
 -- Theo B5c — read-only verification (run after b5c_migration.sql). SELECT-only; no writes.
 
--- V1) theo_project_members table + PK + FK present.
+-- V1) theo_project_members table + RLS enabled.
 SELECT
   c.relname AS table_name,
   c.relrowsecurity AS rls_enabled
@@ -234,15 +226,9 @@ SELECT indexname FROM pg_indexes
 WHERE schemaname = 'public' AND tablename = 'theo_project_members'
 ORDER BY indexname;
 
--- V5) SECURITY DEFINER helpers present (both prosecdef = true).
-SELECT p.proname, p.prosecdef AS security_definer
-FROM pg_proc p
-JOIN pg_namespace n ON n.oid = p.pronamespace
-WHERE n.nspname = 'public'
-  AND p.proname IN ('theo_project_member_project_ids', 'theo_owned_project_ids')
-ORDER BY p.proname;
-
--- V6) membership policies (3: select/insert/delete) + broadened project/knowledge SELECT policies.
+-- V5) membership policies (3: select/insert/delete) + broadened project/knowledge SELECT policies.
+--     Confirms the membership SELECT policy is present (self-contained) and the projects/knowledge
+--     SELECT policies were re-created with the member clause. No SECURITY DEFINER helper is used.
 SELECT c.relname AS tablename, p.polname, p.polcmd
 FROM pg_policy p
 JOIN pg_class c ON c.oid = p.polrelid
@@ -1804,7 +1790,7 @@ module.exports = async function (context, req) {
 ---
 
 ## §DEPLOY (Walter, Pass 3)
-1. Run `b5c_migration.sql` against `vaultgpt-postgres-prod` (schema `public`) as the migration role; then `b5c_verify.sql` (read-only) to confirm table + helpers + policies.
+1. Run `b5c_migration.sql` against `vaultgpt-postgres-prod` (schema `public`) as the migration role; then `b5c_verify.sql` (read-only) to confirm the table + membership/broadened policies (no SECURITY DEFINER helper is created).
 2. Create three new functions on `vaultgpt-func-premium`: `theo_share_project`, `theo_unshare_project`, `theo_list_project_members` (index.js + function.json each).
 3. Redeploy the three MODIFIED functions: `theo_list_projects`, `theo_list_project_knowledge`, `theo_set_conversation_project` (B4d lesson — each modified handler needs its own redeploy).
 4. Restart the Function App. Then Claude Code runs §CURL.

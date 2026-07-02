@@ -56,6 +56,11 @@ export function useTheoState() {
   const [projectChatsState, setProjectChatsState] = useState<{ projectId: string; chats: ConversationSummary[] } | null>(null);
   const instrTimer = useRef<ReturnType<typeof setTimeout> | null>(null);  // B4c: instruction-save debounce
   const projectChatsReq = useRef<string | null>(null);                    // B4e: latest-opened project id (guards the chats load)
+  // B5a: per-project in-flight guard for the visibility toggle — prevents overlapping/out-of-order
+  // visibility writes on an access-control affordance (Codex B5a-FE finding). The ref is the hard
+  // serialization (ignore a click while a write for that id is pending); visPending drives the disabled UI.
+  const visReq = useRef<Set<string>>(new Set());
+  const [visPending, setVisPending] = useState<string | null>(null);
 
   // Pass B: ingest the inbound app-context anchor (from the Origin shell, in-process) and carry it
   // on the conversation (in-memory). Presentational — no app-data fetch (VA-T3 §2.4).
@@ -445,6 +450,12 @@ export function useTheoState() {
   // list AND the held chatProject; resync from the server value on success, roll back both on failure
   // (same independent-chatProject discipline as renameProject — snapshot prior values, restore in catch).
   async function setProjectVisibility(id: string, visibility: "private" | "group") {
+    // Per-project in-flight guard: a visibility write for this project is already pending → ignore
+    // (the toggle is also disabled via visPending). Serializes writes so no out-of-order resolution
+    // can leave the UI/server at a stale visibility (Codex B5a-FE finding).
+    if (visReq.current.has(id)) return;
+    visReq.current.add(id);
+    setVisPending(id);
     const prev = projects.find((p) => p.id === id)?.visibility ?? null;
     const prevChat = chatProject && chatProject.id === id ? chatProject.visibility : null;
     setProjects((ps) => ps.map((p) => (p.id === id ? { ...p, visibility } : p)));
@@ -458,6 +469,9 @@ export function useTheoState() {
       setError("Couldn't change sharing for this project.");
       if (prev != null) setProjects((ps) => ps.map((p) => (p.id === id ? { ...p, visibility: prev } : p)));
       if (prevChat != null) setChatProject((cp) => (cp && cp.id === id ? { ...cp, visibility: prevChat } : cp));
+    } finally {
+      visReq.current.delete(id);
+      setVisPending((p) => (p === id ? null : p));
     }
   }
   // B4f: rename a conversation (theo_rename_conversation {id, title}; deployed B4f). Optimistic across
@@ -515,7 +529,7 @@ export function useTheoState() {
     clearChatProject: () => setChatProject(null), send, ingestAppContext, selectRecent, loadRecents, loadProjects, loadGalleryArtifacts,
     addFiles, addPastedText, removeAttachment,
     toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, patchDescription, setKdraft, addKnowledge, removeKnowledge,
-    renameProject, deleteProject, setProjectVisibility, renameConversation, deleteConversation,
+    renameProject, deleteProject, setProjectVisibility, visPending, renameConversation, deleteConversation,
     selectStyle: setStyleKey, setCustom, save, copyArt,
     selectVersion: (v: number) => setOpenArt(openArt ? { id: openArt.id, v } : null),
     openArtifact: (id: string) => setOpenArt({ id, v: -1 }), openGalleryArtifact, closeArt: () => setOpenArt(null),

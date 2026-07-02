@@ -28,6 +28,7 @@ export interface ProjectDetailProps {
   onDeleteChat: (id: string) => void;                   // B4f
   onPatchDescription: (text: string) => void;           // B4g: edit the project description (theo_update_project {id, description})
   onSetVisibility: (id: string, visibility: "private" | "group") => void;   // B5a: owner-only share toggle
+  visibilityBusy: boolean;   // B5a: a visibility write for this project is in flight → disable the toggle
 }
 
 // A collapsible section header (caret + title) with a conditional body. Local, inline — no new dep.
@@ -47,7 +48,7 @@ function Section({ title, open, onToggle, children }: { title: string; open: boo
   );
 }
 
-export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKnowledge, onRemoveKnowledge, onPatchInstructions, onStartChat, onSelectChat, onRenameChat, onDeleteChat, onPatchDescription, onSetVisibility }: ProjectDetailProps) {
+export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKnowledge, onRemoveKnowledge, onPatchInstructions, onStartChat, onSelectChat, onRenameChat, onDeleteChat, onPatchDescription, onSetVisibility, visibilityBusy }: ProjectDetailProps) {
   // B5a: only the owner may edit config (description / knowledge / instructions / sharing). A
   // shared-with-me project (isOwner=false) is read-only + chattable — members see the config but can't
   // change it, and chat with their own conversations.
@@ -91,17 +92,18 @@ export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKno
             <>
               <span style={{ fontSize: 12.5, color: C.ink3 }}>Sharing</span>
               <button
-                onClick={() => onSetVisibility(project.id, project.visibility === "group" ? "private" : "group")}
+                disabled={visibilityBusy}
+                onClick={() => { if (!visibilityBusy) onSetVisibility(project.id, project.visibility === "group" ? "private" : "group"); }}
                 title={project.visibility === "group" ? "Make private" : "Share with the team"}
                 style={{
-                  display: "inline-flex", alignItems: "center", gap: 7, cursor: "pointer", fontFamily: SANS, fontSize: 12.5, fontWeight: 600,
-                  borderRadius: 999, padding: "5px 12px",
+                  display: "inline-flex", alignItems: "center", gap: 7, cursor: visibilityBusy ? "default" : "pointer", fontFamily: SANS, fontSize: 12.5, fontWeight: 600,
+                  borderRadius: 999, padding: "5px 12px", opacity: visibilityBusy ? 0.6 : 1,
                   border: `1px solid ${project.visibility === "group" ? C.coral : C.line2}`,
                   background: project.visibility === "group" ? C.coralSoft : "#fff",
                   color: project.visibility === "group" ? C.coralDk : C.ink2,
                 }}
               >
-                {project.visibility === "group" ? "Shared with the team — click to make private" : "Private — click to share with the team"}
+                {visibilityBusy ? "Updating…" : project.visibility === "group" ? "Shared with the team — click to make private" : "Private — click to share with the team"}
               </button>
             </>
           ) : (

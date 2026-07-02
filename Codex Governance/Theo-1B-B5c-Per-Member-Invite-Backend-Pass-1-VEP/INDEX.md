@@ -1,0 +1,10 @@
+# Codex Governance Package — Theo 1B B5c Per-Member Invite (backend) Pass-1 VEP
+
+- **Main artifact:** `Theo_1B_B5c_Per_Member_Invite_Backend_VEP.md` — Pass-1 backend VEP (plan + migration + handlers). Reviewer = Codex (Pass 2).
+- **Microstep:** Tier **B5 per-member invite** — the Phase-2 fast-follow to B5a group-visible sharing. A project owner invites **specific** Vault users (by Entra OID) to a project; invited members read the project + knowledge/instructions and chat with their **own** conversations (config-only sharing; transcripts stay private).
+- **Migration (`b5c_migration.sql`, additive + reversible):** new `theo_project_members` table (PK `(project_id, member_oid)`, FK→`theo_projects` ON DELETE CASCADE, RLS on) + **two SECURITY DEFINER helpers** (`theo_project_member_project_ids`, `theo_owned_project_ids`) that break the `theo_projects`↔`theo_project_members` RLS recursion cycle + broadened SELECT-only RLS on `theo_projects` + `theo_project_knowledge` (`owned ∨ group ∨ member`). Writes stay owner-only. `b5c_verify.sql` = read-only checks.
+- **3 GREENFIELD handlers** (owner-only; Primary Reference = deployed `theo_set_project_visibility` pair): `theo_share_project` (POST), `theo_unshare_project` (POST), `theo_list_project_members` (GET).
+- **3 MODIFIED handlers** (full replacements; single ALLOWED DELTA = `OR id IN (member rows)`): `theo_list_projects` (+`shared_with_me` flag), `theo_list_project_knowledge`, `theo_set_conversation_project`. Each needs its own redeploy (B4d lesson).
+- **No Graph / Blob / gateway / `reporting_*` / conversations-messages RLS change.** Config-only sharing preserved.
+- **Validation:** all 6 handlers `node --check` clean; all function.jsons valid JSON; microstep lint → PASS; HEAD `e288e29`.
+- **Pipeline:** Author = Claude Code (Pass 1). Reviewer = Codex (Pass 2). On APPROVAL → Walter runs migration + deploys 3 new + 3 modified functions → Claude Code golden curls → API-Spec §2.2 Role-C → **B5c-FE** (invite picker reusing the `theo_list_people` roster + `shared_with_me` badge).

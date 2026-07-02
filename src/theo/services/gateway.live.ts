@@ -26,6 +26,7 @@ import {
   renameConversation as mockRenameConversation, deleteConversation as mockDeleteConversation,
   persistArtifact as mockPersistArtifact, listServerArtifacts as mockListServerArtifacts,
   getServerArtifact as mockGetServerArtifact,
+  setProjectVisibility as mockSetProjectVisibility,
 } from "./gateway.mock";
 
 type TokenProvider = () => Promise<string | null>;
@@ -352,6 +353,8 @@ interface RawProject {
   description?: string | null;
   instructions?: string | null;
   app_key?: string | null;
+  visibility?: string | null;   // B5a: 'private' | 'group'
+  is_owner?: boolean;           // B5a: theo_list_projects computes (created_by = caller)
   created_at?: string;
   updated_at?: string;
 }
@@ -386,6 +389,10 @@ function toProject(r: RawProject): Project {
     instructions: r.instructions ?? "",
     knowledge: [],                 // loaded per-project via listProjectKnowledge (list omits it)
     updated: relTime(r.updated_at),
+    // B5a: default private/owned when a handler omits them (create/update return no visibility yet →
+    // a freshly-created project is private and owned by the caller).
+    visibility: r.visibility === "group" ? "group" : "private",
+    isOwner: r.is_owner !== false,
   };
 }
 
@@ -402,6 +409,25 @@ export async function listProjects(): Promise<Project[]> {
   if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
   const arr = json?.data?.projects;
   return Array.isArray(arr) ? arr.map(toProject) : [];
+}
+
+// B5a: set project visibility (theo_set_project_visibility; owner-only server-side). The handler returns
+// only { id, visibility }; useTheoState applies it onto the held Project. Unconfigured harness → mock.
+export async function setProjectVisibility(id: string, visibility: string): Promise<{ id: string; visibility: string }> {
+  if (!apiBase && !tokenProvider) return mockSetProjectVisibility(id, visibility);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_set_project_visibility`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ id, visibility }),
+  });
+  let json: { data?: { project?: { id?: string; visibility?: string } }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const p = json?.data?.project;
+  if (!p || typeof p.visibility !== "string") throw new Error("Theo gateway response missing data.project.visibility.");
+  return { id: p.id ?? id, visibility: p.visibility };
 }
 
 export async function createProject(d: NpDraft): Promise<Project> {

@@ -19,9 +19,14 @@ export interface SentAttachment {
 export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string }
 
 export interface Knowledge { id: string; title: string; content: string }
+export type ProjectVisibility = "private" | "group";
 export interface Project {
   id: string; name: string; desc: string; updated: string;
   instructions: string; knowledge: Knowledge[];
+  // B5a sharing: 'group' = visible to any authenticated Vault user (config-only: knowledge + instructions,
+  // not chat transcripts). isOwner = the signed-in user owns it (only owners may edit/share/delete; a
+  // shared-with-me project is read-only + chat). theo_list_projects returns both fields.
+  visibility: ProjectVisibility; isOwner: boolean;
 }
 
 export type ArtifactType = "document" | "code" | "html";

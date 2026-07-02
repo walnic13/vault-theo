@@ -27,6 +27,8 @@ export interface ProjectDetailProps {
   onRenameChat: (id: string, title: string) => void;   // B4f
   onDeleteChat: (id: string) => void;                   // B4f
   onPatchDescription: (text: string) => void;           // B4g: edit the project description (theo_update_project {id, description})
+  onSetVisibility: (id: string, visibility: "private" | "group") => void;   // B5a: owner-only share toggle
+  visibilityBusy: boolean;   // B5a: a visibility write for this project is in flight → disable the toggle
 }
 
 // A collapsible section header (caret + title) with a conditional body. Local, inline — no new dep.
@@ -46,7 +48,11 @@ function Section({ title, open, onToggle, children }: { title: string; open: boo
   );
 }
 
-export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKnowledge, onRemoveKnowledge, onPatchInstructions, onStartChat, onSelectChat, onRenameChat, onDeleteChat, onPatchDescription }: ProjectDetailProps) {
+export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKnowledge, onRemoveKnowledge, onPatchInstructions, onStartChat, onSelectChat, onRenameChat, onDeleteChat, onPatchDescription, onSetVisibility, visibilityBusy }: ProjectDetailProps) {
+  // B5a: only the owner may edit config (description / knowledge / instructions / sharing). A
+  // shared-with-me project (isOwner=false) is read-only + chattable — members see the config but can't
+  // change it, and chat with their own conversations.
+  const isOwner = project.isOwner;
   // Adaptive default: sections start expanded while the project has no chats (setup-first), and
   // collapse once it has chats (chats-first) — until the user explicitly toggles (null = follow default).
   const hasChats = chats.length > 0;
@@ -60,23 +66,50 @@ export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKno
   return (
     <div className="vo-scroll" style={{ flex: 1, overflowY: "auto" }}>
       <div style={{ maxWidth: 820, margin: "0 auto", padding: "26px 24px" }}>
-        {/* B4g: editable project description — click the subtitle (or the "Add a description…" placeholder
-            when empty) to edit in place; Enter/blur saves (empty allowed to clear), Esc cancels. */}
-        <div style={{ marginTop: 0, marginBottom: 18 }}>
-          {descEditing ? (
+        {/* B4g: editable project description (OWNER-only, B5a). Click to edit in place; Enter/blur saves
+            (empty allowed to clear), Esc cancels. A shared-with-me project shows the description read-only. */}
+        <div style={{ marginTop: 0, marginBottom: 14 }}>
+          {isOwner && descEditing ? (
             <InlineEdit
               value={project.desc} editing allowEmpty
               onCommit={(next) => { setDescEditing(false); if (next !== project.desc) onPatchDescription(next); }}
               onCancel={() => setDescEditing(false)}
               inputStyle={{ fontSize: 14, color: C.ink2 }}
             />
-          ) : (
-            <p
-              onClick={() => setDescEditing(true)} title="Edit description"
-              style={{ color: project.desc ? C.ink2 : C.ink3, fontSize: 14, margin: 0, cursor: "text" }}
-            >
+          ) : isOwner ? (
+            <p onClick={() => setDescEditing(true)} title="Edit description"
+              style={{ color: project.desc ? C.ink2 : C.ink3, fontSize: 14, margin: 0, cursor: "text" }}>
               {project.desc || "Add a description…"}
             </p>
+          ) : (
+            project.desc ? <p style={{ color: C.ink2, fontSize: 14, margin: 0 }}>{project.desc}</p> : null
+          )}
+        </div>
+
+        {/* B5a: sharing control. Owner → toggle private↔group. Member → read-only "shared with you" note. */}
+        <div style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {isOwner ? (
+            <>
+              <span style={{ fontSize: 12.5, color: C.ink3 }}>Sharing</span>
+              <button
+                disabled={visibilityBusy}
+                onClick={() => { if (!visibilityBusy) onSetVisibility(project.id, project.visibility === "group" ? "private" : "group"); }}
+                title={project.visibility === "group" ? "Make private" : "Share with the team"}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 7, cursor: visibilityBusy ? "default" : "pointer", fontFamily: SANS, fontSize: 12.5, fontWeight: 600,
+                  borderRadius: 999, padding: "5px 12px", opacity: visibilityBusy ? 0.6 : 1,
+                  border: `1px solid ${project.visibility === "group" ? C.coral : C.line2}`,
+                  background: project.visibility === "group" ? C.coralSoft : "#fff",
+                  color: project.visibility === "group" ? C.coralDk : C.ink2,
+                }}
+              >
+                {visibilityBusy ? "Updating…" : project.visibility === "group" ? "Shared with the team — click to make private" : "Private — click to share with the team"}
+              </button>
+            </>
+          ) : (
+            <span style={{ fontSize: 12.5, color: C.coralDk, background: C.coralSoft, borderRadius: 999, padding: "5px 12px", fontWeight: 600 }}>
+              Shared with you · read-only — start a chat to use its knowledge
+            </span>
           )}
         </div>
 
@@ -133,20 +166,29 @@ export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKno
             <div key={d.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderBottom: `1px solid ${C.line}` }}>
               <span style={{ color: C.ink3, marginTop: 2 }}><IcDoc s={17} /></span>
               <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 13.5 }}>{d.title}</div><div style={{ fontSize: 12.5, color: C.ink2, lineHeight: 1.45 }}>{d.content}</div></div>
-              <button className="vo-ghost" onClick={() => onRemoveKnowledge(d.id)} title="Remove" style={{ background: "none", border: "none", cursor: "pointer", color: C.ink3, borderRadius: 6, padding: 4, display: "flex" }}><IcTrash s={15} /></button>
+              {/* B5a: remove is owner-only */}
+              {isOwner && <button className="vo-ghost" onClick={() => onRemoveKnowledge(d.id)} title="Remove" style={{ background: "none", border: "none", cursor: "pointer", color: C.ink3, borderRadius: 6, padding: 4, display: "flex" }}><IcTrash s={15} /></button>}
             </div>
           ))}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-            <InputBox value={kdraft.title} onChange={(v) => onKdraftChange({ ...kdraft, title: v })} placeholder="Knowledge title" />
-            <InputBox value={kdraft.content} onChange={(v) => onKdraftChange({ ...kdraft, content: v })} placeholder="Paste reference content the assistant should know" rows={2} />
-            <div><button className="vo-chip" onClick={onAddKnowledge} style={{ background: "#fff", border: `1px solid ${C.line2}`, borderRadius: 9, padding: "8px 14px", fontSize: 13, color: C.ink, cursor: "pointer", fontFamily: SANS }}>+ Add knowledge</button></div>
-          </div>
+          {/* B5a: add-knowledge form is owner-only */}
+          {isOwner && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+              <InputBox value={kdraft.title} onChange={(v) => onKdraftChange({ ...kdraft, title: v })} placeholder="Knowledge title" />
+              <InputBox value={kdraft.content} onChange={(v) => onKdraftChange({ ...kdraft, content: v })} placeholder="Paste reference content the assistant should know" rows={2} />
+              <div><button className="vo-chip" onClick={onAddKnowledge} style={{ background: "#fff", border: `1px solid ${C.line2}`, borderRadius: 9, padding: "8px 14px", fontSize: 13, color: C.ink, cursor: "pointer", fontFamily: SANS }}>+ Add knowledge</button></div>
+            </div>
+          )}
+          {project.knowledge.length === 0 && !isOwner && <div style={{ fontSize: 12.5, color: C.ink3, padding: "8px 0" }}>No knowledge in this project yet.</div>}
           <div style={{ fontSize: 12, color: C.ink3, marginTop: 12 }}>Injected into context when you chat in this project (Azure AI Search / pgvector in production).</div>
         </Section>
 
-        {/* Collapsible: Custom instructions */}
+        {/* Collapsible: Custom instructions (owner edits; member reads) */}
         <Section title="Custom instructions" open={instructionsOpen} onToggle={() => setIOpen(!instructionsOpen)}>
-          <InputBox value={project.instructions} onChange={(v) => onPatchInstructions(v)} placeholder="How the assistant should behave in this project" rows={4} />
+          {isOwner ? (
+            <InputBox value={project.instructions} onChange={(v) => onPatchInstructions(v)} placeholder="How the assistant should behave in this project" rows={4} />
+          ) : (
+            <p style={{ fontSize: 13.5, color: project.instructions ? C.ink2 : C.ink3, lineHeight: 1.5, margin: 0, whiteSpace: "pre-wrap" }}>{project.instructions || "No custom instructions."}</p>
+          )}
         </Section>
       </div>
     </div>

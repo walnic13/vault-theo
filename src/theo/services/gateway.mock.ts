@@ -74,7 +74,8 @@ export async function deleteConversation(id: string): Promise<void> {
 // In-memory projects store (seeded from the reference), previously held in theoClient. gateway.live
 // delegates here when no live backend is wired, mirroring the chat/recents mock fallbacks; the
 // live handlers (theo_*_project / theo_*_project_knowledge) replace it when a token/base is present.
-let mockProjects: Project[] = INIT_PROJECTS.map((p) => ({ ...p, knowledge: p.knowledge.slice() }));
+// B5a: seed projects are private + owned by the local harness user.
+let mockProjects: Project[] = INIT_PROJECTS.map((p) => ({ ...p, knowledge: p.knowledge.slice(), visibility: "private" as const, isOwner: true }));
 
 function cloneProject(p: Project): Project {
   return { ...p, knowledge: p.knowledge.slice() };
@@ -89,9 +90,17 @@ export async function createProject(d: NpDraft): Promise<Project> {
   const p: Project = {
     id, name: d.name.trim(), desc: d.desc.trim() || "New project.",
     instructions: d.instructions.trim(), knowledge: [], updated: "just now",
+    visibility: "private", isOwner: true,
   };
   mockProjects = [p, ...mockProjects];
   return cloneProject(p);
+}
+
+// B5a: set project visibility (mock; owner-only in the harness — all seed/created projects are owned).
+export async function setProjectVisibility(id: string, visibility: string): Promise<{ id: string; visibility: string }> {
+  const v = visibility === "group" ? "group" : "private";
+  mockProjects = mockProjects.map((p) => (p.id === id ? { ...p, visibility: v, updated: "just now" } : p));
+  return { id, visibility: v };
 }
 
 export async function updateProjectInstructions(id: string, instructions: string): Promise<Project> {

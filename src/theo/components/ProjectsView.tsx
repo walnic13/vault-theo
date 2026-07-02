@@ -41,14 +41,17 @@ export function ProjectsView({ projects, npOpen, np, onNpChange, onToggleNp, onC
           {projects.map((p) => {
             const editing = editingId === p.id;
             return (<div key={p.id} className="vo-card" onClick={() => { if (!editing) onOpenProject(p.id); }} style={{ position: "relative", background: C.card, border: `1px solid ${C.line2}`, borderRadius: 14, padding: 18, cursor: "pointer", transition: "all .15s" }}>
-              {/* B4f: hover-revealed manage actions (top-right). Editing suppresses the card open. */}
-              <div style={{ position: "absolute", top: 12, right: 12 }}>
-                <RowActions
-                  renameTitle="Rename project" deleteTitle="Delete project"
-                  onRename={() => setEditingId(p.id)}
-                  onDelete={() => { if (window.confirm(`Delete project "${p.name}"? Its chats are kept but no longer linked to this project.`)) onDeleteProject(p.id); }}
-                />
-              </div>
+              {/* B4f: hover-revealed manage actions (top-right). B5a: OWNER-ONLY — a shared-with-me
+                  project (isOwner=false) is read-only, so no rename/delete affordance. Editing suppresses open. */}
+              {p.isOwner && (
+                <div style={{ position: "absolute", top: 12, right: 12 }}>
+                  <RowActions
+                    renameTitle="Rename project" deleteTitle="Delete project"
+                    onRename={() => setEditingId(p.id)}
+                    onDelete={() => { if (window.confirm(`Delete project "${p.name}"? Its chats are kept but no longer linked to this project.`)) onDeleteProject(p.id); }}
+                  />
+                </div>
+              )}
               <div style={{ color: C.coral, marginBottom: 10 }}><IcProjects s={20} /></div>
               <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6, paddingRight: 44 }}>
                 <InlineEdit
@@ -59,7 +62,15 @@ export function ProjectsView({ projects, npOpen, np, onNpChange, onToggleNp, onC
                 />
               </div>
               <div style={{ fontSize: 13, color: C.ink2, lineHeight: 1.5, marginBottom: 14, minHeight: 38 }}>{p.desc}</div>
-              <div style={{ fontSize: 12, color: C.ink3 }}>{p.knowledge.length} docs · {p.updated}</div>
+              <div style={{ fontSize: 12, color: C.ink3, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span>{p.knowledge.length} docs · {p.updated}</span>
+                {/* B5a: sharing badge — 'Shared' (owner made it group-visible) / 'Shared with you' (someone else's group-visible project). */}
+                {p.visibility === "group" && (
+                  <span style={{ fontSize: 11, color: C.coralDk, background: C.coralSoft, borderRadius: 999, padding: "2px 9px", fontWeight: 600 }}>
+                    {p.isOwner ? "Shared" : "Shared with you"}
+                  </span>
+                )}
+              </div>
             </div>);
           })}
         </div>

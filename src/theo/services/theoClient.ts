@@ -26,6 +26,7 @@ import {
   renameConversation as gatewayRenameConversation, deleteConversation as gatewayDeleteConversation,
   persistArtifact as gatewayPersistArtifact, listServerArtifacts as gatewayListServerArtifacts,
   getServerArtifact as gatewayGetServerArtifact,
+  setProjectVisibility as gatewaySetProjectVisibility,
   type StreamHandlers,
 } from "./gateway.live";
 
@@ -111,6 +112,10 @@ export const theoClient = {
   // B4g: edit the project description (theo_update_project {id, description}; deployed B4a).
   updateProjectDescription(id: string, description: string): Promise<Project> {
     return gatewayUpdateProjectDescription(id, description);
+  },
+  // B5a: set project visibility (theo_set_project_visibility {id, visibility}; owner-only; deployed B5a).
+  setProjectVisibility(id: string, visibility: string): Promise<{ id: string; visibility: string }> {
+    return gatewaySetProjectVisibility(id, visibility);
   },
   deleteProject(id: string): Promise<void> { return gatewayDeleteProject(id); },
   listProjectKnowledge(projectId: string): Promise<Knowledge[]> { return gatewayListProjectKnowledge(projectId); },

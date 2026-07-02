@@ -76,6 +76,13 @@ Grouped by the 1A handover §2.3 contract list. Operation-level only at v0.1; re
 
 All attachment endpoints execute as the signed-in user; every query is explicit `created_by`-scoped, with ownership RLS the second layer (per §1). The Blob body lives in the existing `theo-content` container; the row holds only the pointer.
 
+### §2.9 People / roster (Tier B5 Phase 2) — backs the vault-origin roster/presence panel
+| Contract | Status | Backing |
+|----------|--------|---------|
+| list eligible people + live presence | `1B-deployed` — **DEPLOYED 2026-07-02** (B5 P2A; golden-verified): `GET /api/theo_list_people` (no body). Delegated Microsoft Graph **on-behalf-of** as the signed-in user: enumerates the **`Vault Staff`** dynamic group (the employeeId-gated employee roster — the same group that gates vault-origin login) via `GET /groups/{id}/members/microsoft.graph.user`, reads **live presence** via `POST /communications/getPresencesByUserId`, and fetches best-effort 48×48 photos. Returns `{ people: [{ id, displayName, email, jobTitle, availability, activity, photo, isSelf }], self }` — `id` is the member's Entra **object id (OID)**; ordered **self-first then alphabetical**; `photo` is a base64 `data:` URI or `null`; `availability`/`activity` are Graph presence values (best-effort — `null` when presence/photo lookups fail, so a Graph hiccup degrades gracefully rather than failing the roster). Unauthenticated → **401** (platform EasyAuth in front of the function). **Read-only**: no Theo table and no Blob are touched. Reuses the deployed `reporting_dms_tree` OBO technique and the monolith's existing `AAD_TENANT_ID`/`AAD_CLIENT_ID`/`AAD_CLIENT_SECRET`; the Graph delegated scopes `User.Read.All` / `Presence.Read.All` / `GroupMember.Read.All` are admin-consented. The roster is **keyed by OID** so per-member invite (Phase 2C) and the future in-Vault chat key on the same identity. | Microsoft Graph via delegated OBO (no Theo table / no Blob) |
+
+`theo_list_people` reads only directory + presence data the signed-in user is already entitled to see; it stores nothing. Per-member project invite (`theo_project_members`) is Phase 2C.
+
 ## §3 Boundary
 
 No Theo endpoint reads/writes `reporting_*` tables. Corporate Reporting data is obtained only by calling the published Reporting API as the signed-in user, per `spec/THEO_TOOL_MANIFEST.md` (architecture §0a/§1.3/§4.3).

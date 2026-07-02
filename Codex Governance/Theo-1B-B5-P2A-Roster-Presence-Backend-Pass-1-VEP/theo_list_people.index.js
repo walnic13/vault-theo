@@ -114,9 +114,21 @@ function getBearerTokenFromAuthorization(req) {
 
 function getOboInputToken(req) {
   const bearer = getBearerTokenFromAuthorization(req);
-  if (bearer) return bearer;
+  if (bearer) {
+    return {
+      token: bearer,
+      source: "authorization_bearer",
+    };
+  }
+
   const tokenStore = req.headers["x-ms-token-aad-access-token"];
-  if (typeof tokenStore === "string" && tokenStore.trim() !== "") return tokenStore.trim();
+  if (typeof tokenStore === "string" && tokenStore.trim() !== "") {
+    return {
+      token: tokenStore.trim(),
+      source: "x-ms-token-aad-access-token",
+    };
+  }
+
   return null;
 }
 
@@ -208,7 +220,7 @@ module.exports = async function (context, req) {
   if (!oboInput) return send(context, 401, errorBody("UNAUTHORIZED", "Missing bearer token for delegated Graph access.", 401));
 
   try {
-    const graphToken = await exchangeGraphToken(oboInput);
+    const graphToken = await exchangeGraphToken(oboInput.token);
 
     // 1) Vault Staff members (users only, selected fields). The group is the employeeId-gated roster.
     const membersRes = await graphGetJson(

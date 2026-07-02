@@ -61,10 +61,15 @@ export function useTheoState() {
   // serialization (ignore a click while a write for that id is pending); visPending drives the disabled UI.
   const visReq = useRef<Set<string>>(new Set());
   const [visPending, setVisPending] = useState<string | null>(null);
-  // B5c per-member invite: the open project's members (owner-only) + the Vault Staff roster (picker source).
+  // B5c per-member invite. Members are KEYED by projectId (same discipline as projectChatsState) so a
+  // slow/stale members load can neither render nor be acted on under a DIFFERENT open project (Codex
+  // B5c-FE finding — cross-project bleed / revoke-against-wrong-project). projectMembersReq is the
+  // latest-opened owner project guard; the derived `projectMembers` (below) surfaces only detailId's.
+  // The roster (`people`) is the whole Vault Staff set (not project-specific), so it is not keyed.
   // memberReq is the per-(project|oid) in-flight guard (same discipline as visReq); memberPending drives
-  // the disabled UI for the row currently being shared/unshared. members/people are cleared on close.
-  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
+  // the disabled UI for the row currently being shared/unshared.
+  const [projectMembersState, setProjectMembersState] = useState<{ projectId: string; members: ProjectMember[] } | null>(null);
+  const projectMembersReq = useRef<string | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
   const memberReq = useRef<Set<string>>(new Set());
   const [memberPending, setMemberPending] = useState<string | null>(null);
@@ -77,6 +82,10 @@ export function useTheoState() {
   // B4e: surface only the OPEN project's own chats — a stale/other-project load resolves into
   // projectChatsState keyed by its own id, so it never renders here unless it matches detailId.
   const projectChats = projectChatsState && projectChatsState.projectId === detailId ? projectChatsState.chats : [];
+  // B5c: surface only the OPEN project's members — a stale/other-project members load resolves into
+  // projectMembersState keyed by its own id, so it never renders (nor can be revoked) here unless it
+  // matches detailId (Codex B5c-FE keyed-state finding).
+  const projectMembers = projectMembersState && projectMembersState.projectId === detailId ? projectMembersState.members : [];
   const art = openArt ? (artifacts.find((a) => a.id === openArt.id) ?? null) : null;
   const recents = recentsList.filter((c) => c.title.toLowerCase().includes(search.toLowerCase()));
   const activeStyle = STYLES.find((s) => s.key === styleKey) ?? STYLES[0];
@@ -96,9 +105,16 @@ export function useTheoState() {
   }, []);
 
   // B5c: load the open project's members (owner-only endpoint — a non-owner detail never calls this).
-  // Best-effort: a failure clears the list rather than surfacing an error on the read.
+  // Request-keyed like loadProjectChats: the response only lands (into projectMembersState keyed by id)
+  // if this project is still the latest-opened owner project, so a slow load for a since-closed project
+  // can't clobber the current one. Best-effort: a failure keys an empty list rather than erroring.
   const loadProjectMembers = useCallback(async (id: string) => {
-    try { setProjectMembers(await theoClient.listProjectMembers(id)); } catch { setProjectMembers([]); }
+    try {
+      const members = await theoClient.listProjectMembers(id);
+      if (projectMembersReq.current === id) setProjectMembersState({ projectId: id, members });
+    } catch {
+      if (projectMembersReq.current === id) setProjectMembersState({ projectId: id, members: [] });
+    }
   }, []);
   // B5c: load the Vault Staff roster for the invite picker (theo_list_people; §2.9). Best-effort —
   // an unconfigured harness / failure yields an empty picker (no invite candidates).
@@ -187,9 +203,11 @@ export function useTheoState() {
     void refreshProjectKnowledge(id); void loadProjectChats(id);
     // B5c: owner-only invite management — load members + the roster picker source only when the caller
     // owns the project (theo_list_project_members is owner-only; a shared-with-me detail skips it).
+    // Key + clear members immediately (like the chats list) so a prior project's members never flash.
+    projectMembersReq.current = id;
+    setProjectMembersState(null);
     const p = projects.find((x) => x.id === id);
     if (p?.isOwner) { void loadProjectMembers(id); void loadPeople(); }
-    else { setProjectMembers([]); }
   }
 
   // ── B8e attachments ───────────────────────────────────────────────────────
@@ -507,10 +525,10 @@ export function useTheoState() {
     setMemberPending(key);
     try {
       await theoClient.shareProject(projectId, memberOid);
-      setProjectMembers(await theoClient.listProjectMembers(projectId));
+      { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); }
     } catch {
       setError("Couldn't share this project with that person.");
-      try { setProjectMembers(await theoClient.listProjectMembers(projectId)); } catch { /* keep current */ }
+      try { { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); } } catch { /* keep current */ }
     } finally {
       memberReq.current.delete(key);
       setMemberPending((k) => (k === key ? null : k));
@@ -523,10 +541,10 @@ export function useTheoState() {
     setMemberPending(key);
     try {
       await theoClient.unshareProject(projectId, memberOid);
-      setProjectMembers(await theoClient.listProjectMembers(projectId));
+      { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); }
     } catch {
       setError("Couldn't remove that person from the project.");
-      try { setProjectMembers(await theoClient.listProjectMembers(projectId)); } catch { /* keep current */ }
+      try { { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); } } catch { /* keep current */ }
     } finally {
       memberReq.current.delete(key);
       setMemberPending((k) => (k === key ? null : k));

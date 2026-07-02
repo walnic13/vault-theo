@@ -7,7 +7,7 @@ import { stripArtifactRefs } from "./lib/artifacts";
 import { buildSystemPrompt, greeting } from "./lib/prompt";
 import { MODEL } from "./swapBlock";
 import { STYLES } from "./data";
-import type { AppContext, Artifact, ArtifactSummary, Citation, ComposerAttachment, ConversationSummary, KDraft, Message, NpDraft, OpenArtifact, Project, SentAttachment, Settings, StyleKey, View } from "./types";
+import type { AppContext, Artifact, ArtifactSummary, Citation, ComposerAttachment, ConversationSummary, KDraft, Message, NpDraft, OpenArtifact, Person, Project, ProjectMember, SentAttachment, Settings, StyleKey, View } from "./types";
 
 // B8e: a paste longer than this becomes a "Pasted text" attachment (collapsed, expandable) instead
 // of flooding the composer — the Claude-style behaviour. Tunable; ~a long block, not a sentence.
@@ -61,6 +61,18 @@ export function useTheoState() {
   // serialization (ignore a click while a write for that id is pending); visPending drives the disabled UI.
   const visReq = useRef<Set<string>>(new Set());
   const [visPending, setVisPending] = useState<string | null>(null);
+  // B5c per-member invite. Members are KEYED by projectId (same discipline as projectChatsState) so a
+  // slow/stale members load can neither render nor be acted on under a DIFFERENT open project (Codex
+  // B5c-FE finding — cross-project bleed / revoke-against-wrong-project). projectMembersReq is the
+  // latest-opened owner project guard; the derived `projectMembers` (below) surfaces only detailId's.
+  // The roster (`people`) is the whole Vault Staff set (not project-specific), so it is not keyed.
+  // memberReq is the per-(project|oid) in-flight guard (same discipline as visReq); memberPending drives
+  // the disabled UI for the row currently being shared/unshared.
+  const [projectMembersState, setProjectMembersState] = useState<{ projectId: string; members: ProjectMember[] } | null>(null);
+  const projectMembersReq = useRef<string | null>(null);
+  const [people, setPeople] = useState<Person[]>([]);
+  const memberReq = useRef<Set<string>>(new Set());
+  const [memberPending, setMemberPending] = useState<string | null>(null);
 
   // Pass B: ingest the inbound app-context anchor (from the Origin shell, in-process) and carry it
   // on the conversation (in-memory). Presentational — no app-data fetch (VA-T3 §2.4).
@@ -70,6 +82,10 @@ export function useTheoState() {
   // B4e: surface only the OPEN project's own chats — a stale/other-project load resolves into
   // projectChatsState keyed by its own id, so it never renders here unless it matches detailId.
   const projectChats = projectChatsState && projectChatsState.projectId === detailId ? projectChatsState.chats : [];
+  // B5c: surface only the OPEN project's members — a stale/other-project members load resolves into
+  // projectMembersState keyed by its own id, so it never renders (nor can be revoked) here unless it
+  // matches detailId (Codex B5c-FE keyed-state finding).
+  const projectMembers = projectMembersState && projectMembersState.projectId === detailId ? projectMembersState.members : [];
   const art = openArt ? (artifacts.find((a) => a.id === openArt.id) ?? null) : null;
   const recents = recentsList.filter((c) => c.title.toLowerCase().includes(search.toLowerCase()));
   const activeStyle = STYLES.find((s) => s.key === styleKey) ?? STYLES[0];
@@ -86,6 +102,24 @@ export function useTheoState() {
   // per-project on open (theo_list_projects omits it).
   const loadProjects = useCallback(async () => {
     try { setProjects(await theoClient.listProjects()); } catch { /* keep current list */ }
+  }, []);
+
+  // B5c: load the open project's members (owner-only endpoint — a non-owner detail never calls this).
+  // Request-keyed like loadProjectChats: the response only lands (into projectMembersState keyed by id)
+  // if this project is still the latest-opened owner project, so a slow load for a since-closed project
+  // can't clobber the current one. Best-effort: a failure keys an empty list rather than erroring.
+  const loadProjectMembers = useCallback(async (id: string) => {
+    try {
+      const members = await theoClient.listProjectMembers(id);
+      if (projectMembersReq.current === id) setProjectMembersState({ projectId: id, members });
+    } catch {
+      if (projectMembersReq.current === id) setProjectMembersState({ projectId: id, members: [] });
+    }
+  }, []);
+  // B5c: load the Vault Staff roster for the invite picker (theo_list_people; §2.9). Best-effort —
+  // an unconfigured harness / failure yields an empty picker (no invite candidates).
+  const loadPeople = useCallback(async () => {
+    try { setPeople(await theoClient.listPeople()); } catch { setPeople([]); }
   }, []);
 
   // B4h: load the cross-chat Artifacts gallery (live → theo_list_artifacts; mock → empty). Called by
@@ -167,6 +201,13 @@ export function useTheoState() {
     setProjectChatsState(null);        // clear any prior project's list immediately (no stale flash/rows)
     setDetailId(id); setView("project");
     void refreshProjectKnowledge(id); void loadProjectChats(id);
+    // B5c: owner-only invite management — load members + the roster picker source only when the caller
+    // owns the project (theo_list_project_members is owner-only; a shared-with-me detail skips it).
+    // Key + clear members immediately (like the chats list) so a prior project's members never flash.
+    projectMembersReq.current = id;
+    setProjectMembersState(null);
+    const p = projects.find((x) => x.id === id);
+    if (p?.isOwner) { void loadProjectMembers(id); void loadPeople(); }
   }
 
   // ── B8e attachments ───────────────────────────────────────────────────────
@@ -474,6 +515,41 @@ export function useTheoState() {
       setVisPending((p) => (p === id ? null : p));
     }
   }
+  // B5c: invite / revoke a member (theo_share_project / theo_unshare_project; owner-only). Per-(project|oid)
+  // in-flight guard (same discipline as setProjectVisibility) so overlapping clicks can't leave a stale
+  // membership; on success re-list members from the server (source of truth); on failure surface + re-list.
+  async function shareMember(projectId: string, memberOid: string) {
+    const key = projectId + "|" + memberOid;
+    if (memberReq.current.has(key)) return;
+    memberReq.current.add(key);
+    setMemberPending(key);
+    try {
+      await theoClient.shareProject(projectId, memberOid);
+      { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); }
+    } catch {
+      setError("Couldn't share this project with that person.");
+      try { { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); } } catch { /* keep current */ }
+    } finally {
+      memberReq.current.delete(key);
+      setMemberPending((k) => (k === key ? null : k));
+    }
+  }
+  async function unshareMember(projectId: string, memberOid: string) {
+    const key = projectId + "|" + memberOid;
+    if (memberReq.current.has(key)) return;
+    memberReq.current.add(key);
+    setMemberPending(key);
+    try {
+      await theoClient.unshareProject(projectId, memberOid);
+      { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); }
+    } catch {
+      setError("Couldn't remove that person from the project.");
+      try { { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); } } catch { /* keep current */ }
+    } finally {
+      memberReq.current.delete(key);
+      setMemberPending((k) => (k === key ? null : k));
+    }
+  }
   // B4f: rename a conversation (theo_rename_conversation {id, title}; deployed B4f). Optimistic across
   // Recents AND the open project's chat list; resync (reload) on failure. Blank titles are ignored.
   async function renameConversation(id: string, title: string) {
@@ -530,6 +606,7 @@ export function useTheoState() {
     addFiles, addPastedText, removeAttachment,
     toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, patchDescription, setKdraft, addKnowledge, removeKnowledge,
     renameProject, deleteProject, setProjectVisibility, visPending, renameConversation, deleteConversation,
+    projectMembers, people, shareMember, unshareMember, memberPending,
     selectStyle: setStyleKey, setCustom, save, copyArt,
     selectVersion: (v: number) => setOpenArt(openArt ? { id: openArt.id, v } : null),
     openArtifact: (id: string) => setOpenArt({ id, v: -1 }), openGalleryArtifact, closeArt: () => setOpenArt(null),

@@ -11,7 +11,7 @@
 // this delegates to the in-repo 1A mock so the standalone vault-theo dev harness keeps working.
 import type {
   Artifact, ArtifactSummary, AttachmentUpload, ConversationAttachment, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
-  KDraft, Knowledge, NpDraft, Project,
+  KDraft, Knowledge, NpDraft, Person, Project, ProjectMember,
 } from "../types";
 import {
   sendMessage as mockSend, listConversations as mockList, getConversation as mockGet,
@@ -27,6 +27,8 @@ import {
   persistArtifact as mockPersistArtifact, listServerArtifacts as mockListServerArtifacts,
   getServerArtifact as mockGetServerArtifact,
   setProjectVisibility as mockSetProjectVisibility,
+  shareProject as mockShareProject, unshareProject as mockUnshareProject,
+  listProjectMembers as mockListProjectMembers, listPeople as mockListPeople,
 } from "./gateway.mock";
 
 type TokenProvider = () => Promise<string | null>;
@@ -355,6 +357,7 @@ interface RawProject {
   app_key?: string | null;
   visibility?: string | null;   // B5a: 'private' | 'group'
   is_owner?: boolean;           // B5a: theo_list_projects computes (created_by = caller)
+  shared_with_me?: boolean;     // B5c: theo_list_projects computes (a theo_project_members row for the caller)
   created_at?: string;
   updated_at?: string;
 }
@@ -393,6 +396,7 @@ function toProject(r: RawProject): Project {
     // a freshly-created project is private and owned by the caller).
     visibility: r.visibility === "group" ? "group" : "private",
     isOwner: r.is_owner !== false,
+    sharedWithMe: r.shared_with_me === true,   // B5c: only true when list computes a membership row
   };
 }
 
@@ -428,6 +432,88 @@ export async function setProjectVisibility(id: string, visibility: string): Prom
   const p = json?.data?.project;
   if (!p || typeof p.visibility !== "string") throw new Error("Theo gateway response missing data.project.visibility.");
   return { id: p.id ?? id, visibility: p.visibility };
+}
+
+// B5c: invite a specific Vault user to a project (theo_share_project; owner-only server-side). memberOid
+// is an Entra object id (the identity theo_list_people returns). Idempotent server-side. Unconfigured → mock.
+export async function shareProject(projectId: string, memberOid: string): Promise<void> {
+  if (!apiBase && !tokenProvider) return mockShareProject(projectId, memberOid);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_share_project`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ project_id: projectId, member_oid: memberOid }),
+  });
+  let json: { error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+}
+
+// B5c: revoke a member (theo_unshare_project; owner-only; idempotent). Unconfigured → mock.
+export async function unshareProject(projectId: string, memberOid: string): Promise<void> {
+  if (!apiBase && !tokenProvider) return mockUnshareProject(projectId, memberOid);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_unshare_project`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ project_id: projectId, member_oid: memberOid }),
+  });
+  let json: { error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+}
+
+interface RawMember { project_id?: string; member_oid?: string; invited_by?: string; created_at?: string }
+function toMember(r: RawMember): ProjectMember {
+  return { memberOid: r.member_oid ?? "", invitedBy: r.invited_by ?? "", createdAt: r.created_at ?? "" };
+}
+
+// B5c: list a project's members (theo_list_project_members?projectId; owner-only server-side). Unconfigured → mock.
+export async function listProjectMembers(projectId: string): Promise<ProjectMember[]> {
+  if (!apiBase && !tokenProvider) return mockListProjectMembers(projectId);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_list_project_members?projectId=${encodeURIComponent(projectId)}`, {
+    method: "GET",
+    credentials: "same-origin",
+    headers,
+  });
+  let json: { data?: { members?: RawMember[] }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const arr = json?.data?.members;
+  return Array.isArray(arr) ? arr.filter((m) => typeof m.member_oid === "string" && m.member_oid).map(toMember) : [];
+}
+
+interface RawPerson {
+  id?: string; displayName?: string; email?: string | null; jobTitle?: string | null;
+  availability?: string | null; activity?: string | null; photo?: string | null; isSelf?: boolean;
+}
+function toPerson(r: RawPerson): Person {
+  return {
+    id: r.id ?? "",
+    displayName: typeof r.displayName === "string" && r.displayName ? r.displayName : "(unknown)",
+    email: typeof r.email === "string" ? r.email : null,
+    jobTitle: typeof r.jobTitle === "string" ? r.jobTitle : null,
+    availability: typeof r.availability === "string" ? r.availability : null,
+    activity: typeof r.activity === "string" ? r.activity : null,
+    photo: typeof r.photo === "string" ? r.photo : null,
+    isSelf: r.isSelf === true,
+  };
+}
+
+// B5c: the Vault Staff roster + presence (theo_list_people; §2.9) — the invite picker's source. Delegated
+// Graph OBO server-side; the FE sends only the bearer. Unconfigured harness → mock (empty roster).
+export async function listPeople(): Promise<Person[]> {
+  if (!apiBase && !tokenProvider) return mockListPeople();
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_list_people`, { method: "GET", credentials: "same-origin", headers });
+  let json: { data?: { people?: RawPerson[] }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const arr = json?.data?.people;
+  return Array.isArray(arr) ? arr.filter((p) => typeof p.id === "string" && p.id).map(toPerson) : [];
 }
 
 export async function createProject(d: NpDraft): Promise<Project> {

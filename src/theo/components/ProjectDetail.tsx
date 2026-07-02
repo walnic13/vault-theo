@@ -12,7 +12,7 @@ import { C, SANS } from "../theme";
 import { IcChat, IcCompose, IcDoc, IcTrash } from "./icons";
 import { InputBox } from "./ui";
 import { InlineEdit, RowActions } from "./RowManage";
-import type { ConversationSummary, KDraft, Project } from "../types";
+import type { ConversationSummary, KDraft, Person, Project, ProjectMember } from "../types";
 
 export interface ProjectDetailProps {
   project: Project;
@@ -29,6 +29,12 @@ export interface ProjectDetailProps {
   onPatchDescription: (text: string) => void;           // B4g: edit the project description (theo_update_project {id, description})
   onSetVisibility: (id: string, visibility: "private" | "group") => void;   // B5a: owner-only share toggle
   visibilityBusy: boolean;   // B5a: a visibility write for this project is in flight → disable the toggle
+  // B5c per-member invite (owner-only): current members, the roster picker source, and share/revoke.
+  members: ProjectMember[];
+  people: Person[];
+  onShareMember: (projectId: string, memberOid: string) => void;
+  onUnshareMember: (projectId: string, memberOid: string) => void;
+  memberPendingKey: string | null;   // `${projectId}|${memberOid}` currently in flight → disable that row
 }
 
 // A collapsible section header (caret + title) with a conditional body. Local, inline — no new dep.
@@ -48,7 +54,7 @@ function Section({ title, open, onToggle, children }: { title: string; open: boo
   );
 }
 
-export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKnowledge, onRemoveKnowledge, onPatchInstructions, onStartChat, onSelectChat, onRenameChat, onDeleteChat, onPatchDescription, onSetVisibility, visibilityBusy }: ProjectDetailProps) {
+export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKnowledge, onRemoveKnowledge, onPatchInstructions, onStartChat, onSelectChat, onRenameChat, onDeleteChat, onPatchDescription, onSetVisibility, visibilityBusy, members, people, onShareMember, onUnshareMember, memberPendingKey }: ProjectDetailProps) {
   // B5a: only the owner may edit config (description / knowledge / instructions / sharing). A
   // shared-with-me project (isOwner=false) is read-only + chattable — members see the config but can't
   // change it, and chat with their own conversations.
@@ -108,10 +114,67 @@ export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKno
             </>
           ) : (
             <span style={{ fontSize: 12.5, color: C.coralDk, background: C.coralSoft, borderRadius: 999, padding: "5px 12px", fontWeight: 600 }}>
-              Shared with you · read-only — start a chat to use its knowledge
+              {project.sharedWithMe ? "Shared with you" : "Shared with the team"} · read-only — start a chat to use its knowledge
             </span>
           )}
         </div>
+
+        {/* B5c: per-member invite (OWNER-only). Current members (name resolved from the roster) with a
+            revoke control, plus a picker of teammates not already invited (and not the owner). Members
+            read the project's knowledge/instructions and chat with their own conversations (config-only
+            sharing). Group-visible projects are shared team-wide, so the picker is redundant there and
+            is hidden. */}
+        {isOwner && project.visibility !== "group" && (
+          <div style={{ marginBottom: 18, background: C.card, border: `1px solid ${C.line2}`, borderRadius: 14, padding: "14px 18px" }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, marginBottom: 10 }}>Shared with</div>
+            {members.length === 0 ? (
+              <p style={{ fontSize: 12.5, color: C.ink3, margin: "0 0 10px" }}>Not shared with anyone yet. Invite a teammate below.</p>
+            ) : (
+              <ul style={{ listStyle: "none", margin: "0 0 10px", padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                {members.map((m) => {
+                  const person = people.find((p) => p.id === m.memberOid);
+                  const label = person ? person.displayName : m.memberOid;
+                  const busy = memberPendingKey === project.id + "|" + m.memberOid;
+                  return (
+                    <li key={m.memberOid} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ width: 24, height: 24, borderRadius: "50%", background: C.coralSoft, color: C.coralDk, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {label.trim().slice(0, 1).toUpperCase() || "?"}
+                      </div>
+                      <span style={{ flex: 1, fontSize: 13, color: C.ink2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {label}{person?.jobTitle ? <span style={{ color: C.ink3 }}> · {person.jobTitle}</span> : null}
+                      </span>
+                      <button
+                        disabled={busy}
+                        onClick={() => { if (!busy) onUnshareMember(project.id, m.memberOid); }}
+                        title="Remove from project"
+                        style={{ background: "none", border: "none", cursor: busy ? "default" : "pointer", color: C.ink3, borderRadius: 6, padding: 4, display: "flex", opacity: busy ? 0.5 : 1 }}
+                      >
+                        <IcTrash s={15} />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {(() => {
+              const invitable = people.filter((p) => !p.isSelf && !members.some((m) => m.memberOid === p.id));
+              return (
+                <select
+                  value=""
+                  onChange={(e) => { const oid = e.target.value; if (oid) onShareMember(project.id, oid); }}
+                  disabled={invitable.length === 0}
+                  aria-label="Invite a teammate to this project"
+                  style={{ fontFamily: SANS, fontSize: 12.5, color: C.ink2, border: `1px solid ${C.line2}`, borderRadius: 8, padding: "6px 10px", background: "#fff", maxWidth: 320 }}
+                >
+                  <option value="">{invitable.length === 0 ? "No teammates to invite" : "Invite a teammate…"}</option>
+                  {invitable.map((p) => (
+                    <option key={p.id} value={p.id}>{p.displayName}{p.jobTitle ? ` · ${p.jobTitle}` : ""}</option>
+                  ))}
+                </select>
+              );
+            })()}
+          </div>
+        )}
 
         {/* Chats-first: the project's conversations + new-chat */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>

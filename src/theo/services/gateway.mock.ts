@@ -5,7 +5,7 @@
 // endpoint (e.g. POST /api/theo/message) holding Foundry creds via Entra managed identity.
 import type {
   Artifact, ArtifactSummary, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
-  KDraft, Knowledge, NpDraft, Project,
+  KDraft, Knowledge, NpDraft, Person, Project, ProjectMember,
 } from "../types";
 import { INIT_PROJECTS, RECENTS } from "../data";
 
@@ -75,7 +75,9 @@ export async function deleteConversation(id: string): Promise<void> {
 // delegates here when no live backend is wired, mirroring the chat/recents mock fallbacks; the
 // live handlers (theo_*_project / theo_*_project_knowledge) replace it when a token/base is present.
 // B5a: seed projects are private + owned by the local harness user.
-let mockProjects: Project[] = INIT_PROJECTS.map((p) => ({ ...p, knowledge: p.knowledge.slice(), visibility: "private" as const, isOwner: true }));
+let mockProjects: Project[] = INIT_PROJECTS.map((p) => ({ ...p, knowledge: p.knowledge.slice(), visibility: "private" as const, isOwner: true, sharedWithMe: false }));
+// B5c: per-project membership store (harness). Keyed by project id → member OIDs the owner invited.
+const mockMembers: Record<string, string[]> = {};
 
 function cloneProject(p: Project): Project {
   return { ...p, knowledge: p.knowledge.slice() };
@@ -90,7 +92,7 @@ export async function createProject(d: NpDraft): Promise<Project> {
   const p: Project = {
     id, name: d.name.trim(), desc: d.desc.trim() || "New project.",
     instructions: d.instructions.trim(), knowledge: [], updated: "just now",
-    visibility: "private", isOwner: true,
+    visibility: "private", isOwner: true, sharedWithMe: false,
   };
   mockProjects = [p, ...mockProjects];
   return cloneProject(p);
@@ -101,6 +103,22 @@ export async function setProjectVisibility(id: string, visibility: string): Prom
   const v = visibility === "group" ? "group" : "private";
   mockProjects = mockProjects.map((p) => (p.id === id ? { ...p, visibility: v, updated: "just now" } : p));
   return { id, visibility: v };
+}
+
+// B5c: per-member invite (mock; owner-only in the harness). Idempotent add/remove of a member OID.
+export async function shareProject(projectId: string, memberOid: string): Promise<void> {
+  const cur = mockMembers[projectId] ?? [];
+  if (!cur.includes(memberOid)) mockMembers[projectId] = [...cur, memberOid];
+}
+export async function unshareProject(projectId: string, memberOid: string): Promise<void> {
+  mockMembers[projectId] = (mockMembers[projectId] ?? []).filter((m) => m !== memberOid);
+}
+export async function listProjectMembers(projectId: string): Promise<ProjectMember[]> {
+  return (mockMembers[projectId] ?? []).map((oid) => ({ memberOid: oid, invitedBy: "local-harness", createdAt: "" }));
+}
+// Harness roster is empty (no Graph in the standalone dev harness); the live endpoint supplies the roster.
+export async function listPeople(): Promise<Person[]> {
+  return [];
 }
 
 export async function updateProjectInstructions(id: string, instructions: string): Promise<Project> {

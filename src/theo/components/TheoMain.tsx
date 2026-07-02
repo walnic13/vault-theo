@@ -73,7 +73,7 @@ export function TheoMain({ t, mode }: TheoMainProps) {
             <ProjectsView projects={t.projects} npOpen={t.npOpen} np={t.np} onNpChange={t.setNp} onToggleNp={t.toggleNp} onCreate={t.createProject} onOpenProject={t.openProject} onRenameProject={t.renameProject} onDeleteProject={t.deleteProject} />
           )}
           {t.view === "project" && t.detail && (
-            <ProjectDetail project={t.detail} chats={t.projectChats} kdraft={t.kdraft} onKdraftChange={t.setKdraft} onAddKnowledge={t.addKnowledge} onRemoveKnowledge={t.removeKnowledge} onPatchInstructions={t.patchInstructions} onStartChat={() => t.startInProject(t.detail!.id)} onSelectChat={t.selectRecent} onRenameChat={t.renameConversation} onDeleteChat={t.deleteConversation} onPatchDescription={t.patchDescription} onSetVisibility={t.setProjectVisibility} visibilityBusy={t.visPending === t.detail.id} />
+            <ProjectDetail project={t.detail} chats={t.projectChats} kdraft={t.kdraft} onKdraftChange={t.setKdraft} onAddKnowledge={t.addKnowledge} onRemoveKnowledge={t.removeKnowledge} onPatchInstructions={t.patchInstructions} onStartChat={() => t.startInProject(t.detail!.id)} onSelectChat={t.selectRecent} onRenameChat={t.renameConversation} onDeleteChat={t.deleteConversation} onPatchDescription={t.patchDescription} onSetVisibility={t.setProjectVisibility} visibilityBusy={t.visPending === t.detail.id} members={t.projectMembers} people={t.people} onShareMember={t.shareMember} onUnshareMember={t.unshareMember} memberPendingKey={t.memberPending} />
           )}
           {t.view === "artifacts" && (
             <ArtifactsView artifacts={t.galleryArtifacts} onOpenArtifact={t.openGalleryArtifact} />

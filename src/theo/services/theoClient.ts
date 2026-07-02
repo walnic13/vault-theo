@@ -5,7 +5,7 @@
 // settings stay in-memory pending their own tiers. NO browser storage (1A handover §2.5).
 import type {
   AppContext, Artifact, ArtifactBlock, ArtifactSummary, ConversationAttachment, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
-  KDraft, Knowledge, NpDraft, Project, Settings,
+  KDraft, Knowledge, NpDraft, Person, Project, ProjectMember, Settings,
 } from "../types";
 import { parseArtifacts, remapToIds, upsert } from "../lib/artifacts";
 import {
@@ -27,6 +27,8 @@ import {
   persistArtifact as gatewayPersistArtifact, listServerArtifacts as gatewayListServerArtifacts,
   getServerArtifact as gatewayGetServerArtifact,
   setProjectVisibility as gatewaySetProjectVisibility,
+  shareProject as gatewayShareProject, unshareProject as gatewayUnshareProject,
+  listProjectMembers as gatewayListProjectMembers, listPeople as gatewayListPeople,
   type StreamHandlers,
 } from "./gateway.live";
 
@@ -117,6 +119,13 @@ export const theoClient = {
   setProjectVisibility(id: string, visibility: string): Promise<{ id: string; visibility: string }> {
     return gatewaySetProjectVisibility(id, visibility);
   },
+  // B5c: per-member invite (theo_share_project / theo_unshare_project / theo_list_project_members;
+  // owner-only; deployed B5c). memberOid = an Entra OID from the roster (listPeople).
+  shareProject(projectId: string, memberOid: string): Promise<void> { return gatewayShareProject(projectId, memberOid); },
+  unshareProject(projectId: string, memberOid: string): Promise<void> { return gatewayUnshareProject(projectId, memberOid); },
+  listProjectMembers(projectId: string): Promise<ProjectMember[]> { return gatewayListProjectMembers(projectId); },
+  // B5c: the Vault Staff roster (theo_list_people; §2.9) — the invite picker's source.
+  listPeople(): Promise<Person[]> { return gatewayListPeople(); },
   deleteProject(id: string): Promise<void> { return gatewayDeleteProject(id); },
   listProjectKnowledge(projectId: string): Promise<Knowledge[]> { return gatewayListProjectKnowledge(projectId); },
   addProjectKnowledge(projectId: string, k: KDraft): Promise<Knowledge> { return gatewayAddProjectKnowledge(projectId, k); },

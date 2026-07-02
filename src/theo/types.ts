@@ -27,6 +27,18 @@ export interface Project {
   // not chat transcripts). isOwner = the signed-in user owns it (only owners may edit/share/delete; a
   // shared-with-me project is read-only + chat). theo_list_projects returns both fields.
   visibility: ProjectVisibility; isOwner: boolean;
+  // B5c per-member invite: true when this project was shared with the caller via a theo_project_members
+  // row (theo_list_projects computes it). Distinct from group-visible: an invited project is readable
+  // even while private. Used to badge "Shared with you" on a targeted invite (vs the team-wide 'group').
+  sharedWithMe: boolean;
+}
+// B5c: a project membership row (theo_list_project_members; owner-only). member_oid is the invitee's
+// Entra object id — the identity theo_list_people returns; the FE joins to a Person for display.
+export interface ProjectMember { memberOid: string; invitedBy: string; createdAt: string }
+// B5c: a person from the roster (theo_list_people) — the invite picker's source. id = Entra OID.
+export interface Person {
+  id: string; displayName: string; email: string | null; jobTitle: string | null;
+  availability: string | null; activity: string | null; photo: string | null; isSelf: boolean;
 }
 
 export type ArtifactType = "document" | "code" | "html";

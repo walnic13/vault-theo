@@ -64,10 +64,12 @@ export function ProjectsView({ projects, npOpen, np, onNpChange, onToggleNp, onC
               <div style={{ fontSize: 13, color: C.ink2, lineHeight: 1.5, marginBottom: 14, minHeight: 38 }}>{p.desc}</div>
               <div style={{ fontSize: 12, color: C.ink3, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <span>{p.knowledge.length} docs · {p.updated}</span>
-                {/* B5a: sharing badge — 'Shared' (owner made it group-visible) / 'Shared with you' (someone else's group-visible project). */}
-                {p.visibility === "group" && (
+                {/* B5a/B5c: sharing badge. Owner + group → 'Shared' (team-wide). Non-owner: an explicit
+                    invite (B5c sharedWithMe, even on a private project) → 'Shared with you'; a group-visible
+                    project someone else owns → 'Shared with the team'. */}
+                {(p.visibility === "group" || p.sharedWithMe) && (
                   <span style={{ fontSize: 11, color: C.coralDk, background: C.coralSoft, borderRadius: 999, padding: "2px 9px", fontWeight: 600 }}>
-                    {p.isOwner ? "Shared" : "Shared with you"}
+                    {p.isOwner ? "Shared" : p.sharedWithMe ? "Shared with you" : "Shared with the team"}
                   </span>
                 )}
               </div>

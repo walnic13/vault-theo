@@ -75,7 +75,7 @@ export async function deleteConversation(id: string): Promise<void> {
 // delegates here when no live backend is wired, mirroring the chat/recents mock fallbacks; the
 // live handlers (theo_*_project / theo_*_project_knowledge) replace it when a token/base is present.
 // B5a: seed projects are private + owned by the local harness user.
-let mockProjects: Project[] = INIT_PROJECTS.map((p) => ({ ...p, knowledge: p.knowledge.slice(), visibility: "private" as const, isOwner: true, sharedWithMe: false }));
+let mockProjects: Project[] = INIT_PROJECTS.map((p) => ({ ...p, knowledge: p.knowledge.slice(), visibility: "private" as const, isOwner: true, sharedWithMe: false, memberCount: 0 }));
 // B5c: per-project membership store (harness). Keyed by project id → member OIDs the owner invited.
 const mockMembers: Record<string, string[]> = {};
 
@@ -84,7 +84,8 @@ function cloneProject(p: Project): Project {
 }
 
 export async function listProjects(): Promise<Project[]> {
-  return mockProjects.map(cloneProject);
+  // B5d: reflect the harness member store as the owner-gated memberCount (all harness projects are owned).
+  return mockProjects.map((p) => ({ ...cloneProject(p), memberCount: (mockMembers[p.id] ?? []).length }));
 }
 
 export async function createProject(d: NpDraft): Promise<Project> {
@@ -92,7 +93,7 @@ export async function createProject(d: NpDraft): Promise<Project> {
   const p: Project = {
     id, name: d.name.trim(), desc: d.desc.trim() || "New project.",
     instructions: d.instructions.trim(), knowledge: [], updated: "just now",
-    visibility: "private", isOwner: true, sharedWithMe: false,
+    visibility: "private", isOwner: true, sharedWithMe: false, memberCount: 0,
   };
   mockProjects = [p, ...mockProjects];
   return cloneProject(p);

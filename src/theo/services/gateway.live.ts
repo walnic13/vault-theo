@@ -358,6 +358,7 @@ interface RawProject {
   visibility?: string | null;   // B5a: 'private' | 'group'
   is_owner?: boolean;           // B5a: theo_list_projects computes (created_by = caller)
   shared_with_me?: boolean;     // B5c: theo_list_projects computes (a theo_project_members row for the caller)
+  member_count?: number;        // B5d: owner-gated invitee count (0 for non-owner rows)
   created_at?: string;
   updated_at?: string;
 }
@@ -397,6 +398,7 @@ function toProject(r: RawProject): Project {
     visibility: r.visibility === "group" ? "group" : "private",
     isOwner: r.is_owner !== false,
     sharedWithMe: r.shared_with_me === true,   // B5c: only true when list computes a membership row
+    memberCount: typeof r.member_count === "number" ? r.member_count : 0,   // B5d: owner-gated invitee count
   };
 }
 

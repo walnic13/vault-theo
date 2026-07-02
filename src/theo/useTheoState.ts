@@ -525,10 +525,10 @@ export function useTheoState() {
     setMemberPending(key);
     try {
       await theoClient.shareProject(projectId, memberOid);
-      { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); }
+      { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); setProjects((ps) => ps.map((p) => (p.id === projectId ? { ...p, memberCount: members.length } : p))); }
     } catch {
       setError("Couldn't share this project with that person.");
-      try { { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); } } catch { /* keep current */ }
+      try { { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); setProjects((ps) => ps.map((p) => (p.id === projectId ? { ...p, memberCount: members.length } : p))); } } catch { /* keep current */ }
     } finally {
       memberReq.current.delete(key);
       setMemberPending((k) => (k === key ? null : k));
@@ -541,10 +541,10 @@ export function useTheoState() {
     setMemberPending(key);
     try {
       await theoClient.unshareProject(projectId, memberOid);
-      { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); }
+      { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); setProjects((ps) => ps.map((p) => (p.id === projectId ? { ...p, memberCount: members.length } : p))); }
     } catch {
       setError("Couldn't remove that person from the project.");
-      try { { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); } } catch { /* keep current */ }
+      try { { const members = await theoClient.listProjectMembers(projectId); if (projectMembersReq.current === projectId) setProjectMembersState({ projectId, members }); setProjects((ps) => ps.map((p) => (p.id === projectId ? { ...p, memberCount: members.length } : p))); } } catch { /* keep current */ }
     } finally {
       memberReq.current.delete(key);
       setMemberPending((k) => (k === key ? null : k));

@@ -31,6 +31,10 @@ export interface Project {
   // row (theo_list_projects computes it). Distinct from group-visible: an invited project is readable
   // even while private. Used to badge "Shared with you" on a targeted invite (vs the team-wide 'group').
   sharedWithMe: boolean;
+  // B5d: for the caller's OWN rows, the number of members they've invited (theo_list_projects computes
+  // it owner-gated — 0 for non-owner rows). Lets the owner's grid badge a privately-shared project as
+  // "Shared" (visibility='group' already badges team-wide).
+  memberCount: number;
 }
 // B5c: a project membership row (theo_list_project_members; owner-only). member_oid is the invitee's
 // Entra object id — the identity theo_list_people returns; the FE joins to a Person for display.

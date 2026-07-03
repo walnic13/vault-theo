@@ -4,6 +4,8 @@
 
 **Microstep:** VC-1 — the realtime backend spine for native in-Vault chat (People panel → Teams-style DMs + group channels), delivered over Azure Web PubSub. Walter-directed; scope (realtime-via-Web-PubSub + DMs-and-channels) locked 2026-07-03.
 
+**R1 revision (Codex Pass 2 reject fix):** `theo_chat_negotiate` originally granted clients the `webpubsub.sendToGroup.<threadId>` role, letting a browser publish directly to a thread group and bypass the durable `theo_chat_send_message` path. Fixed: the negotiate token is now **receive-only** (no client roles; `groups` auto-join for delivery), so all publishing is server-authoritative. See the VEP's `R1 REVISION` note + §P3/§P8/§HG.1.
+
 ## Contents
 
 | File | Role |

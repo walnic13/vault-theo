@@ -67,24 +67,21 @@ module.exports = async function (context, req) {
     );
 
     // The caller's threads (RLS returns only threads where the caller is a participant). The Web PubSub
-    // token is scoped to EXACTLY these thread groups — the client can join + publish (typing/ephemeral)
-    // only to its own threads. New threads created later require a re-negotiate (the FE re-fetches on
-    // create/first-open). Group name = the thread id.
+    // token is scoped to EXACTLY these thread groups, RECEIVE-ONLY — `groups` auto-joins the caller so it
+    // receives server-published messages; NO publish/group-mutation role is granted. New threads created
+    // later require a re-negotiate (the FE re-fetches on create/first-open). Group name = the thread id.
     const rows = await client.query(
       `SELECT id FROM public.theo_chat_threads WHERE $1 = ANY(member_oids) ORDER BY updated_at DESC LIMIT 1000`,
       [oid]
     );
     const threadIds = rows.rows.map((r) => r.id);
 
-    const roles = [];
-    for (const tid of threadIds) {
-      roles.push(`webpubsub.joinLeaveGroup.${tid}`);
-      roles.push(`webpubsub.sendToGroup.${tid}`);
-    }
-
     const serviceClient = new WebPubSubServiceClient(process.env.WebPubSubConnectionString, HUB);
-    // userId = the caller's OID; groups = auto-join the caller's threads; roles = per-thread scoped.
-    const token = await serviceClient.getClientAccessToken({ userId: oid, groups: threadIds, roles });
+    // userId = the caller's OID; groups = auto-join (receive) the caller's threads; NO roles granted →
+    // the client has no `sendToGroup`/direct-publish or group-mutation authority. ALL sends go through the
+    // server-authoritative theo_chat_send_message (validate → seq → persist+commit → publish), so no
+    // client can emit a non-durable message that bypasses persistence/seq/unread/audit ordering.
+    const token = await serviceClient.getClientAccessToken({ userId: oid, groups: threadIds });
 
     return send(context, 200, successBody({ url: token.url, hub: HUB, groups: threadIds }));
   } catch (err) {

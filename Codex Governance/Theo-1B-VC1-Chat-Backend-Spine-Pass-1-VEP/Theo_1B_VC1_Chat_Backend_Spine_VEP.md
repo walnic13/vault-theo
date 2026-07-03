@@ -3,17 +3,19 @@
 > **Pipeline:** Theo backend governance regime. Author = Claude Code (Pass 1, plan-only). Reviewer = Codex (Pass 2, APPROVED / REJECTED only). Walter executes the migration + deploys the handlers at Pass 3 (to the **dedicated `vaultgpt-func-chat`** app — **never** the monolith); Claude Code runs golden curls after deploy; Role-C (Pass 4) lands the Plan / API-Spec / Schema documentation. This pack is **plan-only** — no code is deployed by authoring it.
 >
 > **Scope (VC-1 = the working realtime chat spine):** 7 HTTP handlers + 3 new `theo_chat_*` Postgres tables with **participant-scoped, non-recursive RLS**, plus the **Azure Web PubSub** realtime transport (negotiate token + per-thread group publish). This is the backend for the native in-Vault chat (the People panel growing into a Teams-style DM + group-channel surface) whose realtime + full-scope decisions Walter locked 2026-07-03. Post-hoc channel-membership editing (`add_member` / `remove_member`) is a small **VC-1.2** fast-follow and is **out of scope** here. All handlers deploy to the **new dedicated `vaultgpt-func-chat`** Function App (Windows, Node 22, Functions v4, on the existing EP1 plan `ASP-VaultTax-931c`) — mirroring the streaming sidecar precedent — so the chat surface can scale and run v4 independently of the read-only monolith.
+>
+> **R1 REVISION (Codex Pass 2 REJECTED @ `6317847`; fixed in this revision).** Codex found `theo_chat_negotiate` granted each client the `webpubsub.sendToGroup.<threadId>` role — which the Web PubSub JSON subprotocol lets a browser use to **publish directly** to a thread group, bypassing `theo_chat_send_message` (validation, seq assignment, Postgres persistence, unread math, audit ordering) and breaking the durability-first contract. **Fix:** the negotiate token now grants **no client roles at all** — the client is **receive-only** (`groups` auto-join for delivery); **all** publishing is server-authoritative through `theo_chat_send_message`. RLS non-recursion was checked clean by Codex. Changed: §HG.1 handler (roles removed) + §P3 (points 3/5) + §P8 prose; no schema/contract/other-handler change.
 
 ---
 
 ## GROUNDING CONFORMANCE RECEIPT
 Role: Claude Code
 Turn Type: Verified Evidence Pack (backend plan)
-Turn issued against HEAD: `d20a5cd` (vault-theo, `development`)
+Turn issued against HEAD: `6317847` (vault-theo, `development`) — R1 revision (Codex Pass 2 reject fix)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P8
-Detail: Pass 1 backend VEP for VC-1 native-chat spine; P1–P8 walked; migration + verify SQL, Primary Reference pair inlined byte-verbatim, 7 greenfield handlers + function.json bindings inlined byte-verbatim; Web PubSub classified as a P3 external-system DEVIATION (justified: Walter directive + provisioned infra + server-SDK research). No `reporting_*` / `corporate-reporting` change. No monolith change. `theo_message` / `theo_message_stream` / `theo_conversations` / `theo_messages` NOT touched.
+Detail: Pass 1 backend VEP for VC-1 native-chat spine; P1–P8 walked; migration + verify SQL, Primary Reference pair inlined byte-verbatim, 7 greenfield handlers + function.json bindings inlined byte-verbatim; Web PubSub classified as a P3 external-system DEVIATION (justified: Walter directive + provisioned infra + server-SDK research). No `reporting_*` / `corporate-reporting` change. No monolith change. `theo_message` / `theo_message_stream` / `theo_conversations` / `theo_messages` NOT touched. R1: `theo_chat_negotiate` token reduced to receive-only (no client publish/`sendToGroup` role) per Codex Pass 2 — server-authoritative send preserved.
 Currency anchors: blob SHA via `git rev-parse HEAD:<path>`; verifiable via `git cat-file -p <sha>`.
 
 | # | Document (name + path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
@@ -96,9 +98,9 @@ Closed vocabulary: `PROCEED` / `PRE-LAND` / `ESCALATE` / `NO-GAPS`.
 
 1. **Walter authorization, verbatim, predating this VEP:** the realtime-transport decision was locked 2026-07-03 — *"Realtime push via Azure Web PubSub"* (not polling) — and Walter directed *"go straight to authoring, but remember we'll need to maintain governance, going through codex."* Walter additionally set the enterprise posture: *"never shortcuts for free services … This is a premium enterprise level product that needs to scale so we must treat it that way always. entirely azure based windows."*
 2. **Provisioned infra (VC-1a, already live):** Azure Web PubSub `vaultgpt-webpubsub` (Standard_S1, 1 unit, uksouth — paid tier per the enterprise-scale rule); hub `vaultchat`; connection string present on the chat app as `WebPubSubConnectionString`.
-3. **Integration pattern (server SDK, no Functions binding):** the handlers use the `@azure/web-pubsub` server SDK **directly** — `new WebPubSubServiceClient(process.env.WebPubSubConnectionString, "vaultchat")`. Negotiate calls `getClientAccessToken({ userId, groups, roles })` and returns `{ url }`; send publishes with `serviceClient.group(threadId).sendToAll(...)`. No Functions trigger/output binding or extension bundle is used, so the pattern is model-agnostic and adds no coupling to the runtime.
+3. **Integration pattern (server SDK, no Functions binding):** the handlers use the `@azure/web-pubsub` server SDK **directly** — `new WebPubSubServiceClient(process.env.WebPubSubConnectionString, "vaultchat")`. Negotiate calls `getClientAccessToken({ userId, groups })` — **`groups` for receive-only auto-join, NO `roles`**, so the client has no direct-publish authority — and returns `{ url }`; send publishes with `serviceClient.group(threadId).sendToAll(...)` using the connection-string service client (server-side, independent of client roles). No Functions trigger/output binding or extension bundle is used, so the pattern is model-agnostic and adds no coupling to the runtime.
 4. **Isolation + scale:** the integration lives **only** in the new `vaultgpt-func-chat` app (Windows, v4, EP1) — mirroring the deployed v4 sidecar precedent ("Runs on the **v4 sidecar**") — so it neither touches nor risks the read-only monolith.
-5. **Durability-first:** `theo_chat_send_message` persists to Postgres and commits **before** publishing; the publish is best-effort (a publish failure is logged, never fails the durable send — recipients still receive the message on their next `list_messages` / reconnect).
+5. **Durability-first (enforced at the token, not just the code path):** `theo_chat_send_message` persists to Postgres and commits **before** publishing; the publish is best-effort (a publish failure is logged, never fails the durable send — recipients still receive the message on their next `list_messages` / reconnect). Critically, the negotiate token grants clients **no `sendToGroup` (or any) role**, so a browser **cannot** publish directly to a group via the Web PubSub JSON subprotocol — every message reaches a group only through the server after validation, seq assignment, and commit. The durability-first contract therefore holds against negotiated **client capabilities**, not merely the server code path. (R1 fix — Codex Pass 2.)
 
 No other external system is contacted. No Blob, no Graph, no Foundry, no `reporting_*`.
 
@@ -157,7 +159,7 @@ Follows the `theo_` naming + RLS conventions of the deployed schema (anchor: "th
 
 **Defense in depth.** Handlers keep an explicit participant predicate (`WHERE id = $1 AND $2 = ANY(member_oids)`) in addition to RLS; a non-participant read yields 0 rows → deterministic 404, no existence leak. Writes are the caller's own rows only (`sender_oid = auth.uid()`, `created_by = auth.uid()`, own `last_read_seq`), enforced by both the handler and the RLS `WITH CHECK`.
 
-**No leakage.** Responses carry no tokens, no upstream URLs, no model credentials. The negotiate URL is a per-caller scoped Web PubSub client token (join/publish limited to the caller's own thread groups). OIDs returned are the participant identities the FE already resolves via the People roster (same identity surface as the deployed `theo_list_people` / share flow) — not a new disclosure.
+**No leakage.** Responses carry no tokens, no upstream URLs, no model credentials. The negotiate URL is a per-caller scoped Web PubSub client token that is **receive-only** — auto-joined to the caller's own thread groups for delivery, with **no publish or group-mutation role** granted (all sends are server-authoritative through `theo_chat_send_message`; a client cannot inject a non-durable message). (R1 fix — Codex Pass 2.) OIDs returned are the participant identities the FE already resolves via the People roster (same identity surface as the deployed `theo_list_people` / share flow) — not a new disclosure.
 
 ## §MIGRATION — `vc1_chat_migration.sql` (additive + reversible; run by Walter at Pass 3)
 
@@ -562,7 +564,7 @@ All 7 are greenfield chat handlers; each reuses the Primary Reference boilerplat
 
 ### §HG.1 — `theo_chat_negotiate` (GREENFIELD)
 
-Issues a Web PubSub client access token scoped to exactly the caller's thread groups (RLS-filtered), with per-thread `joinLeaveGroup` + `sendToGroup` roles.
+Issues a Web PubSub client access token scoped to exactly the caller's thread groups (RLS-filtered), **receive-only** — the caller is auto-joined to its thread groups for delivery via the token's `groups`, and granted **no client role** (`joinLeaveGroup`/`sendToGroup` are NOT granted), so the client cannot publish directly; all sends are server-authoritative via `theo_chat_send_message`. (R1 fix — Codex Pass 2.)
 
 ```js
 const { Pool } = require("pg");
@@ -634,24 +636,21 @@ module.exports = async function (context, req) {
     );
 
     // The caller's threads (RLS returns only threads where the caller is a participant). The Web PubSub
-    // token is scoped to EXACTLY these thread groups — the client can join + publish (typing/ephemeral)
-    // only to its own threads. New threads created later require a re-negotiate (the FE re-fetches on
-    // create/first-open). Group name = the thread id.
+    // token is scoped to EXACTLY these thread groups, RECEIVE-ONLY — `groups` auto-joins the caller so it
+    // receives server-published messages; NO publish/group-mutation role is granted. New threads created
+    // later require a re-negotiate (the FE re-fetches on create/first-open). Group name = the thread id.
     const rows = await client.query(
       `SELECT id FROM public.theo_chat_threads WHERE $1 = ANY(member_oids) ORDER BY updated_at DESC LIMIT 1000`,
       [oid]
     );
     const threadIds = rows.rows.map((r) => r.id);
 
-    const roles = [];
-    for (const tid of threadIds) {
-      roles.push(`webpubsub.joinLeaveGroup.${tid}`);
-      roles.push(`webpubsub.sendToGroup.${tid}`);
-    }
-
     const serviceClient = new WebPubSubServiceClient(process.env.WebPubSubConnectionString, HUB);
-    // userId = the caller's OID; groups = auto-join the caller's threads; roles = per-thread scoped.
-    const token = await serviceClient.getClientAccessToken({ userId: oid, groups: threadIds, roles });
+    // userId = the caller's OID; groups = auto-join (receive) the caller's threads; NO roles granted →
+    // the client has no `sendToGroup`/direct-publish or group-mutation authority. ALL sends go through the
+    // server-authoritative theo_chat_send_message (validate → seq → persist+commit → publish), so no
+    // client can emit a non-durable message that bypasses persistence/seq/unread/audit ordering.
+    const token = await serviceClient.getClientAccessToken({ userId: oid, groups: threadIds });
 
     return send(context, 200, successBody({ url: token.url, hub: HUB, groups: threadIds }));
   } catch (err) {

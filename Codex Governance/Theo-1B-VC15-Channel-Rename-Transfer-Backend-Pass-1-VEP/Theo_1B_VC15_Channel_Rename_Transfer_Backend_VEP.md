@@ -7,6 +7,8 @@
 > **Why leave + archive are NOT here (grounded split):** `leave` removes the CALLER from `member_oids` → the thread UPDATE `WITH CHECK` (new row must still contain `auth.uid()`) FAILS for self-removal → it needs an RLS accommodation (a `SECURITY DEFINER` leave fn or a policy change). `archive` needs an `archived_at` column. Both require a migration and are deferred to **VC-16** (one migration). VC-15 is the clean, migration-free half — deployable end-to-end today.
 >
 > **R1 fix (Codex Pass 2):** the admin gate is now **execution-time safe under concurrent transfer**. The gate read is `SELECT … FOR UPDATE` (row-locks the thread for the txn, so a concurrent `theo_chat_transfer_admin` blocks until this commits), AND the admin predicate is folded INTO the UPDATE (`WHERE id = $1 AND admin_oid = $caller`) with a **0-row guard → 403**. Previously the JS check + `WHERE id=$1`-only UPDATE were not atomic under READ COMMITTED: an admin could pass the check, lose admin to a concurrent transfer, and still rename/transfer (RLS only requires membership). Both handlers now re-assert admin authority at write time.
+>
+> **R2 fix (Codex Pass 2, 2nd):** `transfer_admin` also raced the **already-deployed** `theo_chat_add_member` / `theo_chat_remove_member` (which still used the JS-check + `WHERE id=$1`-only pattern) — a stale admin could add/remove after losing admin, and a stale `remove_member` could evict the just-transferred admin (leaving `admin_oid` a non-member). **Fixed by bringing the whole admin-mutation surface to one discipline:** VC-15 now ALSO **modifies** `theo_chat_add_member` and `theo_chat_remove_member` — each gate read is `SELECT … FOR UPDATE`, each write folds `AND admin_oid = $caller` into the UPDATE with a 0-row → 403 guard, and `remove_member` additionally guards `AND $target <> admin_oid`. So all four admin-mutating handlers (rename, transfer, add, remove) serialize on the thread row and re-assert admin at write time.
 
 ---
 
@@ -59,9 +61,10 @@ No ChatGPT advisory cited (§4D / T18). No `reporting_*` / `corporate-reporting`
 ## P1 — Feature identification
 **Microstep:** VC-15 — the channel admin lifecycle, no-migration half. Walter-locked channels model: the admin can **rename** the channel and **transfer admin** to another current member.
 
-**New handlers (2), on `vaultgpt-func-chat`; NO schema change:**
-- `POST /api/theo_chat_rename_channel` `{ thread_id, name }` → `200 { thread_id, name }` — admin-gated; updates `name`.
-- `POST /api/theo_chat_transfer_admin` `{ thread_id, new_admin_oid }` → `200 { thread_id, admin_oid }` — admin-gated; `new_admin_oid` must be a different current member; sets `admin_oid = new_admin_oid`.
+**New handlers (2) + modified handlers (2), on `vaultgpt-func-chat`; NO schema change:**
+- **NEW** `POST /api/theo_chat_rename_channel` `{ thread_id, name }` → `200 { thread_id, name }` — admin-gated; updates `name`.
+- **NEW** `POST /api/theo_chat_transfer_admin` `{ thread_id, new_admin_oid }` → `200 { thread_id, admin_oid }` — admin-gated; `new_admin_oid` must be a different current member; sets `admin_oid = new_admin_oid`.
+- **MODIFY** `theo_chat_add_member` / `theo_chat_remove_member` (R2) — retrofit the execution-time admin guard (`FOR UPDATE` gate read + `AND admin_oid = $caller` in the UPDATE + 0-row → 403; remove also guards `AND $target <> admin_oid`) so the introduction of `transfer_admin` cannot create a stale-admin race with them. Behaviour otherwise unchanged.
 
 **Out of scope (VC-15):** `leave` + `archive` (→ VC-16, need a migration — see the preamble split); the FE (rename input + transfer/leave controls = a vault-origin **VC-15-FE** VEP); a realtime rename/transfer push (members see it on their next `list_threads`/reload — same pattern as membership).
 
@@ -627,15 +630,374 @@ module.exports = async function (context, req) {
 }
 ```
 
+## §HG.3 — `theo_chat_add_member` (MODIFY: execution-time admin guard — R2)
+
+**Delta vs deployed CURRENT (= the §SM Primary Reference, blob `003674dcd9dc457036eb6a372dcf34ecf3bfc8bc`):** the gate `SELECT` gains `FOR UPDATE`; the append UPDATE gains `AND admin_oid = $3` (params `[threadId, memberOid, oid]`) with a `rowCount === 0 → 403` guard. Nothing else changes.
+
+**MODIFIED (full replacement — file `theo_chat_add_member.index.js` in this package):**
+
+```js
+const { Pool } = require("pg");
+
+const pool = new Pool({
+  connectionString: process.env.POSTGRES_CONNECTION_STRING,
+  ssl: { rejectUnauthorized: false },
+});
+
+const MAX_MEMBERS = 200;
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-ms-client-principal",
+};
+
+function send(context, status, body) {
+  context.res = { status, headers: { ...corsHeaders, "Content-Type": "application/json" }, body };
+}
+function nowIso() { return new Date().toISOString(); }
+function errorBody(code, message, status) { return { error: { code, message, status, timestamp: nowIso() } }; }
+function successBody(data) { return { data, meta: { timestamp: nowIso(), version: "1.0" } }; }
+function getPrincipal(req) {
+  const raw = req.headers["x-ms-client-principal"];
+  if (!raw || typeof raw !== "string") return null;
+  try { return JSON.parse(Buffer.from(raw, "base64").toString("utf8")); } catch { return null; }
+}
+function getClaimValue(principal, claimTypes) {
+  if (!principal || !Array.isArray(principal.claims)) return null;
+  for (const claimType of claimTypes) {
+    const match = principal.claims.find((c) => c.typ === claimType);
+    if (match && typeof match.val === "string" && match.val.trim()) return match.val.trim();
+  }
+  return null;
+}
+function parseBody(req) {
+  if (req.body == null) return {};
+  if (typeof req.body === "string") return JSON.parse(req.body);
+  if (typeof req.body === "object") return req.body;
+  return {};
+}
+function buildKnownError(code, message, status) {
+  const err = new Error(message); err.code = code; err.status = status; err.isKnown = true; return err;
+}
+function isUuid(value) {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+module.exports = async function (context, req) {
+  if (req.method === "OPTIONS") {
+    return send(context, 204, "");
+  }
+
+  const principal = getPrincipal(req);
+  const oid = getClaimValue(principal, [
+    "http://schemas.microsoft.com/identity/claims/objectidentifier",
+    "oid",
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier",
+  ]);
+  if (!oid) {
+    return send(context, 401, errorBody("UNAUTHORIZED", "Missing or invalid EasyAuth identity.", 401));
+  }
+
+  let body;
+  try { body = parseBody(req); } catch { return send(context, 400, errorBody("BAD_REQUEST", "Request body is not valid JSON.", 400)); }
+
+  const threadId = typeof body.thread_id === "string" ? body.thread_id.trim() : "";
+  if (!isUuid(threadId)) {
+    return send(context, 400, errorBody("INVALID_REQUEST", "Field 'thread_id' is required and must be a valid UUID.", 400));
+  }
+  // member_oid is an Entra object id (UUID-shaped), the same identity theo_list_people returns.
+  const memberOid = typeof body.member_oid === "string" ? body.member_oid.trim() : "";
+  if (!isUuid(memberOid)) {
+    return send(context, 400, errorBody("INVALID_REQUEST", "Field 'member_oid' is required and must be a valid Entra object id.", 400));
+  }
+
+  let client = null;
+  try {
+    client = await pool.connect();
+    await client.query(
+      `
+      SELECT
+        set_config('app.current_user_id', $1, false),
+        set_config('request.jwt.claim.sub', $1, false),
+        set_config('request.jwt.claim.oid', $1, false)
+      `,
+      [oid]
+    );
+
+    await client.query("BEGIN");
+
+    // ROW-LOCK the thread (FOR UPDATE) so a concurrent theo_chat_transfer_admin cannot change
+    // admin_oid between this check and the write (VC-15 hardening — the whole admin-mutation surface
+    // shares one discipline). Absent / not a participant → 404 (no existence leak). Then: only a
+    // CHANNEL has membership management, and only the ADMIN (admin_oid = caller) may add members.
+    const t = await client.query(
+      `SELECT kind, admin_oid, member_oids FROM public.theo_chat_threads WHERE id = $1 AND $2 = ANY(member_oids) FOR UPDATE`,
+      [threadId, oid]
+    );
+    if (t.rowCount === 0) {
+      throw buildKnownError("NOT_FOUND", "Conversation not found.", 404);
+    }
+    const row = t.rows[0];
+    if (row.kind !== "channel") {
+      throw buildKnownError("INVALID_REQUEST", "Members can only be added to a channel.", 400);
+    }
+    if (row.admin_oid !== oid) {
+      throw buildKnownError("FORBIDDEN", "Only the channel admin can add members.", 403);
+    }
+    const already = Array.isArray(row.member_oids) && row.member_oids.includes(memberOid);
+    if (!already && Array.isArray(row.member_oids) && row.member_oids.length >= MAX_MEMBERS) {
+      throw buildKnownError("INVALID_REQUEST", `A channel may have at most ${MAX_MEMBERS} members.`, 400);
+    }
+
+    if (!already) {
+      // Append the new member. Admin predicate is IN the UPDATE (execution-time safe: 0 rows if admin
+      // changed under a race); admin remains a member → the UPDATE RLS WITH CHECK still holds.
+      const upd = await client.query(
+        `UPDATE public.theo_chat_threads SET member_oids = array_append(member_oids, $2), updated_at = now() WHERE id = $1 AND admin_oid = $3`,
+        [threadId, memberOid, oid]
+      );
+      if (upd.rowCount === 0) {
+        throw buildKnownError("FORBIDDEN", "Only the channel admin can add members.", 403);
+      }
+      // Seed the new member's read-state row (unread math). Idempotent.
+      await client.query(
+        `INSERT INTO public.theo_chat_thread_members (thread_id, member_oid)
+         VALUES ($1, $2) ON CONFLICT (thread_id, member_oid) DO NOTHING`,
+        [threadId, memberOid]
+      );
+    }
+
+    await client.query("COMMIT");
+    return send(context, 200, successBody({ thread_id: threadId, member_oid: memberOid, added: !already }));
+  } catch (err) {
+    if (client) { try { await client.query("ROLLBACK"); } catch {} }
+    context.log.error("theo_chat_add_member failed", err);
+    if (err && err.code === "42501") {
+      return send(context, 403, errorBody("FORBIDDEN", "You do not have access to this conversation.", 403));
+    }
+    if (err && err.isKnown === true && typeof err.status === "number" && typeof err.code === "string") {
+      return send(context, err.status, errorBody(err.code, err.message, err.status));
+    }
+    if (err && err.code === "23514") {
+      return send(context, 400, errorBody("INVALID_REQUEST", "Request violates a field constraint.", 400));
+    }
+    return send(context, 500, errorBody("INTERNAL_SERVER_ERROR", "An unexpected error occurred.", 500));
+  } finally {
+    if (client) client.release();
+  }
+};
+```
+
+**§FJ.3 — `theo_chat_add_member.function.json` (UNCHANGED; deploy bundle):** the deployed POST binding (route `theo_chat_add_member`).
+
+## §HG.4 — `theo_chat_remove_member` (MODIFY: execution-time admin guard — R2)
+
+**Delta vs deployed CURRENT:** the gate `SELECT` gains `FOR UPDATE`; the remove UPDATE gains `AND admin_oid = $3 AND $2 <> admin_oid` (params `[threadId, memberOid, oid]`) with a `rowCount === 0 → 403` guard. The `DELETE` of the read-state row now runs only after the guarded UPDATE succeeds.
+
+**CURRENT (deployed, blob = VC-1.2 `theo_chat_remove_member.index.js`) — gate + write block:**
+
+```js
+    // Fetch the thread the caller can see (RLS + participant predicate). Absent / not a participant →
+    // 404. Only a CHANNEL has membership management; only the ADMIN may remove members; and the admin
+    // cannot be removed (transfer admin first — VC-15). Removing self as a non-admin is "leave" (VC-15),
+    // out of scope here.
+    const t = await client.query(
+      `SELECT kind, admin_oid, member_oids FROM public.theo_chat_threads WHERE id = $1 AND $2 = ANY(member_oids)`,
+      [threadId, oid]
+    );
+    if (t.rowCount === 0) {
+      throw buildKnownError("NOT_FOUND", "Conversation not found.", 404);
+    }
+    const row = t.rows[0];
+    if (row.kind !== "channel") {
+      throw buildKnownError("INVALID_REQUEST", "Members can only be removed from a channel.", 400);
+    }
+    if (row.admin_oid !== oid) {
+      throw buildKnownError("FORBIDDEN", "Only the channel admin can remove members.", 403);
+    }
+    if (memberOid === row.admin_oid) {
+      throw buildKnownError("INVALID_REQUEST", "The channel admin cannot be removed; transfer admin first.", 400);
+    }
+
+    const present = Array.isArray(row.member_oids) && row.member_oids.includes(memberOid);
+    if (present) {
+      // Remove the member (the admin/caller remains → the UPDATE RLS WITH CHECK still holds).
+      await client.query(
+        `UPDATE public.theo_chat_threads SET member_oids = array_remove(member_oids, $2), updated_at = now() WHERE id = $1`,
+        [threadId, memberOid]
+      );
+      // Clean up their read-state row (they lose access via RLS regardless).
+      await client.query(
+        `DELETE FROM public.theo_chat_thread_members WHERE thread_id = $1 AND member_oid = $2`,
+        [threadId, memberOid]
+      );
+    }
+```
+
+**MODIFIED (full replacement — file `theo_chat_remove_member.index.js` in this package):**
+
+```js
+const { Pool } = require("pg");
+
+const pool = new Pool({
+  connectionString: process.env.POSTGRES_CONNECTION_STRING,
+  ssl: { rejectUnauthorized: false },
+});
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-ms-client-principal",
+};
+
+function send(context, status, body) {
+  context.res = { status, headers: { ...corsHeaders, "Content-Type": "application/json" }, body };
+}
+function nowIso() { return new Date().toISOString(); }
+function errorBody(code, message, status) { return { error: { code, message, status, timestamp: nowIso() } }; }
+function successBody(data) { return { data, meta: { timestamp: nowIso(), version: "1.0" } }; }
+function getPrincipal(req) {
+  const raw = req.headers["x-ms-client-principal"];
+  if (!raw || typeof raw !== "string") return null;
+  try { return JSON.parse(Buffer.from(raw, "base64").toString("utf8")); } catch { return null; }
+}
+function getClaimValue(principal, claimTypes) {
+  if (!principal || !Array.isArray(principal.claims)) return null;
+  for (const claimType of claimTypes) {
+    const match = principal.claims.find((c) => c.typ === claimType);
+    if (match && typeof match.val === "string" && match.val.trim()) return match.val.trim();
+  }
+  return null;
+}
+function parseBody(req) {
+  if (req.body == null) return {};
+  if (typeof req.body === "string") return JSON.parse(req.body);
+  if (typeof req.body === "object") return req.body;
+  return {};
+}
+function buildKnownError(code, message, status) {
+  const err = new Error(message); err.code = code; err.status = status; err.isKnown = true; return err;
+}
+function isUuid(value) {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+module.exports = async function (context, req) {
+  if (req.method === "OPTIONS") {
+    return send(context, 204, "");
+  }
+
+  const principal = getPrincipal(req);
+  const oid = getClaimValue(principal, [
+    "http://schemas.microsoft.com/identity/claims/objectidentifier",
+    "oid",
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier",
+  ]);
+  if (!oid) {
+    return send(context, 401, errorBody("UNAUTHORIZED", "Missing or invalid EasyAuth identity.", 401));
+  }
+
+  let body;
+  try { body = parseBody(req); } catch { return send(context, 400, errorBody("BAD_REQUEST", "Request body is not valid JSON.", 400)); }
+
+  const threadId = typeof body.thread_id === "string" ? body.thread_id.trim() : "";
+  if (!isUuid(threadId)) {
+    return send(context, 400, errorBody("INVALID_REQUEST", "Field 'thread_id' is required and must be a valid UUID.", 400));
+  }
+  const memberOid = typeof body.member_oid === "string" ? body.member_oid.trim() : "";
+  if (!isUuid(memberOid)) {
+    return send(context, 400, errorBody("INVALID_REQUEST", "Field 'member_oid' is required and must be a valid Entra object id.", 400));
+  }
+
+  let client = null;
+  try {
+    client = await pool.connect();
+    await client.query(
+      `
+      SELECT
+        set_config('app.current_user_id', $1, false),
+        set_config('request.jwt.claim.sub', $1, false),
+        set_config('request.jwt.claim.oid', $1, false)
+      `,
+      [oid]
+    );
+
+    await client.query("BEGIN");
+
+    // ROW-LOCK the thread (FOR UPDATE) so a concurrent theo_chat_transfer_admin cannot change
+    // admin_oid between this check and the write — this also prevents removing a member who is being
+    // promoted to admin (the transfer blocks until this commits, then re-reads). Absent / not a
+    // participant → 404. Only a CHANNEL has membership management; only the ADMIN may remove members;
+    // the admin cannot be removed (transfer first — VC-15). Self-remove as non-admin ("leave") is VC-16.
+    const t = await client.query(
+      `SELECT kind, admin_oid, member_oids FROM public.theo_chat_threads WHERE id = $1 AND $2 = ANY(member_oids) FOR UPDATE`,
+      [threadId, oid]
+    );
+    if (t.rowCount === 0) {
+      throw buildKnownError("NOT_FOUND", "Conversation not found.", 404);
+    }
+    const row = t.rows[0];
+    if (row.kind !== "channel") {
+      throw buildKnownError("INVALID_REQUEST", "Members can only be removed from a channel.", 400);
+    }
+    if (row.admin_oid !== oid) {
+      throw buildKnownError("FORBIDDEN", "Only the channel admin can remove members.", 403);
+    }
+    if (memberOid === row.admin_oid) {
+      throw buildKnownError("INVALID_REQUEST", "The channel admin cannot be removed; transfer admin first.", 400);
+    }
+
+    const present = Array.isArray(row.member_oids) && row.member_oids.includes(memberOid);
+    if (present) {
+      // Remove the member. Admin predicate is IN the UPDATE (execution-time safe: 0 rows if admin
+      // changed under a race); admin/caller remains → the UPDATE RLS WITH CHECK still holds. Also
+      // guards against removing the just-transferred new admin (the target would be admin_oid by then,
+      // but the FOR UPDATE serialization + this predicate prevent that ordering).
+      const upd = await client.query(
+        `UPDATE public.theo_chat_threads SET member_oids = array_remove(member_oids, $2), updated_at = now() WHERE id = $1 AND admin_oid = $3 AND $2 <> admin_oid`,
+        [threadId, memberOid, oid]
+      );
+      if (upd.rowCount === 0) {
+        throw buildKnownError("FORBIDDEN", "Only the channel admin can remove members (or the target is now the admin).", 403);
+      }
+      // Clean up their read-state row (they lose access via RLS regardless).
+      await client.query(
+        `DELETE FROM public.theo_chat_thread_members WHERE thread_id = $1 AND member_oid = $2`,
+        [threadId, memberOid]
+      );
+    }
+
+    await client.query("COMMIT");
+    return send(context, 200, successBody({ thread_id: threadId, member_oid: memberOid, removed: present }));
+  } catch (err) {
+    if (client) { try { await client.query("ROLLBACK"); } catch {} }
+    context.log.error("theo_chat_remove_member failed", err);
+    if (err && err.code === "42501") {
+      return send(context, 403, errorBody("FORBIDDEN", "You do not have access to this conversation.", 403));
+    }
+    if (err && err.isKnown === true && typeof err.status === "number" && typeof err.code === "string") {
+      return send(context, err.status, errorBody(err.code, err.message, err.status));
+    }
+    return send(context, 500, errorBody("INTERNAL_SERVER_ERROR", "An unexpected error occurred.", 500));
+  } finally {
+    if (client) client.release();
+  }
+};
+```
+
+**§FJ.4 — `theo_chat_remove_member.function.json` (UNCHANGED; deploy bundle):** the deployed POST binding (route `theo_chat_remove_member`).
+
 ## §API-SPEC — Role-C (Pass 4) documentation delta
 After Pass 3 (deploy + curls): `spec/THEO_API_SPEC.md` §2.10 gains `POST theo_chat_rename_channel` `{ thread_id, name }` → `200 { thread_id, name }` and `POST theo_chat_transfer_admin` `{ thread_id, new_admin_oid }` → `200 { thread_id, admin_oid }` — both admin-gated (non-participant 404, non-channel 400, non-admin 403, self-transfer / non-member new-admin 400). No Schema delta (no DDL).
 
 ## §DEPLOY — Pass 3 (Claude Code, `vaultgpt-func-chat` only; no migration)
-Deploy the two new function dirs (`theo_chat_rename_channel`, `theo_chat_transfer_admin`, each `index.js` + `function.json`) via Kudu VFS (§1E / DR-T7). No app-setting change, no monolith/sidecar write, **no migration**. Restart; confirm the function list now includes both; run §CURL.
+Deploy via Kudu VFS (§1E / DR-T7): **two new** function dirs (`theo_chat_rename_channel`, `theo_chat_transfer_admin`, each `index.js` + `function.json`) **plus two overwrites** of the R2-hardened `theo_chat_add_member/index.js` and `theo_chat_remove_member/index.js` (their function.jsons unchanged). No app-setting change, no monolith/sidecar write, **no migration**. Restart; confirm the function list includes the two new functions; run §CURL.
 
 ## §CURL — post-deploy verification (Claude Code; az-login token; structural only)
 1. `POST theo_chat_rename_channel { thread_id, name }` (as admin, on a verify channel) → `200`; `list_threads` shows the new name.
 2. `POST theo_chat_transfer_admin { thread_id, new_admin_oid }` (as admin, to a current member) → `200 { admin_oid == new }`; a follow-up admin action by the OLD admin → `403` (they're no longer admin); transfer to self → `400`; transfer to a non-member → `400`; a non-admin caller → `403`; a non-channel → `400`.
+3. **R2 regression check** — after a transfer, the OLD admin's `theo_chat_add_member` / `theo_chat_remove_member` → `403` (execution-time admin guard); the NEW admin's add/remove → `200`. (Golden curls are sequential, so the concurrency guard is validated by the post-transfer 403 rather than by a live race.)
 No OIDs/bodies logged.
 
 ## §SM-NOTE — structural mirror

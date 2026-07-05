@@ -90,10 +90,11 @@ module.exports = async function (context, req) {
 
     await client.query("BEGIN");
 
-    // Fetch the thread the caller can see (RLS + explicit participant predicate). Absent / not a
-    // participant → 404. Only a CHANNEL is renamable; only the ADMIN (admin_oid = caller) may rename.
+    // Fetch the thread the caller can see (RLS + explicit participant predicate) and ROW-LOCK it
+    // (FOR UPDATE) so a concurrent transfer_admin cannot change admin_oid between this check and the
+    // UPDATE. Absent / not a participant → 404. Only a CHANNEL is renamable; only the ADMIN may rename.
     const t = await client.query(
-      `SELECT kind, admin_oid FROM public.theo_chat_threads WHERE id = $1 AND $2 = ANY(member_oids)`,
+      `SELECT kind, admin_oid FROM public.theo_chat_threads WHERE id = $1 AND $2 = ANY(member_oids) FOR UPDATE`,
       [threadId, oid]
     );
     if (t.rowCount === 0) {
@@ -107,12 +108,16 @@ module.exports = async function (context, req) {
       throw buildKnownError("FORBIDDEN", "Only the channel admin can rename the channel.", 403);
     }
 
-    // The admin remains a member → the thread UPDATE RLS WITH CHECK (auth.uid() = ANY(member_oids)) holds.
+    // Admin predicate is IN the UPDATE (execution-time safe: 0 rows if admin changed under a race),
+    // and the admin remains a member → the thread UPDATE RLS WITH CHECK (auth.uid() = ANY(member_oids)) holds.
     const upd = await client.query(
-      `UPDATE public.theo_chat_threads SET name = $2, updated_at = now() WHERE id = $1
+      `UPDATE public.theo_chat_threads SET name = $2, updated_at = now() WHERE id = $1 AND admin_oid = $3
        RETURNING id, name`,
-      [threadId, name]
+      [threadId, name, oid]
     );
+    if (upd.rowCount === 0) {
+      throw buildKnownError("FORBIDDEN", "Only the channel admin can rename the channel.", 403);
+    }
 
     await client.query("COMMIT");
     return send(context, 200, successBody({ thread_id: threadId, name: upd.rows[0].name }));

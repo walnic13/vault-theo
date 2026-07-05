@@ -5,6 +5,8 @@
 > **Scope (VC-15 = the no-migration half of the channel admin lifecycle):** two NEW handlers — `POST /api/theo_chat_rename_channel` `{ thread_id, name }` and `POST /api/theo_chat_transfer_admin` `{ thread_id, new_admin_oid }` — both **admin-gated** (`admin_oid = caller`) and both mutating only existing columns (`name`, `admin_oid`) with `member_oids` **unchanged**, so the deployed thread UPDATE RLS `WITH CHECK (auth.uid() = ANY(member_oids))` continues to hold (the admin/caller stays a member). **No schema change, no RLS change.**
 >
 > **Why leave + archive are NOT here (grounded split):** `leave` removes the CALLER from `member_oids` → the thread UPDATE `WITH CHECK` (new row must still contain `auth.uid()`) FAILS for self-removal → it needs an RLS accommodation (a `SECURITY DEFINER` leave fn or a policy change). `archive` needs an `archived_at` column. Both require a migration and are deferred to **VC-16** (one migration). VC-15 is the clean, migration-free half — deployable end-to-end today.
+>
+> **R1 fix (Codex Pass 2):** the admin gate is now **execution-time safe under concurrent transfer**. The gate read is `SELECT … FOR UPDATE` (row-locks the thread for the txn, so a concurrent `theo_chat_transfer_admin` blocks until this commits), AND the admin predicate is folded INTO the UPDATE (`WHERE id = $1 AND admin_oid = $caller`) with a **0-row guard → 403**. Previously the JS check + `WHERE id=$1`-only UPDATE were not atomic under READ COMMITTED: an admin could pass the check, lose admin to a concurrent transfer, and still rename/transfer (RLS only requires membership). Both handlers now re-assert admin authority at write time.
 
 ---
 
@@ -99,8 +101,9 @@ Mirrors the Primary Reference: 401 (no identity) / 400 (bad JSON, bad UUID, blan
 
 ## P7 — Idempotency / concurrency
 - `rename` is naturally idempotent (same name → same state); a concurrent rename last-writer-wins (single UPDATE).
-- `transfer_admin` sets `admin_oid`; re-issuing with the same `new_admin_oid` is a no-op-equivalent (admin already set); concurrent transfers last-writer-wins, each re-checked (caller must still be the admin at execution — the fetch + UPDATE run in one `BEGIN…COMMIT`).
-- Both run in a transaction after a single participant/admin fetch; `member_oids` is never mutated.
+- `transfer_admin` sets `admin_oid`; re-issuing with the same `new_admin_oid` is a no-op-equivalent (admin already set).
+- **Concurrency (R1):** the gate `SELECT … FOR UPDATE` row-locks the thread for the txn, so two concurrent admin operations on the same thread serialize (the second blocks until the first commits, then re-reads the fresh `admin_oid`). Additionally the admin predicate is IN the UPDATE (`WHERE id = $1 AND admin_oid = $caller`) with a 0-row → 403 guard, so even under READ COMMITTED an admin that loses authority to a concurrent transfer cannot rename/transfer (the UPDATE matches 0 rows). The `member_oids`-preserving UPDATE keeps the WITH CHECK satisfied.
+- Both run in one `BEGIN…COMMIT`; `member_oids` is never mutated.
 
 ## P8 — Security / RLS reconciliation
 **set_config triad.** Both open with the deployed triad.
@@ -383,10 +386,11 @@ module.exports = async function (context, req) {
 
     await client.query("BEGIN");
 
-    // Fetch the thread the caller can see (RLS + explicit participant predicate). Absent / not a
-    // participant → 404. Only a CHANNEL is renamable; only the ADMIN (admin_oid = caller) may rename.
+    // Fetch the thread the caller can see (RLS + explicit participant predicate) and ROW-LOCK it
+    // (FOR UPDATE) so a concurrent transfer_admin cannot change admin_oid between this check and the
+    // UPDATE. Absent / not a participant → 404. Only a CHANNEL is renamable; only the ADMIN may rename.
     const t = await client.query(
-      `SELECT kind, admin_oid FROM public.theo_chat_threads WHERE id = $1 AND $2 = ANY(member_oids)`,
+      `SELECT kind, admin_oid FROM public.theo_chat_threads WHERE id = $1 AND $2 = ANY(member_oids) FOR UPDATE`,
       [threadId, oid]
     );
     if (t.rowCount === 0) {
@@ -400,12 +404,16 @@ module.exports = async function (context, req) {
       throw buildKnownError("FORBIDDEN", "Only the channel admin can rename the channel.", 403);
     }
 
-    // The admin remains a member → the thread UPDATE RLS WITH CHECK (auth.uid() = ANY(member_oids)) holds.
+    // Admin predicate is IN the UPDATE (execution-time safe: 0 rows if admin changed under a race),
+    // and the admin remains a member → the thread UPDATE RLS WITH CHECK (auth.uid() = ANY(member_oids)) holds.
     const upd = await client.query(
-      `UPDATE public.theo_chat_threads SET name = $2, updated_at = now() WHERE id = $1
+      `UPDATE public.theo_chat_threads SET name = $2, updated_at = now() WHERE id = $1 AND admin_oid = $3
        RETURNING id, name`,
-      [threadId, name]
+      [threadId, name, oid]
     );
+    if (upd.rowCount === 0) {
+      throw buildKnownError("FORBIDDEN", "Only the channel admin can rename the channel.", 403);
+    }
 
     await client.query("COMMIT");
     return send(context, 200, successBody({ thread_id: threadId, name: upd.rows[0].name }));
@@ -542,11 +550,12 @@ module.exports = async function (context, req) {
 
     await client.query("BEGIN");
 
-    // Fetch the thread the caller can see (RLS + explicit participant predicate). Absent / not a
+    // Fetch the thread the caller can see (RLS + explicit participant predicate) and ROW-LOCK it
+    // (FOR UPDATE) so two concurrent transfers can't both pass the admin check. Absent / not a
     // participant → 404. Only a CHANNEL has an admin; only the current ADMIN may transfer; and the
     // new admin must be a DIFFERENT current member.
     const t = await client.query(
-      `SELECT kind, admin_oid, member_oids FROM public.theo_chat_threads WHERE id = $1 AND $2 = ANY(member_oids)`,
+      `SELECT kind, admin_oid, member_oids FROM public.theo_chat_threads WHERE id = $1 AND $2 = ANY(member_oids) FOR UPDATE`,
       [threadId, oid]
     );
     if (t.rowCount === 0) {
@@ -566,13 +575,17 @@ module.exports = async function (context, req) {
       throw buildKnownError("INVALID_REQUEST", "The new admin must be a current member of the channel.", 400);
     }
 
+    // Admin predicate is IN the UPDATE (execution-time safe: 0 rows if admin changed under a race).
     // Only admin_oid changes; member_oids is untouched and the caller remains a member → the thread
     // UPDATE RLS WITH CHECK (auth.uid() = ANY(member_oids)) holds.
     const upd = await client.query(
-      `UPDATE public.theo_chat_threads SET admin_oid = $2, updated_at = now() WHERE id = $1
+      `UPDATE public.theo_chat_threads SET admin_oid = $2, updated_at = now() WHERE id = $1 AND admin_oid = $3
        RETURNING id, admin_oid`,
-      [threadId, newAdminOid]
+      [threadId, newAdminOid, oid]
     );
+    if (upd.rowCount === 0) {
+      throw buildKnownError("FORBIDDEN", "Only the current channel admin can transfer admin.", 403);
+    }
 
     await client.query("COMMIT");
     return send(context, 200, successBody({ thread_id: threadId, admin_oid: upd.rows[0].admin_oid }));

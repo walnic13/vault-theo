@@ -34,10 +34,13 @@ BEGIN
     RAISE EXCEPTION 'theo_chat_leave: no caller identity' USING ERRCODE = '28000';
   END IF;
 
+  -- ROW-LOCK the thread on read (FOR UPDATE) so admin authority / membership cannot change under a
+  -- concurrent VC-15 transfer_admin (which itself takes FOR UPDATE): the two serialize on this row.
   SELECT kind, admin_oid, member_oids
     INTO v_kind, v_admin, v_members
     FROM public.theo_chat_threads
-   WHERE id = p_thread_id;
+   WHERE id = p_thread_id
+   FOR UPDATE;
 
   -- Not found or caller is not a participant → nothing to leave (handler maps the 404).
   IF NOT FOUND OR NOT (v_oid = ANY (v_members)) THEN
@@ -47,15 +50,27 @@ BEGIN
   IF v_kind <> 'channel' THEN
     RAISE EXCEPTION 'theo_chat_leave: not a channel' USING ERRCODE = '22023';
   END IF;
-  -- The admin cannot leave — they must transfer admin first.
+  -- The admin cannot leave — they must transfer admin first. (Under the FOR UPDATE lock above this
+  -- reflects the committed admin at lock time; a transfer that made the caller admin lands here → 22023.)
   IF v_oid = v_admin THEN
     RAISE EXCEPTION 'theo_chat_leave: admin cannot leave' USING ERRCODE = '22023';
   END IF;
 
-  -- Remove ONLY the caller (bypasses the thread UPDATE WITH CHECK via definer ownership).
+  -- Remove ONLY the caller (bypasses the thread UPDATE WITH CHECK via definer ownership). The full
+  -- guard (channel + still a member + still NOT the admin) is RE-ASSERTED in the UPDATE predicate so the
+  -- write is execution-time safe even if the earlier read raced: 0 rows → membership is NOT mutated.
   UPDATE public.theo_chat_threads
      SET member_oids = array_remove(member_oids, v_oid), updated_at = now()
-   WHERE id = p_thread_id;
+   WHERE id = p_thread_id
+     AND kind = 'channel'
+     AND v_oid = ANY (member_oids)
+     AND v_oid <> admin_oid;
+  -- No row updated → state changed under a concurrent transfer (e.g. caller just became admin). Do NOT
+  -- delete the membership row; report not-left so the invariant (admin ∈ members) can never break.
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+  -- Membership-row delete is tied to the successful guarded UPDATE above.
   DELETE FROM public.theo_chat_thread_members
    WHERE thread_id = p_thread_id AND member_oid = v_oid;
 

@@ -11,7 +11,8 @@
 ## GROUNDING CONFORMANCE RECEIPT
 Role: Claude Code
 Turn Type: Verified Evidence Pack (backend plan)
-Turn issued against HEAD: `8ab31bc6e50d96cd7ead0e9b5a670fa04c5ce283` (vault-theo, `development`)
+Turn issued against HEAD: `31c9926700ce7900756f9ce14f955dba6132e6e6` (vault-theo, `development`)
+Revision: R1 — Codex Pass 2 (VC-16 @ 31c9926) REJECTED for a TOCTOU in `theo_chat_leave()` (read `admin_oid` without a lock, then `UPDATE … WHERE id=$1` only — no execution-time re-assertion), matching the VC-15 R1 class. Fixed in `vc16_leave_archive_migration.sql`: the function's read now takes `FOR UPDATE` (serializes on the thread row against the VC-15 `transfer_admin` `FOR UPDATE` path) and the removal `UPDATE` re-asserts `kind='channel' AND v_oid = ANY(member_oids) AND v_oid <> admin_oid` with the membership-row `DELETE` gated on a successful (non-zero) `UPDATE`. §P7 + §P8 + the inline §MIGRATION SQL updated. All grounding anchors re-verified current at this HEAD; no code beyond the leave function's body changed.
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P8
@@ -98,7 +99,7 @@ Mirrors the Primary Reference: 401 / 400 (bad JSON, bad UUID, non-channel, admin
 One additive column: `theo_chat_threads.archived_at timestamptz` (nullable; NULL = active). One `SECURITY DEFINER` function `theo_chat_leave(uuid)`. No new table/index. Follows the `theo_` conventions (anchor "theo_projects"). Full DDL in §MIGRATION.
 
 ## P7 — Idempotency / concurrency
-- `leave` is idempotent (`left:false` if not a member); the removal + read-state delete run inside the function (single statement each) after the handler's RLS-visible validation.
+- `leave` is idempotent (`left:false` if not a member); the removal + read-state delete run inside the function after the handler's RLS-visible validation. **The function is execution-time safe against a concurrent VC-15 `transfer_admin` (R1 fix):** its read takes `FOR UPDATE` (serializing on the thread row against transfer's own `FOR UPDATE`) and its removal `UPDATE` re-asserts `kind='channel' AND v_oid = ANY(member_oids) AND v_oid <> admin_oid` (0 rows → membership untouched, `left:false`; the membership-row `DELETE` is gated on the successful `UPDATE`). See §P8.
 - `archive` is idempotent (`archived_at` set once via `WHERE archived_at IS NULL`; a re-archive matches 0 rows and the re-read confirms archived → success). The gate `SELECT … FOR UPDATE` + admin-in-UPDATE make it execution-time safe against a concurrent transfer (matching VC-15).
 - `list_threads` archived-filter is a pure read.
 
@@ -106,6 +107,7 @@ One additive column: `theo_chat_threads.archived_at timestamptz` (nullable; NULL
 **set_config triad.** Both handlers open with the deployed triad; the `SECURITY DEFINER` function reads the caller OID from `current_setting('request.jwt.claim.sub', true)` (set by that triad in the same session).
 **`archive` — no RLS change.** Admin-gated (`FOR UPDATE` + `admin_oid = caller` in the UPDATE + re-read guard); `member_oids` untouched → the thread UPDATE `WITH CHECK` holds. Ordinary participant/admin `auth.uid()` predicates (ownership-family extension).
 **`leave` — the scoped `SECURITY DEFINER` exception, justified.** Self-removal cannot pass the thread UPDATE `WITH CHECK` under the app role (RLS enforced; tables `ENABLE`-not-`FORCE` RLS, owned by the migration role). `theo_chat_leave(uuid)` is `SECURITY DEFINER` owned by that role → it bypasses the policy. It is **safe**: it derives the actor solely from `current_setting('request.jwt.claim.sub')` (never a parameter), removes ONLY that caller, and only when the caller `= ANY(member_oids)`, `kind='channel'`, and `caller <> admin_oid` — it cannot remove any other member, cannot act on a DM, and cannot remove an admin. `EXECUTE` is granted to `authenticated` only (`REVOKE ALL … FROM PUBLIC`). This is the same justified class as the deployed B7 `SECURITY DEFINER` cross-owner helper; the Schema §8 "no SECURITY DEFINER" note is about the chat READ/existence path and is amended by the Role-C. `search_path` is pinned (`SET search_path = public`) to prevent search-path hijack. No new elevated-READ class is introduced (no data is exposed that RLS would hide).
+**`leave` — execution-time concurrency safety (R1 fix).** The `SECURITY DEFINER` function is itself execution-time safe against a concurrent VC-15 `transfer_admin`, matching the Primary Reference's discipline (`FOR UPDATE` + predicate-in-UPDATE): (a) the initial read takes `FOR UPDATE`, so it **serializes on the thread row** against `transfer_admin` (which also takes `FOR UPDATE`) — the committed `admin_oid`/`member_oids` cannot change between the function's read and write; and (b) the removal `UPDATE` **re-asserts the full guard** (`kind='channel' AND v_oid = ANY(member_oids) AND v_oid <> admin_oid`), so a 0-row result leaves `member_oids` untouched and returns `left:false`, and the membership-row `DELETE` is gated on that successful `UPDATE`. Both interleavings are correct: transfer-then-leave → the caller reads themselves as the new admin → `22023` "admin cannot leave"; leave-then-transfer → transfer's own new-admin-must-be-a-member guard rejects handing admin to the departed member. The admin ∈ members invariant cannot break.
 **No leakage.** Responses carry `thread_id` + booleans — no tokens/bodies/URLs.
 
 ## §MIGRATION — `vc16_leave_archive_migration.sql` (additive + reversible; run by Walter at Pass 3 BEFORE the handler deploy)
@@ -149,10 +151,13 @@ BEGIN
     RAISE EXCEPTION 'theo_chat_leave: no caller identity' USING ERRCODE = '28000';
   END IF;
 
+  -- ROW-LOCK the thread on read (FOR UPDATE) so admin authority / membership cannot change under a
+  -- concurrent VC-15 transfer_admin (which itself takes FOR UPDATE): the two serialize on this row.
   SELECT kind, admin_oid, member_oids
     INTO v_kind, v_admin, v_members
     FROM public.theo_chat_threads
-   WHERE id = p_thread_id;
+   WHERE id = p_thread_id
+   FOR UPDATE;
 
   -- Not found or caller is not a participant → nothing to leave (handler maps the 404).
   IF NOT FOUND OR NOT (v_oid = ANY (v_members)) THEN
@@ -162,15 +167,27 @@ BEGIN
   IF v_kind <> 'channel' THEN
     RAISE EXCEPTION 'theo_chat_leave: not a channel' USING ERRCODE = '22023';
   END IF;
-  -- The admin cannot leave — they must transfer admin first.
+  -- The admin cannot leave — they must transfer admin first. (Under the FOR UPDATE lock above this
+  -- reflects the committed admin at lock time; a transfer that made the caller admin lands here → 22023.)
   IF v_oid = v_admin THEN
     RAISE EXCEPTION 'theo_chat_leave: admin cannot leave' USING ERRCODE = '22023';
   END IF;
 
-  -- Remove ONLY the caller (bypasses the thread UPDATE WITH CHECK via definer ownership).
+  -- Remove ONLY the caller (bypasses the thread UPDATE WITH CHECK via definer ownership). The full
+  -- guard (channel + still a member + still NOT the admin) is RE-ASSERTED in the UPDATE predicate so the
+  -- write is execution-time safe even if the earlier read raced: 0 rows → membership is NOT mutated.
   UPDATE public.theo_chat_threads
      SET member_oids = array_remove(member_oids, v_oid), updated_at = now()
-   WHERE id = p_thread_id;
+   WHERE id = p_thread_id
+     AND kind = 'channel'
+     AND v_oid = ANY (member_oids)
+     AND v_oid <> admin_oid;
+  -- No row updated → state changed under a concurrent transfer (e.g. caller just became admin). Do NOT
+  -- delete the membership row; report not-left so the invariant (admin ∈ members) can never break.
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+  -- Membership-row delete is tied to the successful guarded UPDATE above.
   DELETE FROM public.theo_chat_thread_members
    WHERE thread_id = p_thread_id AND member_oid = v_oid;
 

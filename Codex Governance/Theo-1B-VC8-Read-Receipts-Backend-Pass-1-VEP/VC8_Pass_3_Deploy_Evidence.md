@@ -45,7 +45,19 @@ The captured baselines (`/tmp/cur_*.js`) are the rollback source if ever needed 
 | `POST /api/theo_chat_mark_read` (modified) | **401** |
 | `POST /api/theo_chat_send_message` (unchanged control) | **401** |
 
-401 (not 500) confirms both modified handlers load and route cleanly — the `@azure/web-pubsub` require in `mark_read` resolves (already used by `send_message`/`typing`), and the new `list_threads` LATERAL parses. Full authenticated verification of `members_read` values + the live `read` group frame is FE-observed during **VC-8-FE** testing (a real EasyAuth bearer is required, which this environment does not hold).
+401 (not 500) confirms both modified handlers load and route cleanly — the `@azure/web-pubsub` require in `mark_read` resolves (already used by `send_message`/`typing`), and the new `list_threads` LATERAL parses.
+
+## 5b. Authenticated golden curl (az-login token, as `wmansfield@vault-tax.com`)
+
+EasyAuth (authV2) is enabled on the app: AAD clientId `4e1a1e31-5c20-4480-99e4-098901707d9e`, allowedAudiences `["api://4e1a1e31-5c20-4480-99e4-098901707d9e"]`. A user token minted with `az account get-access-token --resource api://4e1a1e31-5c20-4480-99e4-098901707d9e` is accepted by EasyAuth (principal injected), so the handler runs as the signed-in user.
+
+| Check | Result |
+| ----- | ------ |
+| `GET /api/theo_chat_list_threads` (Bearer) | **HTTP 200** |
+| Every thread carries `members_read` | **true** (5/5 threads) |
+| `members_read` shape `[{ oid, last_read_seq:int }]` | **shape_ok true** for all threads (DM + channel) |
+
+Structural check only — no OIDs / message bodies / token printed (no-leakage). This verifies the **Teams-"Seen" load path** end-to-end (deployed `list_threads` returns the peer read positions). The live `read` group frame from `mark_read` (the real-time advance) is observed in the browser during **VC-8-FE** testing (needs a WS client); the `mark_read` HTTP contract is unchanged from the already-deployed handler.
 
 ## 6. Follow-ups
 - **Role-C (Pass 4):** API-Spec §2.10 delta — `list_threads` gains `members_read`; `mark_read` documented to publish the transient `read` event. (Handoff authored alongside this evidence.)

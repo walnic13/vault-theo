@@ -253,7 +253,7 @@ module.exports = async function (context, req) {
     // of its thread, so a caller can only obtain a download URL for an attachment they can already see.
     // Absent / not visible → 404 (no existence leak). No attachment on the message → 404.
     const res = await client.query(
-      `SELECT attachment_blob_path, attachment_filename, attachment_content_type, attachment_byte_size
+      `SELECT attachment_blob_path, attachment_filename, attachment_content_type, attachment_byte_size, deleted_at
        FROM public.theo_chat_messages WHERE id = $1`,
       [messageId]
     );
@@ -261,7 +261,10 @@ module.exports = async function (context, req) {
       throw buildKnownError("NOT_FOUND", "Message not found.", 404);
     }
     const row = res.rows[0];
-    if (row.attachment_blob_path == null) {
+    // VC-9 (Codex R1): a tombstoned message masks its attachment — VC-12 "delete for everyone" means the
+    // file content must NOT be retrievable once deleted (parity with the nulled body + the masked list
+    // projection). Deleted OR no attachment → 404 before any read SAS is minted.
+    if (row.deleted_at != null || row.attachment_blob_path == null) {
       throw buildKnownError("NOT_FOUND", "This message has no attachment.", 404);
     }
 

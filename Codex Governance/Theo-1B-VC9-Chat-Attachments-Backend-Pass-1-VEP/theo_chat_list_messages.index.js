@@ -150,7 +150,9 @@ module.exports = async function (context, req) {
       forwarded: r.forwarded_from_message_id != null,
       // VC-9: expose the attachment preview (filename/content_type/byte_size) or null; never the raw
       // blob_path (a read SAS is issued per-request by theo_chat_attachment_download after a membership check).
-      attachment: r.attachment_blob_path == null ? null : {
+      // VC-9 (Codex R1): a tombstoned message MASKS its attachment too — VC-12 "delete for everyone" nulls
+      // the body AND must hide the file. The row keeps the pointer, but it is never projected once deleted.
+      attachment: (r.attachment_blob_path == null || r.deleted_at != null) ? null : {
         filename: r.attachment_filename,
         content_type: r.attachment_content_type,
         byte_size: r.attachment_byte_size == null ? null : Number(r.attachment_byte_size),

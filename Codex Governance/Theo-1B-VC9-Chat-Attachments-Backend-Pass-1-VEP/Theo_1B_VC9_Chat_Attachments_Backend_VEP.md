@@ -15,7 +15,7 @@ Turn issued against HEAD: `e6b88dfe349494a2b5dde20bf82488f539018a96` (vault-theo
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P8
-Detail: Pass 1 backend VEP for VC-9 chat attachments (attachment-is-a-message). P1–P8 walked; additive+reversible migration (four nullable `attachment_*` columns + a relaxed body CHECK + a coherence CHECK) with verify SQL; Primary Reference = the DEPLOYED `theo_chat_send_message` (VC-19 state, carrying the archived write-gate) inlined byte-verbatim + its function.json; REUSE the DEPLOYED `theo_create_attachment_upload` (SAS signer — inlined full as the external-system technique reference) + the DEPLOYED `theo_finalize_attachment` blob-HEAD technique; one NEW handler (`theo_chat_attachment_download` — membership-gated read SAS) + two MODIFY (`send_message` accepts+persists+projects the attachment; `list_messages` projects it) inlined full. Client-claimed size is never trusted (blob HEAD is authoritative); the raw blob_path is never projected. No RLS change (justified §P8). No `reporting_*` / monolith / sidecar change. `theo_message` / `theo_message_stream` / `theo_conversations` / `theo_messages` / `theo_attachments` NOT touched (chat attachments are a distinct per-message pointer).
+Detail: Pass 1 backend VEP for VC-9 chat attachments (attachment-is-a-message). P1–P8 walked; additive+reversible migration (four nullable `attachment_*` columns + a relaxed body CHECK + a coherence CHECK) with verify SQL; Primary Reference = the DEPLOYED `theo_chat_send_message` (VC-19 state, carrying the archived write-gate) inlined byte-verbatim + its function.json; REUSE the DEPLOYED `theo_create_attachment_upload` (SAS signer — inlined full as the external-system technique reference) + the DEPLOYED `theo_finalize_attachment` blob-HEAD technique; one NEW handler (`theo_chat_attachment_download` — membership-gated read SAS) + two MODIFY (`send_message` accepts+persists+projects the attachment; `list_messages` projects it) inlined full. Client-claimed size is never trusted (blob HEAD is authoritative); the raw blob_path is never projected; a deleted message masks its attachment in BOTH read paths (Codex R1 — VC-12 "delete for everyone" parity). No RLS change (justified §P8). No `reporting_*` / monolith / sidecar change. `theo_message` / `theo_message_stream` / `theo_conversations` / `theo_messages` / `theo_attachments` NOT touched (chat attachments are a distinct per-message pointer).
 Currency anchors: blob SHA via `git rev-parse HEAD:<path>`; verifiable via `git cat-file -p <sha>`.
 
 | # | Document (name + path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
@@ -88,7 +88,8 @@ Closed vocabulary: `PROCEED` / `PRE-LAND` / `ESCALATE` / `NO-GAPS`.
 | Recipients must download the raw file, but the raw `blob_path` must not leak (it embeds the sender OID + could be enumerated). | The projection exposes only `{ filename, content_type, byte_size }`; a download URL is minted per-request by `theo_chat_attachment_download` ONLY after the RLS select confirms thread membership; the SAS is single-blob, read-only, 15-min. | **PROCEED** — membership-gated per-request read SAS. |
 | TOCTOU: a thread could be archived (VC-19) between the send's gate read and the INSERT. | Same benign cooperative-gate race disclosed + accepted in VC-19 §P2.5 (unchanged here; the archived gate is inherited verbatim from the Primary Reference). | **PROCEED** — inherited VC-19 behaviour. |
 | FE not yet built (composer attach, upload orchestration, bubble render, download). | The backend loop is complete and curl-verifiable without the FE. | **PROCEED** — future trigger: **VC-9-FE** (vault-origin). |
-| Orphaned blobs if a send fails after upload, or a message is later deleted. | Out of scope for VC-9 (a future blob-GC tier); a soft-deleted message keeps its pointer but the tombstone masks it, and the download endpoint still requires visibility. Deliberately deferred — no correctness impact. | **PROCEED** — deferred GC noted. |
+| Orphaned blobs if a send fails after upload, or a message is later deleted. | Out of scope for VC-9 (a future blob-GC tier); a soft-deleted message keeps its pointer but the tombstone masks it (see the R1 row), and the download endpoint still requires visibility. Deliberately deferred — no correctness impact. | **PROCEED** — deferred GC noted. |
+| **(Codex R1 — RESOLVED)** A deleted attachment message must not remain downloadable — VC-12 "delete for everyone" nulls the body, but the file content must be hidden too. | The VC-12 soft-delete (`theo_chat_delete_message`) sets `deleted_at` + nulls `body`; the attachment columns physically remain (no delete-handler change). VC-9 therefore **masks at read**: `list_messages` projects `attachment:null` when `deleted_at IS NOT NULL`, and `theo_chat_attachment_download` returns **404** for a deleted message BEFORE minting any SAS. So the file is unreachable via the API once deleted (blob_path is never exposed; the raw blob is GC'd by the deferred tier above). | **PROCEED** — read-time tombstone masking in both handlers; a curl in §CURL proves delete → list masks → download denied. |
 
 Not a `NO-GAPS` certification.
 
@@ -118,6 +119,7 @@ Four additive nullable columns on `theo_chat_messages` (`attachment_blob_path te
 **No RLS change.** The deployed `theo_chat_message_insert` policy `WITH CHECK (sender_oid = auth.uid() AND thread_id IN (SELECT id FROM public.theo_chat_threads WHERE auth.uid() = ANY (member_oids)))` is column-agnostic — adding the `attachment_*` columns doesn't change what it evaluates. The download read rides `theo_chat_message_select` (participant-scoped) — a caller can only mint a download URL for an attachment on a message they can already see (non-visible → 404, no existence leak). Participant-scoped attachment is an ownership-family extension ("Default family: ownership-based"). No `SECURITY DEFINER`; no new elevated read.
 **Blob-pointer forgery defence.** A caller may only attach `attachments/<their-own-oid>/<uuid>` — the send handler re-asserts the exact owner prefix + a UUID id, so a caller cannot attach a blob they didn't upload (the upload SAS only ever writes under their own OID). The authoritative byte size is read from the blob (HEAD), never trusted from the client. Only allow-listed content-types are accepted.
 **Download-URL scope.** The minted SAS is single-blob, read-only, `https`-only, 15-min, with `Content-Type` pinned and a `Content-Disposition` filename; the raw blob_path is never returned to the client (only the opaque, expiring URL). Managed identity signs via a short-lived user-delegation key (no account key in code/env).
+**Tombstone masking (Codex R1).** VC-12 "delete for everyone" nulls the body; VC-9 extends the same invariant to the FILE. `list_messages` projects `attachment:null` when `deleted_at IS NOT NULL`, and `theo_chat_attachment_download` returns **404** for a deleted message BEFORE minting any SAS — so once a sender deletes an attachment message, the file is no longer retrievable by ANY participant, even one who captured the `message_id` earlier. (The blob itself is reclaimed by the deferred blob-GC tier; masking makes it API-unreachable immediately.)
 **No leakage.** Responses/publishes carry only `{ filename, content_type, byte_size }` + (for download) the expiring URL — no tokens, no OIDs, no raw blob path.
 
 ## §MIGRATION — `vc9_attachment_migration.sql` (additive + reversible; run by Walter at Pass 3 BEFORE the handler deploy)
@@ -1243,7 +1245,7 @@ module.exports = async function (context, req) {
 
 ## §HG.2 — `theo_chat_list_messages` (MODIFY: project the `attachment` preview on the VC-13 base)
 
-Delta vs DEPLOYED (blob `efa5e8bb`): the SELECT adds the four `attachment_*` columns and each shaped message gains `attachment: { filename, content_type, byte_size } | null` (the raw blob_path is NOT projected). Cursor/paging/gate/reply/deleted/forwarded all unchanged. Full — file `theo_chat_list_messages.index.js`:
+Delta vs DEPLOYED (blob `efa5e8bb`): the SELECT adds the four `attachment_*` columns and each shaped message gains `attachment: { filename, content_type, byte_size } | null` (the raw blob_path is NOT projected). **Codex R1:** the projection is masked to `null` when `deleted_at IS NOT NULL` (a tombstone hides its file, mirroring the nulled body). Cursor/paging/gate/reply/forwarded otherwise unchanged. Full — file `theo_chat_list_messages.index.js`:
 
 ```js
 const { Pool } = require("pg");
@@ -1398,7 +1400,9 @@ module.exports = async function (context, req) {
       forwarded: r.forwarded_from_message_id != null,
       // VC-9: expose the attachment preview (filename/content_type/byte_size) or null; never the raw
       // blob_path (a read SAS is issued per-request by theo_chat_attachment_download after a membership check).
-      attachment: r.attachment_blob_path == null ? null : {
+      // VC-9 (Codex R1): a tombstoned message MASKS its attachment too — VC-12 "delete for everyone" nulls
+      // the body AND must hide the file. The row keeps the pointer, but it is never projected once deleted.
+      attachment: (r.attachment_blob_path == null || r.deleted_at != null) ? null : {
         filename: r.attachment_filename,
         content_type: r.attachment_content_type,
         byte_size: r.attachment_byte_size == null ? null : Number(r.attachment_byte_size),
@@ -1460,7 +1464,7 @@ module.exports = async function (context, req) {
 
 ## §HG.3 — `theo_chat_attachment_download` (GREENFIELD: membership-gated read SAS)
 
-Mirrors the Primary Reference's Family-B shape + the §EXT SAS signer (permission `r`, plus a signed `Content-Disposition` for a filename download). Reads the message under RLS (participant → else 404; no attachment → 404), then mints a single-blob, 15-min read SAS. Full — file `theo_chat_attachment_download.index.js`:
+Mirrors the Primary Reference's Family-B shape + the §EXT SAS signer (permission `r`, plus a signed `Content-Disposition` for a filename download). Reads the message under RLS (participant → else 404; **deleted (Codex R1)** or no attachment → 404), then mints a single-blob, 15-min read SAS. Full — file `theo_chat_attachment_download.index.js`:
 
 ```js
 const { Pool } = require("pg");
@@ -1718,7 +1722,7 @@ module.exports = async function (context, req) {
     // of its thread, so a caller can only obtain a download URL for an attachment they can already see.
     // Absent / not visible → 404 (no existence leak). No attachment on the message → 404.
     const res = await client.query(
-      `SELECT attachment_blob_path, attachment_filename, attachment_content_type, attachment_byte_size
+      `SELECT attachment_blob_path, attachment_filename, attachment_content_type, attachment_byte_size, deleted_at
        FROM public.theo_chat_messages WHERE id = $1`,
       [messageId]
     );
@@ -1726,7 +1730,10 @@ module.exports = async function (context, req) {
       throw buildKnownError("NOT_FOUND", "Message not found.", 404);
     }
     const row = res.rows[0];
-    if (row.attachment_blob_path == null) {
+    // VC-9 (Codex R1): a tombstoned message masks its attachment — VC-12 "delete for everyone" means the
+    // file content must NOT be retrievable once deleted (parity with the nulled body + the masked list
+    // projection). Deleted OR no attachment → 404 before any read SAS is minted.
+    if (row.deleted_at != null || row.attachment_blob_path == null) {
       throw buildKnownError("NOT_FOUND", "This message has no attachment.", 404);
     }
 
@@ -1784,9 +1791,17 @@ module.exports = async function (context, req) {
 ## §API-SPEC — Role-C (Pass 4) documentation delta
 `spec/THEO_API_SPEC.md` §2.10 **`read / send messages`** row: (a) `theo_chat_send_message` accepts an optional `attachment { blob_path, filename, content_type }` and `body` is optional when an attachment is present; each message projection (`list_messages`/`send_message`) now also carries `attachment` (`{ filename, content_type, byte_size } | null`); (b) add `POST /api/theo_chat_attachment_download { message_id }` → **200** `{ downloadUrl, filename, content_type, byte_size, expiresAt }` (membership-gated read SAS; not visible / no attachment → **404**); (c) note the REUSED `POST /api/theo_create_attachment_upload` as the chat upload SAS issuer. `spec/THEO_AZURE_POSTGRES_SCHEMA.md` §3 `theo_chat_messages` row: add the four `attachment_*` columns (blob pointer; the API exposes only the preview + a per-request read SAS) + the widened body CHECK + the coherence CHECK. Authored as a Role-C handoff after Pass-3 deploy + curls.
 
-## §DEPLOY — Pass 3 (Walter migration FIRST, then Claude Code deploy to `vaultgpt-func-chat`)
+## §DEPLOY — Pass 3 (infra prereq + Walter migration FIRST, then Claude Code deploy to `vaultgpt-func-chat`)
+0. **INFRA PREREQUISITE (Walter / control-plane) — REQUIRED, this is NEW for `vaultgpt-func-chat`.** Unlike the monolith `vaultgpt-func-premium` (which has SystemAssigned MI + a Storage Blob Data role), `vaultgpt-func-chat` currently has **NO managed identity** — the existing 17 chat handlers never needed Blob (they use Postgres + Web PubSub connection strings). VC-9 is the FIRST chat feature to touch Blob, so before deploy the app MUST get: (a) a **system-assigned managed identity** enabled; (b) **Storage Blob Data Contributor** (or at minimum *Reader* for the HEAD/read paths, but *Contributor* matches the monolith and future write needs) on `vaultgptstorage01`; then (c) a **restart** so `IDENTITY_ENDPOINT`/`IDENTITY_HEADER` are injected. Verify with a probe (an authenticated `send_message` with a valid attachment returns **201**, not 500). Without this, `getBlobProperties` / the SAS signer throw and the attachment paths 500. Commands (Walter-run or Claude-Code-run under explicit authorization):
+   ```
+   az functionapp identity assign --name vaultgpt-func-chat --resource-group Vault-Tax
+   # grant the new principalId Storage Blob Data Contributor on the storage account:
+   az role assignment create --assignee <principalId> --role "Storage Blob Data Contributor" \
+     --scope /subscriptions/<sub>/resourceGroups/Vault-Tax/providers/Microsoft.Storage/storageAccounts/vaultgptstorage01
+   az functionapp restart --name vaultgpt-func-chat --resource-group Vault-Tax
+   ```
 1. **Walter** runs `vc9_attachment_migration.sql` + the verify SQL (the four columns + both CHECKs must exist before deploy).
-2. **Claude Code** deploys the NEW `theo_chat_attachment_download/{index.js,function.json}` + overwrites `theo_chat_send_message/index.js` + `theo_chat_list_messages/index.js` via Kudu VFS surgical PUT (ARM bearer; no token logged); restart → confirm the 1 new function registers (inventory 17 → 18); baseline get-back before overwrite; post-deploy get-back byte-matches this pack. `theo_create_attachment_upload` is REUSED unchanged (not re-deployed).
+2. **Claude Code** deploys the NEW `theo_chat_attachment_download/{index.js,function.json}` + overwrites `theo_chat_send_message/index.js` + `theo_chat_list_messages/index.js` via Kudu VFS surgical PUT (ARM bearer; no token logged); restart → confirm the 1 new function registers (inventory 17 → 18); baseline get-back before overwrite; post-deploy get-back byte-matches this pack. `theo_create_attachment_upload` is REUSED unchanged (not re-deployed) — note it lives on the monolith today; if the chat FE calls it via the chat app, confirm the route is reachable or plan to also deploy it to `vaultgpt-func-chat` (it too needs the MI from step 0).
 
 ## §CURL — post-deploy verification (Claude Code; az-login token for `api://4e1a1e31-…`; structural only — no OIDs/bodies)
 Against a disposable channel the caller owns; a real small file uploaded via the reused upload SAS:
@@ -1799,9 +1814,10 @@ Against a disposable channel the caller owns; a real small file uploaded via the
 - `GET list_messages?threadId=<t>` → the attachment message carries `attachment` + no raw blob_path; a plain message carries `attachment:null`.
 - `POST attachment_download` `{ message_id:<attachment msg> }` → **200** `{ downloadUrl, filename, byte_size, expiresAt }`; a GET on `downloadUrl` → **200** with the bytes + `Content-Disposition`.
 - `POST attachment_download` `{ message_id:<plain msg> }` → **404** (no attachment); bad `message_id` → **400**; a message in a thread the caller is NOT in → **404** (membership gate).
+- **(Codex R1) delete → mask → deny:** `POST delete_message` `{ message_id:<attachment msg> }` (as its sender) → **200**; then `GET list_messages?threadId=<t>` → that message now shows `deleted:true` + `attachment:null` (masked); then `POST attachment_download` `{ message_id:<same> }` → **404** (the file is no longer retrievable — VC-12 "delete for everyone" now covers the attached file).
 
 ## §SM-NOTE — structural mirror
-`theo_chat_send_message` keeps the deployed insert+seq+publish+gate pattern + adds the attachment path; `theo_chat_list_messages` adds only the `attachment` projection; `theo_chat_attachment_download` is the Family-B shape + the §EXT SAS signer (permission `r` + `Content-Disposition`). No shared helper/envelope/error-map drift; the new `isKnown` errors ride the existing re-map. `node --check` clean on all three (verified this turn). The download signer's canonical string-to-sign is field-position-identical to §EXT (only `rscd` populated + `sp="r"`).
+`theo_chat_send_message` keeps the deployed insert+seq+publish+gate pattern + adds the attachment path; `theo_chat_list_messages` adds only the `attachment` projection (masked on tombstones); `theo_chat_attachment_download` is the Family-B shape + the §EXT SAS signer (permission `r` + `Content-Disposition`), gated on membership AND non-deleted. No shared helper/envelope/error-map drift; the new `isKnown` errors ride the existing re-map. `node --check` clean on all three (verified this turn). The download signer's canonical string-to-sign is field-position-identical to §EXT (only `rscd` populated + `sp="r"`). **Codex R1 (RESOLVED):** deleted attachment messages are masked in both read paths (`list_messages` → `attachment:null`; `attachment_download` → 404), extending VC-12 "delete for everyone" to the file content.
 
 ## Requested Pass 2 verdict
 **APPROVED** or **REJECTED** only. On APPROVED: Walter runs the migration, Claude Code deploys the new handler + two overwrites + curls, then the Role-C (Pass 4) + VC-9-FE.

@@ -35,7 +35,8 @@ const STYLE_BLOCK = `
   textarea:focus, input:focus { outline: none; }
   @keyframes vo-bounce { 0%,80%,100%{transform:translateY(0);opacity:.4} 40%{transform:translateY(-4px);opacity:1} }
   @media (prefers-reduced-motion: reduce){ * { animation: none !important; transition: none !important; } }
-  @media (max-width: 720px){ .vo-aside{ display:none !important; } .vo-panel{ position:absolute !important; inset:0 !important; width:100% !important; flex:none !important; z-index:20; } }
+  @media (max-width: 767.98px){ .vo-standalone .vo-aside{ display:none !important; } .vo-panel{ position:absolute !important; inset:0 !important; width:100% !important; min-width:0 !important; flex:none !important; z-index:20; } }
+  @media (hover: none){ .vo-actions{ opacity:1 !important; } }
 `;
 
 // The dev context-injector shows in the standalone harness when running `vite dev`
@@ -105,7 +106,7 @@ export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessTo
 
   // Standalone (vault-theo-dev harness): faithful Pass-A inline layout + DEV-only context injector.
   return (
-    <div style={{ height: "100vh", width: "100%", display: "flex", fontFamily: SANS, color: C.ink, background: C.bg, overflow: "hidden" }}>
+    <div className="vo-standalone" style={{ height: "100vh", width: "100%", display: "flex", fontFamily: SANS, color: C.ink, background: C.bg, overflow: "hidden" }}>
       <style>{STYLE_BLOCK}</style>
       {nav}
       <main style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>

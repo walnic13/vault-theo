@@ -107,6 +107,15 @@ Theo is hosted **inside the Origin shell** as the default landing surface, not a
 - **Context-broadcast (in-process):** Origin passes `{ app_key, app_context }` to the mounted Theo surface via the shell `AppHostContext` (in-process props), never cross-origin `postMessage` (App Host Contract §1A). `app_key` reflects the active app (`NULL` = Origin-level general chat); `app_context` is the opaque anchor. Context-only — 1A does not fetch app data (§2.4).
 - **Mount mechanism:** in-shell Module Federation (no iframe); the Origin shell consumes the Theo federated surface(s). No refactor of existing Origin behaviour beyond these additive mounts.
 
+### 4.1 Narrow-viewport (mobile) hosted behavior (Walter-approved 2026-07-08)
+
+This refines the hosted mount for narrow (mobile / phone) viewports, consistent with the landed Origin shell authority VO1 §2B / §10B / §12 (`corporate-reporting` VA-F1). It is realised by the Vault Origin shell responsive foundation (Origin-side) plus a narrow-viewport CSS adaptation of the Theo surface. The wide-viewport surface (VA-T1) is reproduced unchanged; the narrow rules are additive.
+
+- **Single-column reflow.** Below a narrow-viewport breakpoint (a phone-width threshold aligned to the Origin shell breakpoint), Theo's hosted surface presents as a single full-width column: the 9/10 main view fills the viewport and Theo's nav is reached through the Origin shell's off-canvas drawer (Origin owns the drawer; Theo's nav is portaled into it). Theo's own `.vo-aside` hide rule applies only to the standalone dev harness, never to the hosted nav.
+- **Artifact viewer as a full-screen overlay.** The versioned artifact panel, which docks beside the chat on the desktop, presents as a full-screen overlay over the chat on narrow viewports rather than a side-by-side pane (there is no room for two panes on a phone). Closing it returns to the chat.
+- **Touch-first affordances.** Hover-revealed manage affordances (recents rename/delete, card actions) are presented as always-visible / tap-reachable on touch input, since touch has no hover state.
+- **Faithful wide surface.** On wide viewports the VA-T1 surface is reproduced exactly; the narrow-viewport rules do not alter the wide rendered surface. This is a viewport adaptation of VA-T1, not a redesign; the driving vision authority is the landed VO1 §2B / §10B / §12.
+
 ---
 
 ## 5. The SWAP BLOCK (branding + model + endpoint)

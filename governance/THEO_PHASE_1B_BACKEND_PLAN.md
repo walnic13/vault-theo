@@ -29,7 +29,7 @@ Phase 1A built the full Theo frontend surface (chat, projects, artifacts, custom
 |---|---|
 | Plan author | Claude Code (Pass 1 VEP) |
 | Reviewer | **Codex** (Pass 2) — `CODEX_THEO_BACKEND_REVIEW_STANDARD.md` |
-| DB writes / migrations / deploys | **Walter only**. Claude Code plans + hands off Walter-executable SQL; never deploys, never writes the DB. |
+| DB writes / migrations / deploys | **Walter only** for DB writes, migrations, and merges. Claude Code plans + hands off Walter-executable SQL; never writes the DB. **Deploy exception (Orchestration §1E / DR-T7, 2026-07-04):** Claude Code MAY deploy handler/function code to the designated dedicated Theo Function App (`vaultgpt-func-chat` only) after a Codex-APPROVED VEP; the monolith + streaming sidecar remain READ-ONLY. |
 | Read-only SQL grounding | `codex_reporting_ro` (SELECT-only) per the local SQL rule |
 | Authority docs (truth owners) | Theo API Spec (contract), Theo Azure Postgres Schema (data), Theo Golden Handler Standard (handler pattern), Theo Architecture & Structure (boundaries) |
 | Pattern reference (reuse, do not fork) | Reporting Golden Handler Pack (Family B handler shape), Reporting Backend API Spec §3–§5 (auth, session context, 403/404), Reporting Azure Postgres Schema §4–§5 (RLS, existence helpers) |

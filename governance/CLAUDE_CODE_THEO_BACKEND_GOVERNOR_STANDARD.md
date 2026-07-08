@@ -35,7 +35,7 @@ For each in-scope endpoint, cite the Theo API Spec entry and confirm the route-n
 - **Walter-executable SQL** (migrations, seeds, writes) is authored copy/paste-ready, targeted at Walter, and is never executed by Claude Code. Migration files carry no top-level transaction-control; handler-execution SQL follows the Theo Golden Handler Standard SQL rules.
 - **Post-migration verification** is read-only `SELECT`-only (V1–Vn), run only after a Walter execution confirmation.
 - Governed SQL blocks contain no prohibited psql meta-commands (Conformance §10 T26).
-- **Authorization boundary:** Claude Code plans and hands off; Walter executes all database writes, migrations, and deployments. Claude Code never deploys.
+- **Authorization boundary:** Claude Code plans and hands off; Walter executes all database writes and migrations. Claude Code never writes or migrates the database. **Deployment:** Walter deploys, except the scoped exception (Theo Execution Orchestration Standard §1E, DR-T7; Walter-granted 2026-07-04) under which Claude Code MAY deploy handler/function code to the designated dedicated Theo Function App (`vaultgpt-func-chat` only) after a Codex-APPROVED VEP; the monolith `vaultgpt-func-premium` and streaming sidecar `vaultgpt-func-stream` remain READ-ONLY / never written by Claude Code.
 
 ## §7 Golden Curl + Handler Discipline (P5/P7, I2/I4)
 

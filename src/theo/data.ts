@@ -25,8 +25,8 @@ export const STARTERS: string[] = [
   "Draft a client onboarding email", "Make a 1446(f) withholding checklist", "Summarise a K-1 engagement status",
 ];
 
-// B5a: the harness seed omits visibility/isOwner; gateway.mock adds them (private + owned) on load.
-export const INIT_PROJECTS: Omit<Project, "visibility" | "isOwner">[] = [
+// B5a/B5c/B5d: the harness seed omits visibility/isOwner/sharedWithMe/memberCount; gateway.mock adds all four on load.
+export const INIT_PROJECTS: Omit<Project, "visibility" | "isOwner" | "sharedWithMe" | "memberCount">[] = [
   { id: "p1", name: "Da Vinci Capital — 2025 K-1s", desc: "Engagement workspace for the 2025 K-1 cycle.", updated: "2d ago",
     instructions: "Treat all entity names as confidential. Default to US partnership tax framing. Flag any 1446(f) trigger.",
     knowledge: [

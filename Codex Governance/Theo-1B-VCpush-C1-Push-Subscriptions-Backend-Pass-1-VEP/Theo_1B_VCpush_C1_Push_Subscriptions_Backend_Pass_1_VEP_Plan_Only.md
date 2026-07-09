@@ -2,6 +2,8 @@
 
 Plan-only Verified Evidence Pack. No handler/migration files are written into the app, no deploy, no commit. This pack delivers the storage substrate + two CRUD handlers for Web Push subscriptions (Apps Phase C, package C1). The sender (C2) and the FE (C3) are out of scope.
 
+**Revision note (this turn):** addresses Codex Pass 2 rejection on G4 — uniqueness is now per-owner `UNIQUE (created_by, endpoint)` with `ON CONFLICT (created_by, endpoint)`, and `save` no longer reassigns `created_by` on conflict, so no cross-owner UPDATE is ever attempted (the rejected RLS-invisibility failure mode cannot occur).
+
 ## Grounding Conformance Receipt
 
 Role: Claude Code
@@ -85,7 +87,7 @@ Vocabulary is closed (`PROCEED` / `PRE-LAND` / `ESCALATE` / `NO-GAPS`) per Gover
 | G1 | The Phase 1B Backend Plan has no explicit Phase C / Web Push feature row. | PROCEED | The native-chat (VC) program has run entirely as a Walter-directed extension under DR-T7 without plan rows; C1 continues it on identical footing. A plan Role-C row is an optional documentation follow-up, not a blocker for this microstep. |
 | G2 | **C2 fan-out read across owners.** The sender (C2) must read *other* users' subscriptions to deliver a push, but C1's ownership RLS (`created_by = auth.uid()`) scopes reads to the caller's own rows; the shared func-chat connection role does not grant a cross-owner read. | PROCEED | C1 is storage + per-user CRUD only, so ownership RLS is correct here. C2 will add a narrowly-scoped `SECURITY DEFINER` enumeration helper that returns only `{ endpoint, p256dh, auth }` for a target recipient (the Golden Handler §3(b) scheduled/enumeration pattern), owned by the migration role, `REVOKE … FROM PUBLIC` + `GRANT EXECUTE … TO authenticated`, pinned `search_path`. Explicitly deferred to C2; disclosed now so the C1 table shape already supports it. |
 | G3 | **VAPID secrets** (`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`). | PROCEED | Already provisioned by Walter as `vaultgpt-func-chat` **app settings** (secrets — never in the repo). C1 (storage) does not read them; C2 (sender) will. No key values appear anywhere in this VEP. |
-| G4 | **Endpoint uniqueness vs re-registration / owner change.** `endpoint` is globally `UNIQUE`; a browser can re-subscribe with the same endpoint, or (rarely) an endpoint could be re-issued to a different signed-in user. | PROCEED | `save` upserts `ON CONFLICT (endpoint)` and re-writes `p256dh` / `auth` / `ua` / `created_by`, so a re-subscribe or ownership change is absorbed idempotently; the explicit `created_by = $oid` predicate + RLS keep reads/deletes owner-scoped. No pre-land needed. |
+| G4 | **Endpoint uniqueness vs re-registration / shared-device owner change.** A browser can re-subscribe with the same endpoint, and (rarely) a device previously used by another account can present the same endpoint under a different signed-in user. | PROCEED | Uniqueness is **per-owner** `(created_by, endpoint)`. A re-subscribe by the same user updates that user's own row via `ON CONFLICT (created_by, endpoint)` (RLS-valid — `created_by = auth.uid()` always holds). A different user registering the same device endpoint INSERTs their OWN row (no cross-owner UPDATE is ever attempted, so the RLS failure mode Codex flagged cannot occur). A subscription left behind by a prior owner on a shared device is harmless and is pruned by C2 when the Web Push service returns `410 Gone` / `404` for it (C2 deletes on those status codes). No pre-land needed. |
 
 ---
 
@@ -101,7 +103,7 @@ Column plan (matches the brief):
 | ------ | ---- | ----- |
 | `id` | `uuid PK DEFAULT gen_random_uuid()` | Schema §1 |
 | `created_by` | `text NOT NULL` | owner Entra OID; Schema §1 canonical ownership column |
-| `endpoint` | `text NOT NULL UNIQUE` | the Push API endpoint URL (validated https) |
+| `endpoint` | `text NOT NULL` | the Push API endpoint URL (validated https); unique **per owner** via `UNIQUE (created_by, endpoint)`, not globally |
 | `p256dh` | `text NOT NULL` | client public key (base64url) |
 | `auth` | `text NOT NULL` | client auth secret (base64url) |
 | `ua` | `text NULL` | optional user-agent string |
@@ -140,7 +142,7 @@ Method is **POST + OPTIONS** for both, matching every deployed `theo_chat_*` han
 | `parseBody` try/catch → 400 | send_message L78–79 | EXACT | byte-identical |
 | Field validation before any SQL | send_message L81–100 (`thread_id`/`body`) | ALLOWED DELTA | validated field set differs: `endpoint` (non-empty https URL) + `p256dh`/`auth` non-empty (save); `endpoint` only (delete). Golden Handler §4 permits "the specific validated field set". |
 | `set_config` triad | send_message L108–116 | EXACT | byte-identical three-key `set_config` |
-| RLS-scoped write query | send_message L145–164 (insert) | ALLOWED DELTA | `INSERT … ON CONFLICT (endpoint) DO UPDATE` (save) / `DELETE … WHERE endpoint=$1 AND created_by=$2` (delete), both with explicit `created_by` predicate. Golden Handler §4 permits "the specific RLS-scoped query". |
+| RLS-scoped write query | send_message L145–164 (insert) | ALLOWED DELTA | `INSERT … ON CONFLICT (created_by, endpoint) DO UPDATE` (save; conflict target is the caller's own row — no `created_by` reassignment) / `DELETE … WHERE endpoint=$1 AND created_by=$2` (delete), both with explicit `created_by` predicate so no cross-owner write is attempted. Golden Handler §4 permits "the specific RLS-scoped query". |
 | Success response | send_message L192 (`201`) / delete → `200` | ALLOWED DELTA | response shape per contract (§4). Golden Handler §4 permits "the contract's response shape". |
 | catch → `42501`→403, known-error passthrough, `500` | send_message L193–207 | EXACT (save) / ALLOWED DELTA (delete drops the `23514` branch — no CHECK constraint) | error mapping mirrored |
 | `finally { client.release() }` | send_message L205–207 | EXACT | byte-identical |
@@ -250,17 +252,20 @@ module.exports = async function (context, req) {
       [oid]
     );
 
-    // Upsert by the globally-unique endpoint; re-writes the keys/ua and (re)claims ownership for the
-    // caller. Explicit created_by predicate = defence-in-depth alongside the ownership RLS policies.
+    // Upsert scoped to the caller's OWN (created_by, endpoint) row. created_by is bound to the caller's
+    // oid on INSERT and is NOT reassigned on conflict, so the conflict target is always the caller's own
+    // row: the INSERT WITH CHECK and the UPDATE USING/WITH CHECK ownership RLS (created_by = auth.uid())
+    // are both satisfied and no cross-owner UPDATE is ever attempted. A different user registering the
+    // same device endpoint simply INSERTs their own row (per-owner UNIQUE(created_by, endpoint)).
     const upsert = await client.query(
       `
       INSERT INTO public.theo_chat_push_subscriptions (created_by, endpoint, p256dh, auth, ua)
       VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (endpoint) DO UPDATE
+      ON CONFLICT (created_by, endpoint) DO UPDATE
         SET p256dh = EXCLUDED.p256dh,
             auth = EXCLUDED.auth,
             ua = EXCLUDED.ua,
-            created_by = EXCLUDED.created_by
+            created_at = now()
       RETURNING id, endpoint, created_at
       `,
       [oid, endpoint, p256dh, auth, ua]
@@ -692,15 +697,19 @@ Plain PostgreSQL SQL, no top-level transaction control, no psql meta-commands (G
 CREATE TABLE IF NOT EXISTS public.theo_chat_push_subscriptions (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   created_by  text NOT NULL,
-  endpoint    text NOT NULL UNIQUE,
+  endpoint    text NOT NULL,
   p256dh      text NOT NULL,
   auth        text NOT NULL,
   ua          text NULL,
-  created_at  timestamptz NOT NULL DEFAULT now()
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  -- Per-owner uniqueness (NOT global on endpoint). Every upsert therefore targets ONLY the caller's own
+  -- (created_by, endpoint) row, so the ownership UPDATE RLS (created_by = auth.uid()) is always satisfied
+  -- and no cross-owner UPDATE is ever attempted. See Gap Register G4 / the Revision note.
+  CONSTRAINT uq_theo_chat_push_subscriptions_owner_endpoint UNIQUE (created_by, endpoint)
 );
 
-CREATE INDEX IF NOT EXISTS idx_theo_chat_push_subscriptions_created_by
-  ON public.theo_chat_push_subscriptions (created_by);
+-- No separate (created_by) index: the composite UNIQUE above leads with created_by, so its backing index
+-- already serves the owner-scoped lookups (the RLS predicate + the delete's created_by filter).
 
 ALTER TABLE public.theo_chat_push_subscriptions ENABLE ROW LEVEL SECURITY;
 
@@ -730,7 +739,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.theo_chat_push_subscriptions TO a
 ### Post-migration read-only verification (Pass 3, E2 — SELECT-only)
 
 ```sql
--- Table + RLS present, four ownership policies, unique endpoint, created_by index. SELECT-only.
+-- Table + RLS present, four ownership policies, per-owner UNIQUE (created_by, endpoint). SELECT-only.
 SELECT relrowsecurity
   FROM pg_class
  WHERE oid = 'public.theo_chat_push_subscriptions'::regclass;

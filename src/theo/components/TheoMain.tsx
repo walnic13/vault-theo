@@ -25,9 +25,13 @@ import type { useTheoState } from "../useTheoState";
 export interface TheoMainProps {
   t: ReturnType<typeof useTheoState>;
   mode: "full" | "panel"; // "full" = 9/10 landing; "panel" = in-app right-docked panel (Origin host)
+  // Apps Phase B / B1 (VA-T6 §4.1): when true, this main view's own 54px header is hidden on
+  // narrow viewports (≤767.98px) so the Origin host provides the single mobile top bar (no stacked
+  // double header). CSS-only, applied via the STYLE_BLOCK media rule in TheoSurface. Wide unchanged.
+  suppressNarrowHeader?: boolean;
 }
 
-export function TheoMain({ t, mode }: TheoMainProps) {
+export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
   function renderAssistant(content: string): ReactNode {
     return splitAssistant(content).map((part, i) => {
       if (part.kind === "artifact") {
@@ -41,7 +45,7 @@ export function TheoMain({ t, mode }: TheoMainProps) {
   const appLabel = appContextLabel(t.appContext);
 
   return (
-    <div data-theo-main-mode={mode} style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, height: "100%" }}>
+    <div data-theo-main-mode={mode} data-theo-suppress-narrow-header={suppressNarrowHeader ? "1" : undefined} style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, height: "100%" }}>
       <header style={{ height: 54, flexShrink: 0, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px" }}>
         {t.view === "chats" ? (<>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

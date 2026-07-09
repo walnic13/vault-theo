@@ -5,7 +5,7 @@
 // slot (one state tree, no cross-mount sync — §3A.5); standalone (vault-theo-dev harness) it renders
 // the faithful Pass-A inline layout. App-context arrives in-process via the `appContext` prop
 // (App Host §6A / VA-T3 §4 — never postMessage); context-only, no app-data fetch.
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { C, SANS } from "./theme";
 import { WORKSPACE_NAME, PRODUCT_NAME } from "./swapBlock";
@@ -36,6 +36,7 @@ const STYLE_BLOCK = `
   @keyframes vo-bounce { 0%,80%,100%{transform:translateY(0);opacity:.4} 40%{transform:translateY(-4px);opacity:1} }
   @media (prefers-reduced-motion: reduce){ * { animation: none !important; transition: none !important; } }
   @media (max-width: 767.98px){ .vo-standalone .vo-aside{ display:none !important; } .vo-panel{ position:absolute !important; inset:0 !important; width:100% !important; min-width:0 !important; flex:none !important; z-index:20; } }
+  @media (max-width: 767.98px){ [data-theo-suppress-narrow-header="1"] > header{ display:none !important; } }
   @media (hover: none){ .vo-actions{ opacity:1 !important; } }
 `;
 
@@ -59,9 +60,15 @@ export interface TheoSurfaceProps {
   // Origin shell's Entra token provider. When supplied, the chat gateway goes live (Bearer-auth to
   // the deployed model gateway); when absent (standalone harness), the gateway stays on the 1A mock.
   getAccessToken?: () => Promise<string | null>;
+  // Apps Phase B / B1 (VA-T6 §4.1). Optional host signals; both absent ⇒ current behaviour.
+  // suppressNarrowHeader: when true, TheoMain hides its own 54px header on narrow viewports so the
+  // Origin host owns the single mobile top bar. newChatNonce: bumping this value (host "New chat"
+  // button) starts a fresh chat via the existing useTheoState newChat().
+  suppressNarrowHeader?: boolean;
+  newChatNonce?: number;
 }
 
-export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessToken }: TheoSurfaceProps) {
+export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessToken, suppressNarrowHeader, newChatNonce }: TheoSurfaceProps) {
   const t = useTheoState();
   const { ingestAppContext, loadRecents, loadProjects, loadGalleryArtifacts, loadPeople } = t;
 
@@ -83,6 +90,18 @@ export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessTo
     if (appContext) ingestAppContext(appContext);
   }, [appContext, ingestAppContext]);
 
+  // Apps Phase B / B1: host-driven new chat. When the Origin host bumps `newChatNonce` (its top-bar
+  // "New chat" button), start a fresh chat via the existing in-memory newChat(). A ref holds the
+  // latest newChat so the trigger effect keys only on the nonce (initial mount is a no-op).
+  const newChatRef = useRef(t.newChat);
+  useEffect(() => { newChatRef.current = t.newChat; });
+  const lastNonceRef = useRef<number | undefined>(newChatNonce);
+  useEffect(() => {
+    if (newChatNonce === undefined || lastNonceRef.current === newChatNonce) return;
+    lastNonceRef.current = newChatNonce;
+    newChatRef.current();
+  }, [newChatNonce]);
+
   const nav = (
     <Sidebar
       collapsed={t.collapsed} onToggleCollapse={t.toggleCollapse} view={t.view} onNavigate={t.go} nav={NAV}
@@ -99,7 +118,7 @@ export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessTo
       <>
         <style>{STYLE_BLOCK}</style>
         {createPortal(nav, navSlot)}
-        {createPortal(<TheoMain t={t} mode="panel" />, mainSlot)}
+        {createPortal(<TheoMain t={t} mode="panel" suppressNarrowHeader={suppressNarrowHeader} />, mainSlot)}
       </>
     );
   }
@@ -110,7 +129,7 @@ export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessTo
       <style>{STYLE_BLOCK}</style>
       {nav}
       <main style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-        <TheoMain t={t} mode="full" />
+        <TheoMain t={t} mode="full" suppressNarrowHeader={suppressNarrowHeader} />
       </main>
       {showDevInjector() && <DevContextInjector onInject={ingestAppContext} />}
     </div>

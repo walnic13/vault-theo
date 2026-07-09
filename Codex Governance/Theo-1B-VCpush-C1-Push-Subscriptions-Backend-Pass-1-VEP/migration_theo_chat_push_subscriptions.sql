@@ -64,19 +64,19 @@ CREATE OR REPLACE FUNCTION public.theo_chat_claim_push_subscription(
   p_auth     text,
   p_ua       text
 )
-RETURNS uuid
+RETURNS TABLE(id uuid, created_at timestamptz)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $fn$
 DECLARE
   v_oid text := auth.uid();
-  v_id  uuid;
 BEGIN
   IF v_oid IS NULL OR v_oid = '' THEN
     RAISE EXCEPTION 'theo_chat_claim_push_subscription: no caller identity' USING ERRCODE = '28000';
   END IF;
 
+  RETURN QUERY
   INSERT INTO public.theo_chat_push_subscriptions (created_by, endpoint, p256dh, auth, ua)
   VALUES (v_oid, p_endpoint, p_p256dh, p_auth, p_ua)
   ON CONFLICT (endpoint) DO UPDATE
@@ -85,9 +85,7 @@ BEGIN
         auth       = EXCLUDED.auth,
         ua         = EXCLUDED.ua,
         created_at = now()
-  RETURNING id INTO v_id;
-
-  RETURN v_id;
+  RETURNING theo_chat_push_subscriptions.id, theo_chat_push_subscriptions.created_at;
 END;
 $fn$;
 

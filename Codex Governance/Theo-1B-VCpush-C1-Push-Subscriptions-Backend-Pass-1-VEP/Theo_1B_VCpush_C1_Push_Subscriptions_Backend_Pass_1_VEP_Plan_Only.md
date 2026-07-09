@@ -4,6 +4,8 @@ Plan-only Verified Evidence Pack. No handler/migration files are written into th
 
 **Revision note (C1 v3):** single-owner-per-endpoint via SECURITY DEFINER claim; addresses Codex Pass 2 G4-v2 leak finding. `endpoint` is GLOBALLY `UNIQUE (endpoint)` again, `save` now calls the `SECURITY DEFINER theo_chat_claim_push_subscription` (created_by := `auth.uid()`, never a client value) which atomically reassigns an endpoint to the authenticated caller — so at most one owner ever holds an endpoint and the shared-browser cross-user push leak cannot occur. (v2's per-owner `UNIQUE(created_by, endpoint)` allowed two owners for one still-valid endpoint → leak.) The complete runnable migration also ships as `migration_theo_chat_push_subscriptions.sql` in this package.
 
+**Revision note (C1 v4):** claim fn returns `(id, created_at)`; save response contract now matches — addresses Codex Pass 2 P4/P7 finding. `theo_chat_claim_push_subscription` is now `RETURNS TABLE(id uuid, created_at timestamptz)` via `RETURN QUERY … RETURNING`, and the save handler does `SELECT id, created_at FROM …` and returns `201 { subscription: { id, endpoint, created_at } }`, so the function, handler, P4 contract, and P7 golden curl all agree.
+
 ## Grounding Conformance Receipt
 
 Role: Claude Code
@@ -144,8 +146,8 @@ Method is **POST + OPTIONS** for both, matching every deployed `theo_chat_*` han
 | `parseBody` try/catch → 400 | send_message L78–79 | EXACT | byte-identical |
 | Field validation before any SQL | send_message L81–100 (`thread_id`/`body`) | ALLOWED DELTA | validated field set differs: `endpoint` (non-empty https URL) + `p256dh`/`auth` non-empty (save); `endpoint` only (delete). Golden Handler §4 permits "the specific validated field set". |
 | `set_config` triad | send_message L108–116 | EXACT | byte-identical three-key `set_config` |
-| Write query | send_message L145–164 (insert) | ALLOWED DELTA | `save` calls `SELECT public.theo_chat_claim_push_subscription($1,$2,$3,$4)` (single-owner claim); `delete` runs `DELETE … WHERE endpoint=$1 AND created_by=$2` under ownership RLS. Golden Handler §4 permits "the specific RLS-scoped query". |
-| SECURITY DEFINER claim helper `theo_chat_claim_push_subscription` | deployed `theo_chat_leave` / `theo_chat_delete_message` write-path helpers (Schema §8) | ALLOWED DELTA (EXACT mirror of a deployed helper class) | migration-role-owned, `SECURITY DEFINER SET search_path`, `REVOKE ALL … FROM PUBLIC` + `GRANT EXECUTE … TO authenticated`, caller from `auth.uid()` never a parameter, cross-owner write bypassing ownership RLS. Golden Handler §4: a new-domain helper classified ALLOWED DELTA requires "an EXACT mirror against a deployed handler containing that helper" — satisfied by the deployed `theo_chat_leave` / `theo_chat_delete_message` write-path definer class (Schema §8). No Walter authorization needed (not a novel class). |
+| Write query | send_message L145–164 (insert) | ALLOWED DELTA | `save` runs `SELECT id, created_at FROM public.theo_chat_claim_push_subscription($1,$2,$3,$4)` (single-owner claim; returns the row's `id` + `created_at` for the response contract); `delete` runs `DELETE … WHERE endpoint=$1 AND created_by=$2` under ownership RLS. Golden Handler §4 permits "the specific RLS-scoped query". |
+| SECURITY DEFINER claim helper `theo_chat_claim_push_subscription` | deployed `theo_chat_leave` / `theo_chat_delete_message` write-path helpers (Schema §8) | ALLOWED DELTA (EXACT mirror of a deployed helper class) | migration-role-owned, `SECURITY DEFINER SET search_path`, `REVOKE ALL … FROM PUBLIC` + `GRANT EXECUTE … TO authenticated`, caller from `auth.uid()` never a parameter, cross-owner write bypassing ownership RLS; `RETURNS TABLE(id uuid, created_at timestamptz)` via `RETURN QUERY … RETURNING` so the handler's `201 { subscription:{ id, endpoint, created_at } }` contract is produced. Golden Handler §4: a new-domain helper classified ALLOWED DELTA requires "an EXACT mirror against a deployed handler containing that helper" — satisfied by the deployed `theo_chat_leave` / `theo_chat_delete_message` write-path definer class (Schema §8). No Walter authorization needed (not a novel class). |
 | Success response | send_message L192 (`201`) / delete → `200` | ALLOWED DELTA | response shape per contract (§4). Golden Handler §4 permits "the contract's response shape". |
 | catch → `42501`→403, known-error passthrough, `500` | send_message L193–207 | EXACT (save) / ALLOWED DELTA (delete drops the `23514` branch — no CHECK constraint) | error mapping mirrored |
 | `finally { client.release() }` | send_message L205–207 | EXACT | byte-identical |
@@ -264,11 +266,11 @@ module.exports = async function (context, req) {
     // pinned search_path) is the governed way to perform it, mirroring the deployed theo_chat_leave /
     // theo_chat_delete_message write-path idiom (Schema §8; Golden Handler §3).
     const claim = await client.query(
-      `SELECT public.theo_chat_claim_push_subscription($1, $2, $3, $4) AS id`,
+      `SELECT id, created_at FROM public.theo_chat_claim_push_subscription($1, $2, $3, $4)`,
       [endpoint, p256dh, auth, ua]
     );
 
-    return send(context, 201, successBody({ subscription: { id: claim.rows[0].id, endpoint } }));
+    return send(context, 201, successBody({ subscription: { id: claim.rows[0].id, endpoint, created_at: claim.rows[0].created_at } }));
   } catch (err) {
     context.log.error("theo_chat_save_push_subscription failed", err);
     if (err && err.code === "42501") {
@@ -682,7 +684,7 @@ Plain PostgreSQL SQL, no top-level transaction control, no psql meta-commands (G
 -- Theo 1B — Apps Phase C, C1: theo_chat_push_subscriptions (Web Push subscription storage)
 -- Target: shared vaultgpt Azure Postgres instance, schema public. App: vaultgpt-func-chat.
 -- Plain PostgreSQL SQL; no top-level BEGIN/COMMIT (migration governance). Idempotent; safe to re-run.
--- Run by Walter at Pass 3 BEFORE the C1 handlers deploy (write-SQL is Walter-only).
+-- Run by Walter as pgadmin_vault at Pass 3 BEFORE the C1 handlers deploy (write-SQL is Walter-only).
 -- Ownership-family idiom (Schema section 1/2; Tier B7a theo_user_memory; Tier B8a theo_attachments):
 -- created_by text NOT NULL (Entra OID), four RLS policies TO authenticated keyed on created_by = auth.uid(),
 -- policy names theo_<entity>_<verb>_own. Direct table access is own-rows-only; per-user isolation is ALSO
@@ -691,7 +693,7 @@ Plain PostgreSQL SQL, no top-level transaction control, no psql meta-commands (G
 -- at a time. Cross-owner re-registration (shared browser: A logs out, B subscribes) is performed by the
 -- SECURITY DEFINER claim function below -- the governed write-path idiom (Schema section 8; Golden Handler
 -- section 3) -- which reassigns the endpoint to the AUTHENTICATED CALLER only (created_by := auth.uid(),
--- NEVER a client value), atomically removing the prior owner's row-access. See Gap Register G4 / Revision note.
+-- NEVER a client value), atomically removing the prior owner's row-access. See the C1 VEP Gap Register G4.
 -- ============================================================================
 
 -- 1) Storage table. endpoint is globally UNIQUE -> exactly one owner at a time (no cross-user leak).
@@ -744,19 +746,19 @@ CREATE OR REPLACE FUNCTION public.theo_chat_claim_push_subscription(
   p_auth     text,
   p_ua       text
 )
-RETURNS uuid
+RETURNS TABLE(id uuid, created_at timestamptz)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $fn$
 DECLARE
   v_oid text := auth.uid();
-  v_id  uuid;
 BEGIN
   IF v_oid IS NULL OR v_oid = '' THEN
     RAISE EXCEPTION 'theo_chat_claim_push_subscription: no caller identity' USING ERRCODE = '28000';
   END IF;
 
+  RETURN QUERY
   INSERT INTO public.theo_chat_push_subscriptions (created_by, endpoint, p256dh, auth, ua)
   VALUES (v_oid, p_endpoint, p_p256dh, p_auth, p_ua)
   ON CONFLICT (endpoint) DO UPDATE
@@ -765,9 +767,7 @@ BEGIN
         auth       = EXCLUDED.auth,
         ua         = EXCLUDED.ua,
         created_at = now()
-  RETURNING id INTO v_id;
-
-  RETURN v_id;
+  RETURNING theo_chat_push_subscriptions.id, theo_chat_push_subscriptions.created_at;
 END;
 $fn$;
 

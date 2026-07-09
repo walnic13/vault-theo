@@ -2,7 +2,7 @@
 
 Plan-only Verified Evidence Pack. No handler/migration files are written into the app, no deploy, no commit. This pack delivers the storage substrate + two CRUD handlers for Web Push subscriptions (Apps Phase C, package C1). The sender (C2) and the FE (C3) are out of scope.
 
-**Revision note (this turn):** addresses Codex Pass 2 rejection on G4 — uniqueness is now per-owner `UNIQUE (created_by, endpoint)` with `ON CONFLICT (created_by, endpoint)`, and `save` no longer reassigns `created_by` on conflict, so no cross-owner UPDATE is ever attempted (the rejected RLS-invisibility failure mode cannot occur).
+**Revision note (C1 v3):** single-owner-per-endpoint via SECURITY DEFINER claim; addresses Codex Pass 2 G4-v2 leak finding. `endpoint` is GLOBALLY `UNIQUE (endpoint)` again, `save` now calls the `SECURITY DEFINER theo_chat_claim_push_subscription` (created_by := `auth.uid()`, never a client value) which atomically reassigns an endpoint to the authenticated caller — so at most one owner ever holds an endpoint and the shared-browser cross-user push leak cannot occur. (v2's per-owner `UNIQUE(created_by, endpoint)` allowed two owners for one still-valid endpoint → leak.) The complete runnable migration also ships as `migration_theo_chat_push_subscriptions.sql` in this package.
 
 ## Grounding Conformance Receipt
 
@@ -39,6 +39,8 @@ Currency anchors below are the git blob SHA of each cited file at HEAD (verifiab
 | governance/CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md | §4 | "Schema Reality Lock" |
 | governance/THEO_GOLDEN_HANDLER_STANDARD.md | §2 | "selects **exactly one** deployed handler file" |
 | governance/THEO_GOLDEN_HANDLER_STANDARD.md | §5.2 | "Migration files carry no top-level transaction control" |
+| governance/THEO_GOLDEN_HANDLER_STANDARD.md | §3 | "a SECURITY DEFINER existence helper is explicitly invoked for 403/404 discrimination" |
+| spec/THEO_AZURE_POSTGRES_SCHEMA.md | §8 | "narrowly-scoped write-path helper" |
 | spec/THEO_AZURE_POSTGRES_SCHEMA.md | §1 | "Canonical ownership column: **`created_by text NOT NULL`**" |
 | spec/THEO_AZURE_POSTGRES_SCHEMA.md | §2 | "Default family: ownership-based (`created_by = auth.uid()`)" |
 | spec/THEO_API_SPEC.md | §1 | "Route naming: `theo_<operation>_<entity>`" |
@@ -74,7 +76,7 @@ Out of scope: the push **sender** (C2) and the FE service-worker/subscribe UI (C
 - **Model gateway seam (Architecture §2).** Not touched — these are plain EasyAuth HTTP CRUD handlers, not the Foundry gateway.
 - **Tool dispatch / Tool Manifest (Architecture §4; Tool Manifest).** Not touched — the Tool Manifest governs only `reporting_*` dispatch tools called through the gateway. C1 consumes no `reporting_*` endpoint, so no manifest row is added.
 - **Identity + RLS enforcement idiom (Schema §6/§7 notes; Golden Handler §3).** Handlers execute as the signed-in user: OID is read from the EasyAuth `x-ms-client-principal` header (never a body field), then session context is set with the three-key `set_config` triad, and **every** query additionally carries an explicit `created_by = $oid` predicate (defence-in-depth), exactly as the deployed `theo_chat_*` and B7a/B8a handlers do.
-- **No SECURITY DEFINER helper needed.** Schema §1 requires a `theo_<entity>_exists_unscoped(uuid)` helper only for tables that need 403/404 discrimination on individual update/delete of another owner's row. C1 has none: `save` is an owner-scoped upsert, and `delete` is owner-scoped + idempotent (returns 200 whether or not a row existed), so there is no cross-owner existence question to discriminate. Omitting the helper matches the immutable/idempotent-table precedent in Schema §5 ("Immutable + cascade-only tables … carry no helper").
+- **One SECURITY DEFINER write-path helper (single-owner claim), no existence helper.** No `theo_<entity>_exists_unscoped(uuid)` helper is needed — `delete` is owner-scoped + idempotent (200 whether or not a row existed), so there is no 403/404 existence question to discriminate. But a **single-owner-per-endpoint** invariant (endpoint globally UNIQUE) requires re-registration on a shared browser to atomically reassign the endpoint across owners, and direct-table ownership RLS (`created_by = auth.uid()`) forbids a cross-owner write. C1 therefore adds one narrowly-scoped `SECURITY DEFINER` function `theo_chat_claim_push_subscription`, the governed write-path idiom mirroring the deployed `theo_chat_leave` / `theo_chat_delete_message` (migration-role-owned; `REVOKE ALL … FROM PUBLIC` + `GRANT EXECUTE … TO authenticated`; pinned `search_path`; caller derived from `auth.uid()`, NEVER a parameter; a caller can only claim an endpoint TO THEMSELVES). Grounded in Golden Handler §3 and Schema §8 (see Rule Anchors). This is not a new elevated-*read* class.
 
 ---
 
@@ -87,15 +89,15 @@ Vocabulary is closed (`PROCEED` / `PRE-LAND` / `ESCALATE` / `NO-GAPS`) per Gover
 | G1 | The Phase 1B Backend Plan has no explicit Phase C / Web Push feature row. | PROCEED | The native-chat (VC) program has run entirely as a Walter-directed extension under DR-T7 without plan rows; C1 continues it on identical footing. A plan Role-C row is an optional documentation follow-up, not a blocker for this microstep. |
 | G2 | **C2 fan-out read across owners.** The sender (C2) must read *other* users' subscriptions to deliver a push, but C1's ownership RLS (`created_by = auth.uid()`) scopes reads to the caller's own rows; the shared func-chat connection role does not grant a cross-owner read. | PROCEED | C1 is storage + per-user CRUD only, so ownership RLS is correct here. C2 will add a narrowly-scoped `SECURITY DEFINER` enumeration helper that returns only `{ endpoint, p256dh, auth }` for a target recipient (the Golden Handler §3(b) scheduled/enumeration pattern), owned by the migration role, `REVOKE … FROM PUBLIC` + `GRANT EXECUTE … TO authenticated`, pinned `search_path`. Explicitly deferred to C2; disclosed now so the C1 table shape already supports it. |
 | G3 | **VAPID secrets** (`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`). | PROCEED | Already provisioned by Walter as `vaultgpt-func-chat` **app settings** (secrets — never in the repo). C1 (storage) does not read them; C2 (sender) will. No key values appear anywhere in this VEP. |
-| G4 | **Endpoint uniqueness vs re-registration / shared-device owner change.** A browser can re-subscribe with the same endpoint, and (rarely) a device previously used by another account can present the same endpoint under a different signed-in user. | PROCEED | Uniqueness is **per-owner** `(created_by, endpoint)`. A re-subscribe by the same user updates that user's own row via `ON CONFLICT (created_by, endpoint)` (RLS-valid — `created_by = auth.uid()` always holds). A different user registering the same device endpoint INSERTs their OWN row (no cross-owner UPDATE is ever attempted, so the RLS failure mode Codex flagged cannot occur). A subscription left behind by a prior owner on a shared device is harmless and is pruned by C2 when the Web Push service returns `410 Gone` / `404` for it (C2 deletes on those status codes). No pre-land needed. |
+| G4 | **Shared-browser cross-user notification leak.** If uniqueness were per-owner `(created_by, endpoint)`, the same still-valid endpoint could exist under two owners (A logs out, B logs in on the same browser and re-subscribes → both `(A,ep)` and `(B,ep)` rows). The push service keeps returning 200 for that endpoint, so 410/404 pruning never fires → messages to A are pushed to the browser B now uses = cross-user leak. | PROCEED | **Single-owner-per-endpoint is now a hard invariant:** `endpoint` is GLOBALLY `UNIQUE (endpoint)`, and re-registration goes through the `SECURITY DEFINER theo_chat_claim_push_subscription`, which atomically reassigns the endpoint to the authenticated caller (`created_by := auth.uid()`, never a client value) — the prior owner's row-access is removed in the same statement, so at most one owner holds an endpoint at any time and the shared-browser leak cannot occur. C2's `410 Gone` / `404` pruning is now only a **secondary** cleanup for genuinely-expired endpoints, not the ownership guarantee. No pre-land needed. |
 
 ---
 
 ## P3 — Schema grounding (DEPLOYED vs PROPOSED)
 
-DEPLOYED truth (Schema §1/§2/§5/§6/§7/§8): `auth.uid()` and the per-request `set_config` session context pre-exist in the shared instance; the ownership four-policy `TO authenticated` idiom keyed on `created_by = auth.uid()` is deployed on `theo_user_memory` (§6) and `theo_attachments` (§7); the `theo_chat_*` participant tables are deployed on func-chat (§8). `gen_random_uuid()` / `pgcrypto` is available (used by every deployed table).
+DEPLOYED truth (Schema §1/§2/§5/§6/§7/§8): `auth.uid()` and the per-request `set_config` session context pre-exist in the shared instance; the ownership four-policy `TO authenticated` idiom keyed on `created_by = auth.uid()` is deployed on `theo_user_memory` (§6) and `theo_attachments` (§7); the `theo_chat_*` participant tables plus the deployed write-path `SECURITY DEFINER` helpers `theo_chat_leave` / `theo_chat_delete_message` (migration-role-owned; `REVOKE`/`GRANT authenticated`; pinned `search_path`) are deployed on func-chat (§8). `gen_random_uuid()` / `pgcrypto` is available (used by every deployed table).
 
-PROPOSED (this microstep): one net-new additive table `theo_chat_push_subscriptions` (ownership family), one supporting index, and four ownership RLS policies. No change to any deployed object; no FK into chat tables (a subscription is device-level, not thread-level).
+PROPOSED (this microstep): one net-new additive table `theo_chat_push_subscriptions` (ownership family; endpoint GLOBALLY UNIQUE), one supporting index, four ownership RLS policies, and one `SECURITY DEFINER` single-owner claim function `theo_chat_claim_push_subscription(text,text,text,text)` (the governed cross-owner write-path, mirroring the deployed `theo_chat_leave` idiom). No change to any deployed object; no FK into chat tables (a subscription is device-level, not thread-level).
 
 Column plan (matches the brief):
 
@@ -103,7 +105,7 @@ Column plan (matches the brief):
 | ------ | ---- | ----- |
 | `id` | `uuid PK DEFAULT gen_random_uuid()` | Schema §1 |
 | `created_by` | `text NOT NULL` | owner Entra OID; Schema §1 canonical ownership column |
-| `endpoint` | `text NOT NULL` | the Push API endpoint URL (validated https); unique **per owner** via `UNIQUE (created_by, endpoint)`, not globally |
+| `endpoint` | `text NOT NULL` | the Push API endpoint URL (validated https); **globally** `UNIQUE (endpoint)` — exactly one owner per endpoint at a time; cross-owner re-registration goes through the SECURITY DEFINER claim fn |
 | `p256dh` | `text NOT NULL` | client public key (base64url) |
 | `auth` | `text NOT NULL` | client auth secret (base64url) |
 | `ua` | `text NULL` | optional user-agent string |
@@ -142,7 +144,8 @@ Method is **POST + OPTIONS** for both, matching every deployed `theo_chat_*` han
 | `parseBody` try/catch → 400 | send_message L78–79 | EXACT | byte-identical |
 | Field validation before any SQL | send_message L81–100 (`thread_id`/`body`) | ALLOWED DELTA | validated field set differs: `endpoint` (non-empty https URL) + `p256dh`/`auth` non-empty (save); `endpoint` only (delete). Golden Handler §4 permits "the specific validated field set". |
 | `set_config` triad | send_message L108–116 | EXACT | byte-identical three-key `set_config` |
-| RLS-scoped write query | send_message L145–164 (insert) | ALLOWED DELTA | `INSERT … ON CONFLICT (created_by, endpoint) DO UPDATE` (save; conflict target is the caller's own row — no `created_by` reassignment) / `DELETE … WHERE endpoint=$1 AND created_by=$2` (delete), both with explicit `created_by` predicate so no cross-owner write is attempted. Golden Handler §4 permits "the specific RLS-scoped query". |
+| Write query | send_message L145–164 (insert) | ALLOWED DELTA | `save` calls `SELECT public.theo_chat_claim_push_subscription($1,$2,$3,$4)` (single-owner claim); `delete` runs `DELETE … WHERE endpoint=$1 AND created_by=$2` under ownership RLS. Golden Handler §4 permits "the specific RLS-scoped query". |
+| SECURITY DEFINER claim helper `theo_chat_claim_push_subscription` | deployed `theo_chat_leave` / `theo_chat_delete_message` write-path helpers (Schema §8) | ALLOWED DELTA (EXACT mirror of a deployed helper class) | migration-role-owned, `SECURITY DEFINER SET search_path`, `REVOKE ALL … FROM PUBLIC` + `GRANT EXECUTE … TO authenticated`, caller from `auth.uid()` never a parameter, cross-owner write bypassing ownership RLS. Golden Handler §4: a new-domain helper classified ALLOWED DELTA requires "an EXACT mirror against a deployed handler containing that helper" — satisfied by the deployed `theo_chat_leave` / `theo_chat_delete_message` write-path definer class (Schema §8). No Walter authorization needed (not a novel class). |
 | Success response | send_message L192 (`201`) / delete → `200` | ALLOWED DELTA | response shape per contract (§4). Golden Handler §4 permits "the contract's response shape". |
 | catch → `42501`→403, known-error passthrough, `500` | send_message L193–207 | EXACT (save) / ALLOWED DELTA (delete drops the `23514` branch — no CHECK constraint) | error mapping mirrored |
 | `finally { client.release() }` | send_message L205–207 | EXACT | byte-identical |
@@ -252,26 +255,20 @@ module.exports = async function (context, req) {
       [oid]
     );
 
-    // Upsert scoped to the caller's OWN (created_by, endpoint) row. created_by is bound to the caller's
-    // oid on INSERT and is NOT reassigned on conflict, so the conflict target is always the caller's own
-    // row: the INSERT WITH CHECK and the UPDATE USING/WITH CHECK ownership RLS (created_by = auth.uid())
-    // are both satisfied and no cross-owner UPDATE is ever attempted. A different user registering the
-    // same device endpoint simply INSERTs their own row (per-owner UNIQUE(created_by, endpoint)).
-    const upsert = await client.query(
-      `
-      INSERT INTO public.theo_chat_push_subscriptions (created_by, endpoint, p256dh, auth, ua)
-      VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (created_by, endpoint) DO UPDATE
-        SET p256dh = EXCLUDED.p256dh,
-            auth = EXCLUDED.auth,
-            ua = EXCLUDED.ua,
-            created_at = now()
-      RETURNING id, endpoint, created_at
-      `,
-      [oid, endpoint, p256dh, auth, ua]
+    // Single-owner-per-endpoint claim (endpoint is GLOBALLY UNIQUE). The SECURITY DEFINER function
+    // theo_chat_claim_push_subscription atomically reassigns the endpoint to the authenticated caller
+    // (created_by := auth.uid(), NEVER a client value), removing any prior owner's access in the same
+    // statement — so a shared-browser re-subscribe cannot leave two owners for one endpoint. The
+    // reassignment is a cross-owner write, which direct-table RLS (created_by = auth.uid()) forbids;
+    // the definer function (owned by the migration role, REVOKE FROM PUBLIC / GRANT EXECUTE authenticated,
+    // pinned search_path) is the governed way to perform it, mirroring the deployed theo_chat_leave /
+    // theo_chat_delete_message write-path idiom (Schema §8; Golden Handler §3).
+    const claim = await client.query(
+      `SELECT public.theo_chat_claim_push_subscription($1, $2, $3, $4) AS id`,
+      [endpoint, p256dh, auth, ua]
     );
 
-    return send(context, 201, successBody({ subscription: upsert.rows[0] }));
+    return send(context, 201, successBody({ subscription: { id: claim.rows[0].id, endpoint } }));
   } catch (err) {
     context.log.error("theo_chat_save_push_subscription failed", err);
     if (err && err.code === "42501") {
@@ -686,14 +683,18 @@ Plain PostgreSQL SQL, no top-level transaction control, no psql meta-commands (G
 -- Target: shared vaultgpt Azure Postgres instance, schema public. App: vaultgpt-func-chat.
 -- Plain PostgreSQL SQL; no top-level BEGIN/COMMIT (migration governance). Idempotent; safe to re-run.
 -- Run by Walter at Pass 3 BEFORE the C1 handlers deploy (write-SQL is Walter-only).
--- Mirrors the deployed ownership-family idiom (Schema section 1/2; Tier B7a theo_user_memory; Tier B8a
--- theo_attachments): created_by text NOT NULL (Entra OID), four RLS policies TO authenticated keyed on
--- created_by = auth.uid(), policy names theo_<entity>_<verb>_own. Per-user isolation is ALSO enforced by
--- explicit created_by = $oid predicates in the C1 handlers; RLS here is the defence-in-depth layer.
--- Ownership-scoped (NOT the participant model of theo_chat_threads/messages) because a push subscription
--- is a per-user device registration -> the section 2 ownership baseline (created_by = auth.uid()) applies.
+-- Ownership-family idiom (Schema section 1/2; Tier B7a theo_user_memory; Tier B8a theo_attachments):
+-- created_by text NOT NULL (Entra OID), four RLS policies TO authenticated keyed on created_by = auth.uid(),
+-- policy names theo_<entity>_<verb>_own. Direct table access is own-rows-only; per-user isolation is ALSO
+-- enforced by explicit created_by = $oid predicates in the delete handler (RLS = defence-in-depth layer).
+-- SINGLE-OWNER-PER-ENDPOINT invariant: endpoint is GLOBALLY UNIQUE, so exactly one owner holds an endpoint
+-- at a time. Cross-owner re-registration (shared browser: A logs out, B subscribes) is performed by the
+-- SECURITY DEFINER claim function below -- the governed write-path idiom (Schema section 8; Golden Handler
+-- section 3) -- which reassigns the endpoint to the AUTHENTICATED CALLER only (created_by := auth.uid(),
+-- NEVER a client value), atomically removing the prior owner's row-access. See Gap Register G4 / Revision note.
 -- ============================================================================
 
+-- 1) Storage table. endpoint is globally UNIQUE -> exactly one owner at a time (no cross-user leak).
 CREATE TABLE IF NOT EXISTS public.theo_chat_push_subscriptions (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   created_by  text NOT NULL,
@@ -702,17 +703,13 @@ CREATE TABLE IF NOT EXISTS public.theo_chat_push_subscriptions (
   auth        text NOT NULL,
   ua          text NULL,
   created_at  timestamptz NOT NULL DEFAULT now(),
-  -- Per-owner uniqueness (NOT global on endpoint). Every upsert therefore targets ONLY the caller's own
-  -- (created_by, endpoint) row, so the ownership UPDATE RLS (created_by = auth.uid()) is always satisfied
-  -- and no cross-owner UPDATE is ever attempted. See Gap Register G4 / the Revision note.
-  CONSTRAINT uq_theo_chat_push_subscriptions_owner_endpoint UNIQUE (created_by, endpoint)
+  CONSTRAINT uq_theo_chat_push_subscriptions_endpoint UNIQUE (endpoint)
 );
+CREATE INDEX IF NOT EXISTS idx_theo_chat_push_subscriptions_created_by
+  ON public.theo_chat_push_subscriptions (created_by);
 
--- No separate (created_by) index: the composite UNIQUE above leads with created_by, so its backing index
--- already serves the owner-scoped lookups (the RLS predicate + the delete's created_by filter).
-
+-- 2) RLS + four ownership policies. Direct table access (delete handler; any future read) = own rows only.
 ALTER TABLE public.theo_chat_push_subscriptions ENABLE ROW LEVEL SECURITY;
-
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='theo_chat_push_subscriptions' AND policyname='theo_push_subscription_select_own') THEN
@@ -729,17 +726,61 @@ BEGIN
   END IF;
 END $$;
 
--- Grants: the app role (vaultgpt_app) is a member of `authenticated` and receives table DML via the
+-- 3) Grant: the app role (vaultgpt_app) is a member of `authenticated` and receives table DML via the
 -- pgadmin_vault default-privilege ACL (the deployed B2/B7a/B8a migrations add no explicit per-table GRANT).
--- This explicit grant to `authenticated` is a harmless, idempotent superset and makes the app role's
--- RLS-scoped access to this table unambiguous. Run as pgadmin_vault so the grantor owns the object.
+-- This explicit grant to `authenticated` is a harmless, idempotent superset. Run as pgadmin_vault.
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.theo_chat_push_subscriptions TO authenticated;
+
+-- 4) SECURITY DEFINER single-owner claim (the governed cross-owner write-path; Schema section 8 idiom).
+-- Reassigns the endpoint to the AUTHENTICATED CALLER only (created_by := auth.uid(), never a client value);
+-- ON CONFLICT (endpoint) atomically removes any prior owner in the same statement. SECURITY DEFINER (owned
+-- by the migration role; tables are ENABLE- not FORCE-RLS) bypasses the ownership UPDATE RLS that would
+-- otherwise forbid the cross-owner reassignment -- mirrors the deployed theo_chat_leave /
+-- theo_chat_delete_message write-path helpers. Caller identity is derived from auth.uid() (set by the
+-- handler's set_config/JWT triad before the call), NEVER a parameter; unauthenticated -> raise 28000.
+CREATE OR REPLACE FUNCTION public.theo_chat_claim_push_subscription(
+  p_endpoint text,
+  p_p256dh   text,
+  p_auth     text,
+  p_ua       text
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $fn$
+DECLARE
+  v_oid text := auth.uid();
+  v_id  uuid;
+BEGIN
+  IF v_oid IS NULL OR v_oid = '' THEN
+    RAISE EXCEPTION 'theo_chat_claim_push_subscription: no caller identity' USING ERRCODE = '28000';
+  END IF;
+
+  INSERT INTO public.theo_chat_push_subscriptions (created_by, endpoint, p256dh, auth, ua)
+  VALUES (v_oid, p_endpoint, p_p256dh, p_auth, p_ua)
+  ON CONFLICT (endpoint) DO UPDATE
+    SET created_by = v_oid,
+        p256dh     = EXCLUDED.p256dh,
+        auth       = EXCLUDED.auth,
+        ua         = EXCLUDED.ua,
+        created_at = now()
+  RETURNING id INTO v_id;
+
+  RETURN v_id;
+END;
+$fn$;
+
+REVOKE ALL ON FUNCTION public.theo_chat_claim_push_subscription(text, text, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.theo_chat_claim_push_subscription(text, text, text, text) TO authenticated;
 ```
+
+The complete runnable migration above is also shipped as a standalone file in this package: **`Codex Governance/Theo-1B-VCpush-C1-Push-Subscriptions-Backend-Pass-1-VEP/migration_theo_chat_push_subscriptions.sql`** (byte-identical SQL; plain PostgreSQL, idempotent, no psql meta-commands). Walter runs it as `pgadmin_vault` (VS Code SQL play button) at Pass 3, before the C1 handlers deploy.
 
 ### Post-migration read-only verification (Pass 3, E2 — SELECT-only)
 
 ```sql
--- Table + RLS present, four ownership policies, per-owner UNIQUE (created_by, endpoint). SELECT-only.
+-- Table + RLS present, four ownership policies, GLOBAL UNIQUE (endpoint), SECURITY DEFINER claim fn. SELECT-only.
 SELECT relrowsecurity
   FROM pg_class
  WHERE oid = 'public.theo_chat_push_subscriptions'::regclass;
@@ -753,6 +794,10 @@ SELECT conname, contype
   FROM pg_constraint
  WHERE conrelid = 'public.theo_chat_push_subscriptions'::regclass
  ORDER BY conname;
+
+SELECT proname, prosecdef
+  FROM pg_proc
+ WHERE proname = 'theo_chat_claim_push_subscription';
 ```
 
 ---

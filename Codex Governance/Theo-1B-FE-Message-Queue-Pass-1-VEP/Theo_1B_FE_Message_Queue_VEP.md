@@ -1,5 +1,7 @@
 # Theo 1B — FE "Queue next message" (submit while streaming; auto-send on turn end) — Pass 1 Frontend VEP (PLAN ONLY)
 
+> **Rev 2** — resolves the Codex Pass-2 blocking finding: a switch-abort (newChat/selectRecent/startInProject) must DISCARD the queued follow-up so the flush effect cannot send it into the newly-loaded thread. Fixed in `send()`'s catch (implicit-abort branch); see TC-1 + F-P7 G-5.
+>
 > Pipeline: Vault Theo frontend regime. Author = Claude Code (Pass 1). Reviewer = **Codex** (Pass 2). Plan-only (FE Governor §2); on APPROVAL, Pass 3 commits the listed source (verified `tsc --noEmit` green — validated this turn by applying the three edits, typechecking, then reverting `src`) and Walter redeploys the Theo SWA. **Microstep:** a Claude/ChatGPT-style **queue the next message** affordance, built on the shipped Stop button. While Theo is streaming, submitting a message (Enter) does NOT interrupt the reply — it is **queued** (text-only, v1), shown as a cancelable **"Queued" chip** above the composer, and **auto-sends when the current turn ends** (normal completion or user Stop). One pending message; queuing again replaces it. Behind the state owner + the single `theoClient` boundary; no new backend, no migration, no browser storage — the flush reuses the existing `send(textArg?)`.
 
 ---
@@ -9,7 +11,7 @@ Role: Claude Code
 Turn Type: Verified Evidence Pack (FE Pass 1 plan)
 Turn issued against HEAD: `c9673af87462c16c0f8e3970322b47cff50f7581` (vault-theo, `development`)
 Grounding Mode: Targeted Current-Turn Grounding
-Pass: Pass 1 (Rev 2 — resolves the Codex Pass-2 blocking finding: a switch-abort must discard the queued follow-up so the flush effect cannot send it into the new thread; see TC-1 + F-P7 G-5)
+Pass: Pass 1
 Sub-phase Track: N/A
 Detail: Pass 1 — Frontend Verified Evidence Pack, building on the shipped Stop-generating change (HEAD `c9673af`). **Visual-authority DEVIATION** turn: the "Queued" chip and the queue-while-streaming behavior are additive UI not present in VA-T1 (the reference composer has a single Send button, merely *disabled* while `loading`, and no queue affordance — `frontend/theo-frontend-reference.jsx`, Read this turn). Per FE Governor a planned visual deviation is valid when **cited + classified (VISUAL-AUTHORITY-DEVIATION) + Rule-Anchored**, with **Walter** as the exemption authority (he directed the queue affordance). No new backend: the queued message is flushed through the already-deployed B9 streaming path via the existing `send(textArg?)`. The three modified files were edited this turn, `npm run typecheck` (`tsc --noEmit -p tsconfig.app.json`) passed (exit 0), and `src` was reverted so the package carries only `proposed-src/`.
 Currency anchors: blob SHA (captured this turn via `git rev-parse HEAD:<path>`); verifiable via `git cat-file -p <sha>`.

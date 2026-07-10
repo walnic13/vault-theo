@@ -4,13 +4,15 @@ Plan-only Verified Evidence Pack. No handler/migration files are written into th
 
 **Revision note (C2 v2):** thread-scoped least-privilege read helper — membership is now enforced INSIDE the `SECURITY DEFINER` function (`theo_chat_get_push_subscriptions_for_thread(p_thread_id uuid)`), which proves the caller is a member via `auth.uid()` and derives recipients itself (`member_oids` MINUS the caller); the old array-of-arbitrary-OIDs signature `theo_chat_get_push_subscriptions(p_oids text[])` is removed entirely. The G-READCLASS authorization has LANDED (`WALTER_AUTHORIZATION_G-READCLASS.md`, committed `2af5ffd`). Addresses Codex Pass 2 findings 1 (procedural — authorization now exists) and 2 (least-privilege — boundary moved into the definer).
 
-**Revision note (C2 v3):** bounded per-send push timeout (`Promise.race` guard + `web-push` socket timeout) so the best-effort fan-out cannot delay the 201; addresses the Codex latency finding. The fan-out is still `await`ed (Azure Functions can freeze the instance after the response, so a true fire-and-forget can drop the push work), but each send is now HARD-BOUNDED to `PUSH_SEND_TIMEOUT_MS = 5000` ms via a library-agnostic `Promise.race`; sends run in parallel under `Promise.allSettled`, so worst-case added latency ≈ one timeout window (not summed) and is typically sub-second in the happy path. The migration `.sql` is UNCHANGED this round.
+**Revision note (C2 v3):** bounded per-send push timeout (`Promise.race` guard + socket timeout) so the best-effort fan-out cannot delay the 201; addresses the Codex latency finding. The fan-out is still `await`ed (Azure Functions can freeze the instance after the response, so a true fire-and-forget can drop the push work), but each send is now HARD-BOUNDED to `PUSH_SEND_TIMEOUT_MS = 5000` ms via a library-agnostic `Promise.race`; sends run in parallel under `Promise.allSettled`, so worst-case added latency ≈ one timeout window (not summed) and is typically sub-second in the happy path. The migration `.sql` is UNCHANGED this round.
+
+**Revision note (C2 v4):** dropped the `web-push` npm dependency; Web Push (VAPID ES256 + RFC 8291 `aes128gcm`) is hand-rolled with Node built-ins (`crypto`, `https`), self-contained in the handler, per the HF-T5 no-dependency precedent (the deployed blob-SAS broker hand-rolls crypto to avoid `@azure/storage-blob`). Regrounded on Golden Handler §5.5 (deploy is **VFS-PUT only** — no programmatic npm; Kudu `/api/command` is unusable here). The v3 bounded fan-out (`Promise.race` + the `https.request` `timeout`), the thread-scoped `SECURITY DEFINER` recipient helper, the 410/404 prune, the best-effort try/catch, and the byte-unchanged 201+persist+publish all stay; only the SEND mechanism changes from `webpush.sendNotification(...)` to a self-contained `sendWebPush(subscription, payloadJson)`. The migration `.sql` is UNCHANGED (the two helpers stay). No `web-push` / npm remains anywhere in this VEP.
 
 ## Grounding Conformance Receipt
 
 Role: Claude Code
 Turn Type: Verified Evidence Pack (backend plan)
-Turn issued against HEAD: `2af5ffddc6d3b02d82dea62142f3bf85622e37ba` (vault-theo, `development`)
+Turn issued against HEAD: `b9168003122d7059aa9ba1eb75807d080a889656` (vault-theo, `development`)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P8
@@ -45,6 +47,8 @@ Currency anchors below are the git blob SHA of each cited file at HEAD (verifiab
 | governance/THEO_GOLDEN_HANDLER_STANDARD.md | §3 | "a SECURITY DEFINER existence helper is explicitly invoked for 403/404 discrimination" |
 | governance/THEO_GOLDEN_HANDLER_STANDARD.md | §4 | "A **new-domain or new-external-system helper** classified as ALLOWED DELTA requires either an EXACT mirror against a deployed handler containing that helper" |
 | governance/THEO_GOLDEN_HANDLER_STANDARD.md | §5.2 | "Migration files carry no top-level transaction control" |
+| governance/THEO_GOLDEN_HANDLER_STANDARD.md | §6 (HF-T5) | "no `@azure/storage-blob` dependency (managed-identity token → user delegation key → manually-signed SAS)" |
+| governance/THEO_GOLDEN_HANDLER_STANDARD.md | §5.5 | "Kudu VFS surgical overwrite" |
 | spec/THEO_AZURE_POSTGRES_SCHEMA.md | §8 | "narrowly-scoped write-path helper" |
 | spec/THEO_AZURE_POSTGRES_SCHEMA.md | §1 | "Canonical ownership column: **`created_by text NOT NULL`**" |
 | spec/THEO_AZURE_POSTGRES_SCHEMA.md | §2 | "Default family: ownership-based (`created_by = auth.uid()`)" |
@@ -63,7 +67,7 @@ Sub-phase Track rationale: **P8 (VEP assembly)** is the established convention f
   - `theo_chat_get_push_subscriptions_for_thread(p_thread_id uuid) RETURNS TABLE(created_by, endpoint, p256dh, auth)` — thread-scoped cross-owner read: the caller passes only the thread id, the function proves membership (`auth.uid()`) and derives recipients (`member_oids` MINUS the caller) itself;
   - `theo_chat_prune_push_subscription(p_endpoint text) RETURNS boolean` — cross-owner delete of a dead endpoint (410/404);
 - a best-effort push fan-out **delta** appended to the deployed `theo_chat_send_message` handler on `vaultgpt-func-chat` (additive; the existing persist + realtime publish + 201 response are byte-unchanged);
-- the `web-push` npm dependency (installed into the func-chat wwwroot at Pass 3) + the VAPID app-settings read (secrets — not in the repo).
+- a **self-contained** Web Push sender (VAPID ES256 + RFC 8291 `aes128gcm`) implemented with Node built-ins (`crypto`, `https`) — **no npm dependency** (HF-T5 no-dependency precedent; §5.5 VFS-only deploy) + the VAPID app-settings read (secrets — not in the repo).
 
 Out of scope: the C3 service worker + subscribe UI (FE); message-body content beyond a short preview.
 
@@ -81,7 +85,7 @@ Out of scope: the C3 service worker + subscribe UI (FE); message-body content be
 - **theo_ schema + RLS baseline (Architecture §5, owned by Schema §1/§2/§8).** C2 adds no table. It adds two `SECURITY DEFINER` functions over the DEPLOYED C1 ownership table `theo_chat_push_subscriptions` (`created_by` OID; `endpoint` globally UNIQUE); the thread-scoped read helper reads the DEPLOYED participant-scoped `theo_chat_threads.member_oids` array (Schema §8) INTERNALLY to prove membership and resolve recipients.
 - **Membership authority is `theo_chat_threads.member_oids` (Schema §8; API Spec §2.10).** Recipients = the target thread's members MINUS the sender. There is a `theo_chat_thread_members` table, but Schema §8 states membership **authority** is `theo_chat_threads.member_oids` (that table tracks per-member read-state). **v2 least-privilege:** the recipient set is derived INSIDE the `SECURITY DEFINER theo_chat_get_push_subscriptions_for_thread(p_thread_id uuid)` — the caller passes only the thread id, the function proves `auth.uid() = ANY(member_oids)` (a non-member is denied `42501`, an unknown thread returns no rows), and derives `member_oids` MINUS the caller itself. The caller can never pass arbitrary OIDs to harvest credentials, so the enforcement boundary lives at the data layer, not merely in the handler. A single handler (`theo_chat_send_message`) covers BOTH DM and channel sends — a DM and a channel are both `theo_chat_threads` rows differing only by `kind` — so exactly one send path is modified (API Spec §2.10: `theo_chat_send_message` is the sole server-authoritative send route for both).
 - **Cross-owner access requires SECURITY DEFINER (Schema §8 write-path idiom; Golden Handler §3).** The sender must read OTHER users' subscriptions (to encrypt/deliver) and delete OTHER users' dead endpoints (410/404). C1's ownership RLS (`created_by = auth.uid()`) scopes direct-table access to the caller's own rows, and the shared func-chat connection role has no cross-owner grant. C2 therefore adds two migration-role-owned `SECURITY DEFINER` functions (each `SET search_path = public, pg_temp`, `REVOKE ALL … FROM PUBLIC`, `GRANT EXECUTE … TO authenticated`, caller identity from `auth.uid()` never a parameter), the same justified class as the deployed `theo_chat_leave` / `theo_chat_delete_message` / `theo_chat_claim_push_subscription`. **The READ helper returns another user's push credentials, which exceeds the Golden Handler §3(a)/(b) exceptions — resolved by the LANDED Walter authorization (`WALTER_AUTHORIZATION_G-READCLASS.md`) per Golden Handler §4; see Gap Register G-READCLASS.**
-- **Model gateway seam (Architecture §2) / Tool dispatch (Architecture §4; Tool Manifest).** Not touched. `web-push` talks to the browser push services (WNS / FCM / Apple) directly via VAPID; no `reporting_*` endpoint and no manifest row is involved.
+- **Model gateway seam (Architecture §2) / Tool dispatch (Architecture §4; Tool Manifest).** Not touched. The self-contained sender POSTs to the browser push services (WNS / FCM / Apple) directly via VAPID over `https`; no `reporting_*` endpoint and no manifest row is involved.
 - **Realtime boundary unchanged.** The existing best-effort Web PubSub publish (`serviceClient.group(threadId).sendToAll(...)`) is byte-unchanged. Push is a SECOND, independent best-effort delivery channel for when the app is closed; it is appended after the publish and before the 201, and is wrapped entirely in try/catch so it can never affect either.
 - **No secrets in the pack.** VAPID keys live only in `vaultgpt-func-chat` app settings. No key value appears anywhere in this VEP or in the repo.
 
@@ -97,9 +101,9 @@ Vocabulary is closed (`PROCEED` / `PRE-LAND` / `ESCALATE` / `NO-GAPS`) per Gover
 | G-PRIMARY | No committed `theo_chat_send_message` snapshot is byte-faithful to the LIVE deployed handler. The VC-19 snapshot (Primary Reference here) carries reply/delete/forward + the archived-send gate, but NOT the VC-9 attachment and VC-10 gif projection (both DEPLOYED 2026-07-07 per API Spec §2.10, postdating every committed snapshot). Golden Handler §5.5 states "The deployed handler is the source of truth … the repo's `Codex Governance/` artifacts drift behind what is deployed." | **PRE-LAND** | The additive C2 fan-out block is **position-independent**: it reads only `oid`, `principal`, `saved.thread_id`, and calls the thread-scoped read helper with `saved.thread_id`, and is inserted between the existing publish block and the `return 201`. It does not touch or depend on any attachment/gif/reply field, so it composes cleanly onto the live handler regardless of which projection features it carries. **Precondition for the Implementation Package:** Kudu-GET the live `theo_chat_send_message` wwwroot copy, re-emit the Structural Mirror against it (byte-exact Primary Reference), and confirm the insertion point (after the Web PubSub publish, before the 201) still holds. The delta below is expressed against the VC-19 committed snapshot as the best-available reference. |
 | G1 | The Phase 1B Backend Plan has no explicit Phase C / Web Push feature row. | PROCEED | The VC program has run as a Walter-directed extension without plan rows; C1 is deployed; C2 continues it. A plan Role-C row is an optional documentation follow-up, not a blocker. |
 | G-VAPID | The sender needs `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`. | PROCEED | Already provisioned as `vaultgpt-func-chat` app settings (secrets — never in the repo). The handler guards on all three being present before it attempts any push. No key value appears in this VEP. |
-| G-DEP | `web-push` is not yet in the func-chat wwwroot `node_modules`. | PROCEED | Installed at Pass 3 via Kudu (`npm install web-push@3.6.7`), the pdf-parse precedent (npm in Kudu CMD, pinned version, `require('web-push')`). This is a deploy step, not a plan-only VEP file. See "web-push dependency" below. |
+| G-DEP | (v4) Web Push needs VAPID auth + `aes128gcm` payload encryption; adding the `web-push` npm library would require an `npm install` into wwwroot `node_modules`. | PROCEED | **No dependency.** Golden Handler §5.5 deploy is `Kudu VFS surgical overwrite` (VFS-PUT only; no programmatic npm — `/api/command` is unusable), so an npm library is off-pattern. C2 hand-rolls VAPID + `aes128gcm` with Node built-ins (`crypto`, `https`), mirroring the DEPLOYED HF-T5 broker's "no `@azure/storage-blob` dependency" hand-rolled approach (§6). Nothing to install; the handler is directly VFS-deployable. See "Self-contained Web Push (no npm dependency)" below. |
 | G-PRUNE-CAP | `theo_chat_prune_push_subscription(p_endpoint)` deletes by endpoint regardless of owner and is `GRANT EXECUTE TO authenticated`, so the endpoint string acts as a capability. | PROCEED | Cross-owner delete is REQUIRED (the sender is not the owner). It is invoked ONLY on a push the service reported 410/404 (a confirmed-dead endpoint); an `auth.uid()` guard rejects an unauthenticated caller. A future hardening (restrict prune to endpoints the caller just failed to push) is noted but not required for C2. |
-| G-LATENCY | The best-effort fan-out is appended to the hot send path and is `await`ed before the existing 201 (Azure Functions can freeze the instance after the response, so a true fire-and-forget can drop the push work). Without a bound, a slow/stuck push endpoint could delay the normal chat-send response. | PROCEED (v3) | **Bounded.** Each send is hard-capped at `PUSH_SEND_TIMEOUT_MS = 5000` ms by a library-agnostic `Promise.race` (independent of `web-push`'s own socket-only `timeout`); sends run in parallel under `allSettled`, so worst-case added latency ≈ one timeout window (≤ 5 s), not summed, and is typically sub-second in the happy path. The 201 + persist + Web PubSub publish remain byte-unchanged. |
+| G-LATENCY | The best-effort fan-out is appended to the hot send path and is `await`ed before the existing 201 (Azure Functions can freeze the instance after the response, so a true fire-and-forget can drop the push work). Without a bound, a slow/stuck push endpoint could delay the normal chat-send response. | PROCEED (v3) | **Bounded.** Each send is hard-capped at `PUSH_SEND_TIMEOUT_MS = 5000` ms by a library-agnostic `Promise.race` (independent of the `https.request` socket-only `timeout`); sends run in parallel under `allSettled`, so worst-case added latency ≈ one timeout window (≤ 5 s), not summed, and is typically sub-second in the happy path. The 201 + persist + Web PubSub publish remain byte-unchanged. |
 
 ---
 
@@ -163,12 +167,78 @@ The ONLY change to the handler is the insertion of one self-contained best-effor
 +            [threadId]
 +          );
 +          if (subs.rows.length > 0) {
-+            const webpush = require("web-push");
-+            webpush.setVapidDetails(
-+              process.env.VAPID_SUBJECT,
-+              process.env.VAPID_PUBLIC_KEY,
-+              process.env.VAPID_PRIVATE_KEY
-+            );
++            // Self-contained Web Push (NO npm dependency; HF-T5 precedent, §5.5 VFS-only deploy).
++            // VAPID ES256 (RFC 8292) + aes128gcm payload encryption (RFC 8291 / RFC 8188), Node built-ins only.
++            const crypto = require("crypto");
++            const https = require("https");
++            const b64url = (buf) => Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
++            const fromB64url = (s) => Buffer.from(String(s).replace(/-/g, "+").replace(/_/g, "/"), "base64");
++            // Import the VAPID EC private key ONCE. d = VAPID_PRIVATE_KEY (base64url 32-byte scalar);
++            // x/y sliced from the 65-byte uncompressed VAPID_PUBLIC_KEY point (0x04 || x(32) || y(32)).
++            const vapidPubRaw = fromB64url(process.env.VAPID_PUBLIC_KEY);
++            const vapidPrivateKey = crypto.createPrivateKey({
++              key: {
++                kty: "EC", crv: "P-256",
++                d: process.env.VAPID_PRIVATE_KEY,
++                x: b64url(vapidPubRaw.subarray(1, 33)),
++                y: b64url(vapidPubRaw.subarray(33, 65)),
++              },
++              format: "jwk",
++            });
++            const buildVapidAuth = (endpoint) => {
++              const jwtHeader = b64url(Buffer.from(JSON.stringify({ typ: "JWT", alg: "ES256" })));
++              const jwtBody = b64url(Buffer.from(JSON.stringify({
++                aud: new URL(endpoint).origin,
++                exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60,
++                sub: process.env.VAPID_SUBJECT,
++              })));
++              const signingInput = `${jwtHeader}.${jwtBody}`;
++              // dsaEncoding: 'ieee-p1363' => raw r||s (JOSE), NOT DER.
++              const sig = crypto.sign("sha256", Buffer.from(signingInput), { key: vapidPrivateKey, dsaEncoding: "ieee-p1363" });
++              return `vapid t=${signingInput}.${b64url(sig)}, k=${process.env.VAPID_PUBLIC_KEY}`;
++            };
++            const encryptPayload = (plaintext, uaPublic, authSecret) => {
++              const ecdh = crypto.createECDH("prime256v1");
++              const asPublic = ecdh.generateKeys();            // 65-byte uncompressed ephemeral public
++              const ecdhSecret = ecdh.computeSecret(uaPublic); // 32-byte shared secret
++              const salt = crypto.randomBytes(16);
++              // RFC 8291 §3.4: IKM = HKDF(salt=auth_secret, ikm=ecdh_secret, info="WebPush: info"\0||ua||as, 32)
++              const keyInfo = Buffer.concat([Buffer.from("WebPush: info\0", "utf8"), uaPublic, asPublic]);
++              const ikm = Buffer.from(crypto.hkdfSync("sha256", ecdhSecret, authSecret, keyInfo, 32));
++              // RFC 8188: CEK/NONCE = HKDF(salt=salt, ikm=IKM, info="Content-Encoding: ...\0", len)
++              const cek = Buffer.from(crypto.hkdfSync("sha256", ikm, salt, Buffer.from("Content-Encoding: aes128gcm\0", "utf8"), 16));
++              const nonce = Buffer.from(crypto.hkdfSync("sha256", ikm, salt, Buffer.from("Content-Encoding: nonce\0", "utf8"), 12));
++              const record = Buffer.concat([Buffer.from(plaintext, "utf8"), Buffer.from([0x02])]); // single/last record delimiter
++              const cipher = crypto.createCipheriv("aes-128-gcm", cek, nonce);
++              const ct = Buffer.concat([cipher.update(record), cipher.final(), cipher.getAuthTag()]);
++              const rs = Buffer.alloc(4); rs.writeUInt32BE(4096, 0);
++              // aes128gcm content-coding header (RFC 8188): salt(16) | rs(4) | idlen(1) | keyid(=asPublic 65) | ciphertext
++              return Buffer.concat([salt, rs, Buffer.from([asPublic.length]), asPublic, ct]);
++            };
++            const sendWebPush = (sub, payloadJson) => new Promise((resolve, reject) => {
++              let body;
++              try { body = encryptPayload(payloadJson, fromB64url(sub.p256dh), fromB64url(sub.auth)); }
++              catch (encErr) { return reject(encErr); }
++              const u = new URL(sub.endpoint);
++              const req = https.request(
++                {
++                  method: "POST", hostname: u.hostname, path: u.pathname + u.search, port: u.port || 443,
++                  timeout: 4000, // socket-inactivity timeout (ms); the Promise.race below is the hard wall-clock bound
++                  headers: {
++                    Authorization: buildVapidAuth(sub.endpoint),
++                    "Content-Encoding": "aes128gcm",
++                    "Content-Type": "application/octet-stream",
++                    "Content-Length": body.length,
++                    TTL: 60,
++                  },
++                },
++                (res) => { res.on("data", () => {}); res.on("end", () => resolve(res.statusCode)); }
++              );
++              req.on("timeout", () => req.destroy(new Error("push_socket_timeout")));
++              req.on("error", reject);
++              req.write(body);
++              req.end();
++            });
 +            const tRow = await client.query(
 +              `SELECT kind, name FROM public.theo_chat_threads WHERE id = $1`,
 +              [threadId]
@@ -186,7 +256,7 @@ The ONLY change to the handler is the insertion of one self-contained best-effor
 +            const url = `${baseUrl}/?chat=${encodeURIComponent(saved.thread_id)}`;
 +            const payload = JSON.stringify({ title, body: payloadBody, url, tag: saved.thread_id });
 +            // Hard bound the hot-path best-effort work: each send is capped at PUSH_SEND_TIMEOUT_MS by a
-+            // library-agnostic Promise.race (web-push's `timeout` is a socket timeout, NOT a request cap).
++            // library-agnostic Promise.race (the https `timeout` is a socket timeout, NOT a wall-clock cap).
 +            // Sends run in parallel under allSettled, so worst-case added latency ≈ one timeout window.
 +            const PUSH_SEND_TIMEOUT_MS = 5000;
 +            const withTimeout = (p, ms) => Promise.race([
@@ -196,22 +266,16 @@ The ONLY change to the handler is the insertion of one self-contained best-effor
 +            await Promise.allSettled(
 +              subs.rows.map(async (s) => {
 +                try {
-+                  await withTimeout(
-+                    webpush.sendNotification(
-+                      { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-+                      payload,
-+                      { TTL: 60, timeout: 4000 } // web-push socket timeout in MS (Node https.request.timeout); the race is the hard bound
-+                    ),
-+                    PUSH_SEND_TIMEOUT_MS
-+                  );
-+                } catch (e) {
-+                  // Prune ONLY on a confirmed-dead endpoint (410/404). A timeout/transient/other error
-+                  // (no statusCode) is log-and-continue — best-effort, never affects the 201.
-+                  if (e && (e.statusCode === 410 || e.statusCode === 404)) {
++                  const status = await withTimeout(sendWebPush(s, payload), PUSH_SEND_TIMEOUT_MS);
++                  // Prune ONLY on a confirmed-dead endpoint (410 Gone / 404). Other non-2xx / timeout =
++                  // log-and-continue — best-effort, never affects the 201.
++                  if (status === 410 || status === 404) {
 +                    await client.query(`SELECT public.theo_chat_prune_push_subscription($1)`, [s.endpoint]).catch(() => {});
-+                  } else {
-+                    context.log.error("theo_chat_send_message push send (non-fatal) failed", e && (e.statusCode || e.message));
++                  } else if (status >= 400) {
++                    context.log.error("theo_chat_send_message push send (non-fatal) non-2xx", status);
 +                  }
++                } catch (e) {
++                  context.log.error("theo_chat_send_message push send (non-fatal) failed", e && e.message);
 +                }
 +              })
 +            );
@@ -227,7 +291,8 @@ The ONLY change to the handler is the insertion of one self-contained best-effor
 
 Notes on the delta:
 - **Best-effort / non-fatal.** The whole block is inside `try { … } catch (pushErr) { context.log.error(...) }`, and each per-subscription send additionally `.catch(...)`es via `Promise.allSettled`, so no push error can propagate to the 201 or the realtime publish. This mirrors the deployed pattern for the Web PubSub publish (already `try/catch` "publish (non-fatal) failed").
-- **Bounded await (Codex v3 fix).** The block `await`s `Promise.allSettled(...)` before the 201 because the func-chat classic v4 host does not reliably run background work after the response returns — a true fire-and-forget can be dropped when Azure Functions freezes the instance post-response. So the fan-out is awaited BUT each send is HARD-BOUNDED: a library-agnostic `Promise.race` caps every `sendNotification` at `PUSH_SEND_TIMEOUT_MS = 5000` ms, independent of the library. `web-push`'s own `timeout` option (`4000` ms) is a socket-inactivity timeout only (it sets Node's `https.request` `timeout`; verified below), NOT a wall-clock request cap, which is exactly why the race wrapper is required. Because the sends run in parallel under `allSettled`, worst-case added latency ≈ one timeout window (≤ 5 s), not the sum, and is typically sub-second in the happy path. The durable persist and realtime publish have already happened, so the only cost is that small bounded delay on the 201 ack. A timed-out send rejects with `push_send_timeout` (no `statusCode`) → log-and-continue, no prune.
+- **Self-contained sender, no dependency (Codex v4 fix).** `sendWebPush` builds the VAPID ES256 auth header (RFC 8292) and the `aes128gcm` encrypted body (RFC 8291 / RFC 8188) with Node built-ins (`crypto`, `https`) only — NO `web-push`, NO npm install. This mirrors the DEPLOYED HF-T5 blob-SAS broker, which hand-rolls crypto to avoid `@azure/storage-blob`, and keeps the handler VFS-PUT-deployable per Golden Handler §5.5 (the Kudu `/api/command` npm path is unusable here). The KDF labels are exactly `"WebPush: info\0"`, `"Content-Encoding: aes128gcm\0"`, `"Content-Encoding: nonce\0"` (not improvised); the ES256 signature uses `dsaEncoding: 'ieee-p1363'` (raw r‖s / JOSE, verified 64 bytes), and `crypto.hkdfSync` is confirmed available on Node 18/20 (func-chat).
+- **Bounded await (Codex v3 fix, retained).** The block `await`s `Promise.allSettled(...)` before the 201 because the func-chat classic v4 host does not reliably run background work after the response returns — a true fire-and-forget can be dropped when Azure Functions freezes the instance post-response. So the fan-out is awaited BUT each send is HARD-BOUNDED: a library-agnostic `Promise.race` caps every `sendWebPush` at `PUSH_SEND_TIMEOUT_MS = 5000` ms. The `https.request` `timeout` (`4000` ms) is a socket-inactivity timeout only, NOT a wall-clock request cap, which is exactly why the race wrapper is the authoritative bound. Because the sends run in parallel under `allSettled`, worst-case added latency ≈ one timeout window (≤ 5 s), not the sum, and is typically sub-second in the happy path. The durable persist and realtime publish have already happened, so the only cost is that small bounded delay on the 201 ack. A timed-out send rejects with `push_send_timeout` (no status) → log-and-continue, no prune; only a resolved `410`/`404` status prunes.
 - **Recipient enumeration is inside the definer (least-privilege).** The handler passes ONLY `threadId` to `theo_chat_get_push_subscriptions_for_thread`; the function proves `auth.uid() = ANY(member_oids)` and derives recipients (`member_oids` MINUS the caller) itself. The handler never enumerates members or passes an OID array, so a caller cannot request another thread's or another user's credentials. A non-member call raises `42501` (caught by the outer try/catch, logged non-fatally).
 - **Uses the existing connection `client`** (already has the `set_config`/JWT triad applied), so `auth.uid()` inside both `SECURITY DEFINER` helpers resolves to the sender. The `SELECT kind, name` lookup is only for the notification title (channel name vs sender name); it is not the membership boundary — that lives inside the read helper.
 
@@ -236,7 +301,8 @@ Notes on the delta:
 | Handler region | Primary Reference region | Classification | Basis |
 | -------------- | ------------------------ | -------------- | ----- |
 | Everything from `require`/Pool through the persist loop, `saved.*` shaping, and the Web PubSub publish block | send_message L1–L201 | EXACT | byte-unchanged; the C2 block is inserted AFTER L201 |
-| C2 best-effort push fan-out block (the `+` lines above), incl. the `PUSH_SEND_TIMEOUT_MS = 5000` / `withTimeout` per-send hard bound | inserted between L201 (end of publish `if`) and L203 (`return 201`) | ALLOWED DELTA (additive best-effort side-effect, latency-bounded) | Golden Handler §4 permits an additive best-effort region mirroring an existing best-effort region; this block mirrors the deployed Web PubSub "publish (non-fatal)" try/catch pattern (same log-and-continue shape), reads `member_oids` (Schema §8), and hard-bounds each send via a `Promise.race` so the hot send path (the 201) cannot be delayed by a slow/stuck push endpoint |
+| C2 best-effort push fan-out block (the `+` lines above), incl. the `PUSH_SEND_TIMEOUT_MS = 5000` / `withTimeout` per-send hard bound | inserted between L201 (end of publish `if`) and L203 (`return 201`) | ALLOWED DELTA (additive best-effort side-effect, latency-bounded) | Golden Handler §4 permits an additive best-effort region mirroring an existing best-effort region; this block mirrors the deployed Web PubSub "publish (non-fatal)" try/catch pattern (same log-and-continue shape) and hard-bounds each send via a `Promise.race` so the hot send path (the 201) cannot be delayed by a slow/stuck push endpoint |
+| Self-contained `sendWebPush` (VAPID ES256 + `aes128gcm`) using `crypto` + `https` Node built-ins — NO npm dependency | DEPLOYED HF-T5 blob-SAS broker (Golden Handler §6): hand-rolled crypto with Node built-ins, "no `@azure/storage-blob` dependency" | ALLOWED DELTA (EXACT mirror of a deployed no-dependency hand-rolled-crypto class) | Golden Handler §4: a new-external-system helper classified ALLOWED DELTA needs an EXACT mirror against a deployed handler containing that pattern — satisfied by HF-T5 (§6), which hand-rolls SAS crypto with Node built-ins specifically to avoid an npm dependency; §5.5 deploy is `Kudu VFS surgical overwrite` (VFS-PUT only). No new npm require is introduced (`crypto`/`https` are built-ins; `pg`/`@azure/web-pubsub` already present) |
 | `SELECT … FROM public.theo_chat_get_push_subscriptions_for_thread($1)` call | new SQL helper (thread-scoped cross-owner read) | ALLOWED DELTA (G-READCLASS Walter authorization LANDED) | Golden Handler §4: a new-domain helper classified ALLOWED DELTA needs an EXACT deployed mirror OR a verbatim Walter authorization predating the package. No exact mirror exists (no deployed helper returns other users' content) → satisfied by `WALTER_AUTHORIZATION_G-READCLASS.md` (committed `2af5ffd`, predating this Implementation Package). Membership is proven INSIDE the definer (least-privilege); the caller passes only the thread id |
 | `SELECT public.theo_chat_prune_push_subscription($1)` call | deployed `theo_chat_leave` / `theo_chat_delete_message` write-path definer class (Schema §8) | ALLOWED DELTA (EXACT mirror of a deployed definer class) | cross-owner write-path delete; migration-role-owned, `SECURITY DEFINER SET search_path`, `REVOKE`/`GRANT authenticated`, caller from `auth.uid()`; same class as deployed helpers → no new authorization needed |
 | `return send(context, 201, successBody({ message: saved }))` | send_message L203 | EXACT | byte-unchanged |
@@ -673,30 +739,37 @@ curl -sS -X POST "https://vaultgpt-func-chat.azurewebsites.net/api/theo_chat_sen
 
 `PRINCIPAL_B64` is the base64 EasyAuth client-principal for the golden test identity (fixed OID); it is the standard func-chat golden-curl input and carries no secret material. Curls 1–2 additionally assert (via func-chat logs, not the response) that a `theo_chat_send_message push …` error, if any, is logged non-fatally and the 201 is returned regardless.
 
+**Verification honesty.** These golden curls verify only the **send_message contract** (that the 201 + persist + realtime publish are unchanged and the fan-out never breaks the response). They do NOT verify that a push notification actually decrypts and renders on a device: that requires a real VAPID-signed request against a live browser subscription and correct RFC 8291 decryption by the user agent. **Correct end-to-end delivery/decryption is verified at the C3 device test** (Walter's subscribed phone) — not by a backend curl. A push-endpoint `201` acceptance can be smoke-checked at Pass 3 only if a real subscription exists; the authoritative proof is the C3 on-device render.
+
 ---
 
-## web-push dependency (Pass-3 deploy step — NOT a plan-only VEP file)
+## Self-contained Web Push (no npm dependency — HF-T5 precedent; §5.5 VFS-only deploy)
 
-The sender uses the `web-push` library (handles VAPID auth + RFC 8291 `aes128gcm` payload encryption — do NOT hand-roll crypto).
+C2 does **NOT** add the `web-push` library or any npm dependency. The sender is hand-rolled with Node built-ins (`crypto`, `https`) inside the handler, exactly mirroring the DEPLOYED **HF-T5** blob-SAS broker (Golden Handler §6), which hand-rolls its SAS signing "**no `@azure/storage-blob` dependency** (managed-identity token → user delegation key → manually-signed SAS)" to avoid a dependency. This is the governing precedent.
 
-- **Pin:** `web-push@3.6.7` (known-good stable).
-- **Install (Kudu, the pdf-parse precedent — run npm in the Kudu CMD/Debug console, NOT PowerShell):**
-  - Kudu → Debug console → **CMD** → `cd site\wwwroot` → `npm install web-push@3.6.7`
-  - Confirm `node_modules/web-push` is present; the handler does `require("web-push")` (lazily, inside the guarded block).
-- This install is part of the Pass-3 deploy, gated on Codex APPROVED + the G-READCLASS authorization. It is intentionally NOT a file in this plan-only package.
-- **`timeout` option units — VERIFIED (web-push@3.6.7 source, `src/web-push-lib.js` at tag `v3.6.7`).** The `timeout` option is read as a number and assigned to `httpsOptions.timeout`, then `pushRequest.on('timeout', …)` destroys the request with `Error('Socket timeout')`. This is Node's `https.request` `timeout` = a **socket-inactivity timeout in MILLISECONDS**, NOT a wall-clock request cap. So the illustrative `timeout: 4` in the review note would be 4 **ms** (far too short); C2 uses `timeout: 4000` (= 4 s). Two consequences the code relies on: (1) a socket timeout is not a full request bound, which is exactly why the `Promise.race` (`PUSH_SEND_TIMEOUT_MS = 5000`) is the authoritative hard bound; (2) a `'Socket timeout'` error carries **no `statusCode`**, so it falls into log-and-continue and NEVER triggers a prune (prune is 410/404-only).
+**Why no npm.** Golden Handler §5.5 deploy is **VFS-PUT only** — `Kudu VFS surgical overwrite` of the per-fn `index.js`/`function.json`; there is no programmatic npm step (the Kudu `/api/command` endpoint is unusable here — basic-auth disabled, AAD 400s). A library that must be `npm install`ed into wwwroot `node_modules` is therefore off-pattern; a self-contained handler using built-ins is directly VFS-deployable with zero install. (This supersedes the earlier pdf-parse-style npm plan.)
+
+**What is implemented (all Node built-ins; see the P5 delta for the code):**
+- **VAPID auth (RFC 8292).** ES256 JWT — header `{typ:"JWT",alg:"ES256"}`, payload `{aud:<push-endpoint origin>, exp:<now+12h>, sub:VAPID_SUBJECT}`; signed with `crypto.sign('sha256', signingInput, { key, dsaEncoding:'ieee-p1363' })` so the signature is raw r‖s (JOSE), not DER. `Authorization: vapid t=<jwt>, k=<VAPID_PUBLIC_KEY>`.
+- **Key import.** `crypto.createPrivateKey({ key: { kty:'EC', crv:'P-256', d:VAPID_PRIVATE_KEY, x, y }, format:'jwk' })` — `x`/`y` sliced from the 65-byte uncompressed `VAPID_PUBLIC_KEY` (byte0=0x04, x=1..32, y=33..64), each base64url.
+- **Payload encryption (RFC 8291 `aes128gcm` / RFC 8188).** Ephemeral P-256 ECDH (`crypto.createECDH('prime256v1')`); `IKM = hkdfSync('sha256', ecdhSecret, authSecret, "WebPush: info\0"‖uaPublic‖asPublic, 32)`; `CEK = hkdfSync('sha256', IKM, salt, "Content-Encoding: aes128gcm\0", 16)`, `NONCE = hkdfSync('sha256', IKM, salt, "Content-Encoding: nonce\0", 12)`; record = `payload‖0x02`; `aes-128-gcm` encrypt + tag; body = `salt(16)‖rs(4)=4096‖idlen(1)=65‖asPublic(65)‖ciphertext`. Labels are the exact RFC constants — not improvised.
+- **POST.** `https.request(endpoint, {method:'POST', headers:{Authorization, 'Content-Encoding':'aes128gcm', 'Content-Type':'application/octet-stream', 'Content-Length', TTL:60}, timeout:4000})`; resolve on the response `statusCode` (201/200 = ok; 410/404 = prune).
+
+**Node primitive availability — VERIFIED.** `crypto.hkdfSync`, `crypto.createPrivateKey({format:'jwk'})`, `crypto.createECDH('prime256v1')`, and `crypto.sign(..., { dsaEncoding:'ieee-p1363' })` (returns a 64-byte raw r‖s signature) are all available on Node ≥ 15; `vaultgpt-func-chat` runs Node 18/20. No missing primitive.
+
+No `web-push`, no npm install, and no `node_modules` change appears anywhere in this package.
 
 ---
 
 ## VAPID configuration note (secrets — never in the pack)
 
-The sender reads `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` from **`vaultgpt-func-chat` app settings** (already provisioned by Walter; secrets — never committed). The handler calls `webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)` and guards on all three being present before attempting any push. **No key value appears anywhere in this VEP.**
+The sender reads `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` from **`vaultgpt-func-chat` app settings** (already provisioned by Walter; secrets — never committed). The hand-rolled sender imports the EC private key from `VAPID_PRIVATE_KEY` (+ x/y from `VAPID_PUBLIC_KEY`), signs the VAPID JWT, and puts `VAPID_PUBLIC_KEY` in the `Authorization: vapid …, k=` field; it guards on all three settings being present before attempting any push. **No key value appears anywhere in this VEP.**
 
 ---
 
 ## P8 — VEP assembly + mechanical lint
 
-This pack opens with the GCR + Rule Anchor Table (Conformance §3/§5), walks P1–P8, carries the Architecture & boundary reconciliation and the Gap Register (Governor §8; vocabulary `PROCEED`/`PRE-LAND`/`ESCALATE`/`NO-GAPS`), delivers the Walter-executable migration SQL (also shipped as `migration_theo_chat_push_sender_functions.sql`), the FULL-verbatim Primary Reference pair, the additive C2 delta + Structural Mirror, deterministic golden curls, and the web-push/VAPID/API-Spec notes. Plan-only: no app/handler/migration files written, no deploy, no commit.
+This pack opens with the GCR + Rule Anchor Table (Conformance §3/§5), walks P1–P8, carries the Architecture & boundary reconciliation and the Gap Register (Governor §8; vocabulary `PROCEED`/`PRE-LAND`/`ESCALATE`/`NO-GAPS`), delivers the Walter-executable migration SQL (also shipped as `migration_theo_chat_push_sender_functions.sql`; UNCHANGED in v4), the FULL-verbatim Primary Reference pair, the additive C2 delta + Structural Mirror, deterministic golden curls, and the self-contained-Web-Push (no-dependency) / VAPID / API-Spec notes. Plan-only: no app/handler/migration files written, no deploy, no commit.
 
 **Gate status for the reviewer / Walter:** G-READCLASS is RESOLVED — the verbatim Walter authorization has LANDED (`WALTER_AUTHORIZATION_G-READCLASS.md`, committed `2af5ffd`, predating this package per Golden Handler §4), and the v2 thread-scoped read helper additionally enforces membership INSIDE the `SECURITY DEFINER` (least-privilege; the caller passes only the thread id). One PRE-LAND remains: G-PRIMARY — the live `theo_chat_send_message` wwwroot copy must be captured and the mirror re-emitted at Implementation-Package time. The technical design is complete and review-ready now.
 

@@ -48,8 +48,10 @@ export const theoClient = {
   },
   // ── B9 streaming chat (theo_message_stream sidecar) — same request shape; the reply arrives as
   // SSE deltas via the handlers (live text + thinking + citations + the final conversation id). ──
-  sendMessageStream(req: GatewayRequest, handlers: StreamHandlers): Promise<void> {
-    return gatewaySendStream(req, handlers);
+  // Stop-generating: `opts.signal` (from useTheoState's per-turn AbortController) passes straight
+  // through to the gateway fetch so stop() / a chat switch can abort the in-flight stream.
+  sendMessageStream(req: GatewayRequest, handlers: StreamHandlers, opts?: { signal?: AbortSignal }): Promise<void> {
+    return gatewaySendStream(req, handlers, opts);
   },
 
   // ── Attachments (B8e) — one network round per file: create SAS → PUT bytes → finalize.

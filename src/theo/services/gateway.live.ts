@@ -73,7 +73,7 @@ async function authHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
-export async function sendMessage(req: GatewayRequest): Promise<GatewayResponse> {
+export async function sendMessage(req: GatewayRequest, opts?: { signal?: AbortSignal }): Promise<GatewayResponse> {
   // No live backend wired (standalone dev harness) → preserve the 1A mock behavior unchanged.
   if (!apiBase && !tokenProvider) {
     return mockSend(req);
@@ -90,6 +90,7 @@ export async function sendMessage(req: GatewayRequest): Promise<GatewayResponse>
     method: "POST",
     credentials: "same-origin",
     headers,
+    signal: opts?.signal,   // stop-generating: also cancels the non-streaming one-shot fallback path
     body: JSON.stringify({
       max_tokens: req.max_tokens,
       system: req.system,
@@ -773,7 +774,7 @@ export interface StreamHandlers {
   onMeta?: (meta: { conversation_id?: string; model?: string }) => void;
 }
 
-export async function sendMessageStream(req: GatewayRequest, handlers: StreamHandlers): Promise<void> {
+export async function sendMessageStream(req: GatewayRequest, handlers: StreamHandlers, opts?: { signal?: AbortSignal }): Promise<void> {
   // Dev harness: no live backend → use the mock and emit the whole reply once (keeps the harness usable).
   if (!apiBase && !tokenProvider) {
     const res = await mockSend(req);
@@ -787,7 +788,7 @@ export async function sendMessageStream(req: GatewayRequest, handlers: StreamHan
   // configured, degrade to the non-streaming monolith call and emit the whole reply once — chat
   // still works, just not streamed. (apiBase is NEVER used for the stream endpoint.)
   if (!streamBase) {
-    const res = await sendMessage(req);
+    const res = await sendMessage(req, opts);   // stop-generating: forward the signal so Stop cancels the one-shot fallback too
     const text = (res.content || []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("\n");
     if (text) handlers.onText(text);
     if (res.conversation_id) handlers.onMeta?.({ conversation_id: res.conversation_id });
@@ -799,6 +800,7 @@ export async function sendMessageStream(req: GatewayRequest, handlers: StreamHan
     method: "POST",
     credentials: "same-origin",
     headers,
+    signal: opts?.signal,   // stop-generating: aborting rejects reader.read() with AbortError → propagates to send()'s catch
     body: JSON.stringify({
       max_tokens: req.max_tokens,
       system: req.system,

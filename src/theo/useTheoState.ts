@@ -56,6 +56,11 @@ export function useTheoState() {
   const [projectChatsState, setProjectChatsState] = useState<{ projectId: string; chats: ConversationSummary[] } | null>(null);
   const instrTimer = useRef<ReturnType<typeof setTimeout> | null>(null);  // B4c: instruction-save debounce
   const projectChatsReq = useRef<string | null>(null);                    // B4e: latest-opened project id (guards the chats load)
+  // Stop-generating (B9 abort): the in-flight stream's AbortController, plus whether the user pressed
+  // Stop (KEEP the partial reply) vs an implicit abort from a chat switch / newChat (DISCARD it). Both
+  // are cleared in send()'s finally so the next turn starts fresh. React refs (not state) — no re-render.
+  const abortRef = useRef<AbortController | null>(null);
+  const userStoppedRef = useRef(false);
   // B5a: per-project in-flight guard for the visibility toggle — prevents overlapping/out-of-order
   // visibility writes on an access-control affordance (Codex B5a-FE finding). The ref is the hard
   // serialization (ignore a click while a write for that id is pending); visPending drives the disabled UI.
@@ -188,11 +193,16 @@ export function useTheoState() {
 
   function go(v: View) { setView(v); setDetailId(null); if (v === "artifacts") void loadGalleryArtifacts(); }  // B4h: refresh the gallery on open
   function clearComposer() { setAttachments([]); }
-  function newChat() { setMessages([]); setConversationId(null); setChatProject(null); setOpenArt(null); theoClient.resetArtifacts(); setArtifacts([]); clearComposer(); go("chats"); }  // B4h: fresh thread = fresh in-memory artifact set
+  // Stop-generating: abort any in-flight stream first (userStoppedRef stays false → the send() catch
+  // takes the DISCARD path, not the keep-partial path — the fresh thread replaces the list anyway).
+  // This also covers selectRecent / startInProject / deleteConversation / the host newChatNonce, which
+  // all funnel through newChat() to reset the thread.
+  function newChat() { abortRef.current?.abort(); setMessages([]); setConversationId(null); setChatProject(null); setOpenArt(null); theoClient.resetArtifacts(); setArtifacts([]); clearComposer(); go("chats"); }  // B4h: fresh thread = fresh in-memory artifact set
   // B4c/B4d: AWAIT the project's full load (metadata + knowledge, held in chatProject) before switching
   // to chat, so the first turn's system prompt (buildSystemPrompt(…, chatProject)) always includes it.
   // A fire-and-forget load could otherwise race the first send — the "Start a chat" button stays enabled.
   async function startInProject(id: string) {
+    abortRef.current?.abort();                  // stop-generating: switching chats aborts any in-flight stream (discard path; this fn resets the thread inline, not via newChat())
     setChatProject(null);                       // clear first — never carry a prior project if load fails
     const ok = await loadChatProject(id);
     if (!ok) { setError("Couldn't open that project. Please try again."); return; }  // fail closed: no switch/tag
@@ -268,6 +278,7 @@ export function useTheoState() {
   // extracted text lives server-side). Attachment fetch is best-effort: a failure just omits the chips,
   // never blocks the thread from loading.
   async function selectRecent(id: string) {
+    abortRef.current?.abort();  // stop-generating: opening another chat aborts any in-flight stream (discard path; this fn resets the thread inline, not via newChat())
     setError(""); setChatProject(null); setOpenArt(null); setView("chats"); setDetailId(null); clearComposer();
     try {
       const d = await theoClient.getConversation(id);
@@ -335,6 +346,9 @@ export function useTheoState() {
     // clears immediately; ChatView shows the rotating status word until the first token lands.
     setMessages([...next, { role: "assistant", content: "" }]);
     setDraft(""); setAttachments([]); setLoading(true);
+    // Stop-generating: a fresh AbortController per turn; its signal is handed to the stream fetch so
+    // stop() (or a chat switch) can cancel it. Held in abortRef for stop()/newChat() to reach.
+    const ac = new AbortController(); abortRef.current = ac;
     let acc = "";                                     // accumulated answer text
     let think = "";                                   // accumulated extended-thinking text
     const cites: Citation[] = [];                     // web-grounding citations (citations_delta)
@@ -361,7 +375,7 @@ export function useTheoState() {
         onThinking: (d) => { think += d; patchLastAssistant({ thinking: think }); },
         onCitation: (c) => { cites.push({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text }); },
         onMeta: (mt) => { if (mt.conversation_id) convId = mt.conversation_id; },
-      });
+      }, { signal: ac.signal });
       // Finalize on stream end: run artifact ingestion over the full text (markers → links) and, if
       // the model cited sources, attach a single CitedRun so the existing CitedText path renders them.
       const { display, openId, blocks } = theoClient.ingestReply(acc);
@@ -386,11 +400,30 @@ export function useTheoState() {
       const cpId = chatProject?.id;
       if (convId && cpId) void theoClient.setConversationProject(convId, cpId).catch(() => {});
       void loadRecents();  // reflect the new/updated thread in Recents (newest-first)
-    } catch {
+    } catch (e) {
+      // Stop-generating / chat-switch abort: aborting the fetch makes reader.read() reject with an
+      // AbortError, which propagates here. An abort is NOT a failure — in BOTH abort cases skip the
+      // real-error rollback + setError below.
+      const aborted = (e as { name?: string })?.name === "AbortError" || ac.signal.aborted;
+      if (aborted) {
+        if (userStoppedRef.current) {
+          // User pressed Stop: KEEP the partial reply already streamed into the placeholder. If nothing
+          // arrived, drop ONLY the empty assistant placeholder (keep the user turn). Do NOT re-ingest
+          // artifacts on a partial and do NOT roll back the user turn.
+          if (acc.trim() === "") setMessages((m) => m.slice(0, -1));
+        }
+        // else: an implicit abort (newChat/selectRecent/startInProject) already replaced the message
+        // list with the fresh/reloaded thread — do nothing here.
+        return;
+      }
       setError("Couldn't reach the assistant. Try again.");
       setMessages((m) => m.slice(0, -2)); setDraft(text); setAttachments(keptAttachments);  // drop placeholder + user turn
-    } finally { setLoading(false); }
+    } finally { setLoading(false); abortRef.current = null; userStoppedRef.current = false; }
   }
+
+  // Stop-generating: abort the in-flight stream and KEEP whatever has streamed so far. userStoppedRef
+  // tells send()'s catch to take the keep-partial branch (not the error rollback). No-op when idle.
+  function stop() { userStoppedRef.current = true; abortRef.current?.abort(); }
 
   // B4c: create a project live (theo_create_project); prepend the returned row to state.
   async function createProject() {
@@ -608,7 +641,7 @@ export function useTheoState() {
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
     // setters / handlers
     go, toggleCollapse: () => setCollapsed((v) => !v), setSearch, setDraft, newChat, startInProject, openProject,
-    clearChatProject: () => setChatProject(null), send, ingestAppContext, selectRecent, loadRecents, loadProjects, loadGalleryArtifacts,
+    clearChatProject: () => setChatProject(null), send, stop, ingestAppContext, selectRecent, loadRecents, loadProjects, loadGalleryArtifacts,
     addFiles, addPastedText, removeAttachment,
     toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, patchDescription, setKdraft, addKnowledge, removeKnowledge,
     renameProject, deleteProject, setProjectVisibility, visPending, renameConversation, deleteConversation,

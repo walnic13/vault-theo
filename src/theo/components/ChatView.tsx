@@ -18,6 +18,7 @@ export interface ChatViewProps {
   attachmentsAvailable: boolean;
   onDraftChange: (s: string) => void;
   onSend: (text?: string) => void;
+  onStop: () => void;
   onAddFiles: (files: FileList | File[]) => void;
   onAddPastedText: (text: string) => boolean;
   onRemoveAttachment: (localId: string) => void;
@@ -142,7 +143,7 @@ function ThinkingPanel({ text, live }: { text: string; live: boolean }) {
 export function ChatView(props: ChatViewProps) {
   const {
     messages, loading, error, draft, attachments, attachmentsAvailable,
-    onDraftChange, onSend, onAddFiles, onAddPastedText, onRemoveAttachment,
+    onDraftChange, onSend, onStop, onAddFiles, onAddPastedText, onRemoveAttachment,
     chatProject, assistantName, greeting, starters, renderAssistant,
   } = props;
   const scroller = useRef<HTMLDivElement>(null);
@@ -223,7 +224,18 @@ export function ChatView(props: ChatViewProps) {
                 aria-label="Attach files"
                 style={{ width: 34, height: 34, borderRadius: 10, border: "none", background: "transparent", color: attachmentsAvailable ? C.ink2 : C.line2, cursor: attachmentsAvailable ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center" }}
               ><Paperclip size={18} /></button>
-              <button className="vo-send" disabled={!canSend} onClick={() => onSend()} style={{ width: 34, height: 34, borderRadius: 10, border: "none", background: canSend ? C.coral : C.line2, color: "#fff", cursor: canSend ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, transition: "background .15s" }}>↑</button>
+              {loading ? (
+                // Stop-generating: while streaming, the primary action becomes a Stop button in the same
+                // .vo-send slot/size. Always enabled; a filled square glyph; coral (never the disabled
+                // grey). Clicking aborts the stream and keeps the partial reply (useTheoState.stop()).
+                <button
+                  className="vo-send" onClick={() => onStop()}
+                  aria-label="Stop generating" title="Stop"
+                  style={{ width: 34, height: 34, borderRadius: 10, border: "none", background: C.coral, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, transition: "background .15s" }}
+                >◼</button>
+              ) : (
+                <button className="vo-send" disabled={!canSend} onClick={() => onSend()} style={{ width: 34, height: 34, borderRadius: 10, border: "none", background: canSend ? C.coral : C.line2, color: "#fff", cursor: canSend ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, transition: "background .15s" }}>↑</button>
+              )}
             </div>
           </div>
           <div style={{ textAlign: "center", fontSize: 11.5, color: C.ink3, marginTop: 9 }}>{assistantName} can make mistakes. Verify tax conclusions before relying on them.</div>

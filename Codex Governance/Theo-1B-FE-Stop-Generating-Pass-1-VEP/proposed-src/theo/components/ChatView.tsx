@@ -19,8 +19,6 @@ export interface ChatViewProps {
   onDraftChange: (s: string) => void;
   onSend: (text?: string) => void;
   onStop: () => void;
-  queuedText: string | null;        // message-queue: the pending next message (shown as a cancelable chip)
-  onCancelQueued: () => void;
   onAddFiles: (files: FileList | File[]) => void;
   onAddPastedText: (text: string) => boolean;
   onRemoveAttachment: (localId: string) => void;
@@ -145,7 +143,7 @@ function ThinkingPanel({ text, live }: { text: string; live: boolean }) {
 export function ChatView(props: ChatViewProps) {
   const {
     messages, loading, error, draft, attachments, attachmentsAvailable,
-    onDraftChange, onSend, onStop, queuedText, onCancelQueued, onAddFiles, onAddPastedText, onRemoveAttachment,
+    onDraftChange, onSend, onStop, onAddFiles, onAddPastedText, onRemoveAttachment,
     chatProject, assistantName, greeting, starters, renderAssistant,
   } = props;
   const scroller = useRef<HTMLDivElement>(null);
@@ -158,8 +156,6 @@ export function ChatView(props: ChatViewProps) {
   const uploading = attachments.some((a) => a.status === "uploading");
   const hasReady = attachments.some((a) => a.status === "ready");
   const canSend = (!!draft.trim() || hasReady) && !loading && !uploading;
-  // Message-queue: while a reply streams, Enter still submits — send() queues it instead of sending.
-  const canSubmit = (!!draft.trim() || hasReady) && !uploading;
 
   function onPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
     const text = e.clipboardData.getData("text/plain");
@@ -212,15 +208,6 @@ export function ChatView(props: ChatViewProps) {
         <div style={{ maxWidth: 740, margin: "0 auto" }}>
           {error && <div style={{ color: C.coralDk, fontSize: 13, marginBottom: 8, textAlign: "center" }}>{error}</div>}
           <div style={{ background: "#fff", border: `1px solid ${C.line2}`, borderRadius: 18, padding: "12px 14px", boxShadow: "0 2px 14px rgba(40,38,31,0.05)" }}>
-            {queuedText && (
-              // Message-queue: the pending next message, shown while the current reply streams. Auto-sends
-              // when the turn ends; ✕ cancels it before then.
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 10px", borderRadius: 10, background: "#f6f2ea", border: `1px solid ${C.line2}` }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: C.coral, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.4 }}>Queued</span>
-                <span style={{ fontSize: 12.5, color: C.ink2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1 }}>{queuedText}</span>
-                <button onClick={() => onCancelQueued()} aria-label="Cancel queued message" title="Cancel queued message" style={{ border: "none", background: "transparent", color: C.ink3, cursor: "pointer", fontSize: 14, lineHeight: 1, flexShrink: 0, padding: 2 }}>✕</button>
-              </div>
-            )}
             {attachments.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
                 {attachments.map((a) => (
@@ -228,7 +215,7 @@ export function ChatView(props: ChatViewProps) {
                 ))}
               </div>
             )}
-            <textarea ref={taRef} value={draft} onChange={(e) => onDraftChange(e.target.value)} onPaste={onPaste} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (canSubmit) onSend(); } }} rows={1} placeholder={`Message ${assistantName}…`} style={{ width: "100%", border: "none", resize: "none", fontFamily: SANS, fontSize: 15, color: C.ink, background: "transparent", lineHeight: 1.5, maxHeight: 200 }} />
+            <textarea ref={taRef} value={draft} onChange={(e) => onDraftChange(e.target.value)} onPaste={onPaste} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (canSend) onSend(); } }} rows={1} placeholder={`Message ${assistantName}…`} style={{ width: "100%", border: "none", resize: "none", fontFamily: SANS, fontSize: 15, color: C.ink, background: "transparent", lineHeight: 1.5, maxHeight: 200 }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
               <input ref={fileRef} type="file" multiple onChange={onFilePick} style={{ display: "none" }} />
               <button

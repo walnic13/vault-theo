@@ -1,7 +1,7 @@
 // App state + handlers for the Theo shell — ports VaultOriginShell's state/logic (VA-T1
 // L155–237) but routes every backend-bound call through `theoClient` (the single service
 // boundary). No browser storage; React/in-memory only.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { theoClient } from "./services/theoClient";
 import { stripArtifactRefs } from "./lib/artifacts";
 import { buildSystemPrompt, greeting } from "./lib/prompt";
@@ -40,9 +40,6 @@ export function useTheoState() {
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  // Message-queue: a next message the user submitted WHILE a reply was streaming. Held (text-only, v1)
-  // and auto-sent when the current turn ends (the flush effect below); shown as a cancelable chip.
-  const [queued, setQueued] = useState<string | null>(null);
   const [styleKey, setStyleKey] = useState<StyleKey>(seeded.styleKey);
   const [custom, setCustom] = useState(seeded.custom);
   const [saved, setSaved] = useState(false);
@@ -64,7 +61,6 @@ export function useTheoState() {
   // are cleared in send()'s finally so the next turn starts fresh. React refs (not state) — no re-render.
   const abortRef = useRef<AbortController | null>(null);
   const userStoppedRef = useRef(false);
-  const queuedRef = useRef<string | null>(null);  // message-queue: ref mirror of `queued` for the async flush
   // B5a: per-project in-flight guard for the visibility toggle — prevents overlapping/out-of-order
   // visibility writes on an access-control affordance (Codex B5a-FE finding). The ref is the hard
   // serialization (ignore a click while a write for that id is pending); visPending drives the disabled UI.
@@ -339,14 +335,7 @@ export function useTheoState() {
     const text = (textArg ?? draft).trim();
     const ready = attachments.filter((a) => a.status === "ready" && a.id);
     const uploading = attachments.some((a) => a.status === "uploading");
-    if (uploading) return;                             // wait for in-flight uploads (composer also disables send)
-    if (loading) {
-      // Message-queue: a reply is already streaming — don't interrupt it. Queue the next message
-      // (text-only, v1) and clear the draft so the user sees it was accepted; it auto-sends when the
-      // current turn ends (the flush effect below). Queuing again replaces the pending one.
-      if (text) { setQueued(text); queuedRef.current = text; setDraft(""); }
-      return;
-    }
+    if (loading || uploading) return;                 // wait for in-flight uploads (composer also disables send)
     if (!text && ready.length === 0) return;          // nothing to send
     setError("");
     const userContent = text || "Please review the attached file(s).";
@@ -420,40 +409,21 @@ export function useTheoState() {
         if (userStoppedRef.current) {
           // User pressed Stop: KEEP the partial reply already streamed into the placeholder. If nothing
           // arrived, drop ONLY the empty assistant placeholder (keep the user turn). Do NOT re-ingest
-          // artifacts on a partial and do NOT roll back the user turn. A queued follow-up is preserved
-          // and auto-sends into THIS (same) thread via the flush effect.
+          // artifacts on a partial and do NOT roll back the user turn.
           if (acc.trim() === "") setMessages((m) => m.slice(0, -1));
-        } else {
-          // Implicit abort — a chat switch / newChat (newChat/selectRecent/startInProject) aborted this
-          // stream and already replaced the message list with the fresh/reloaded thread. DISCARD any
-          // queued follow-up so the flush effect (loading → false) does not send it into the NEW thread
-          // (cross-thread send). Message-queue fix.
-          queuedRef.current = null; setQueued(null);
         }
+        // else: an implicit abort (newChat/selectRecent/startInProject) already replaced the message
+        // list with the fresh/reloaded thread — do nothing here.
         return;
       }
       setError("Couldn't reach the assistant. Try again.");
       setMessages((m) => m.slice(0, -2)); setDraft(text); setAttachments(keptAttachments);  // drop placeholder + user turn
-      queuedRef.current = null; setQueued(null);  // message-queue: discard any queued follow-up on a hard failure
     } finally { setLoading(false); abortRef.current = null; userStoppedRef.current = false; }
   }
 
   // Stop-generating: abort the in-flight stream and KEEP whatever has streamed so far. userStoppedRef
   // tells send()'s catch to take the keep-partial branch (not the error rollback). No-op when idle.
   function stop() { userStoppedRef.current = true; abortRef.current?.abort(); }
-
-  // Message-queue: cancel the pending queued message (the ✕ on the chip).
-  function cancelQueued() { queuedRef.current = null; setQueued(null); }
-
-  // Message-queue: when the current turn ends (loading → false) and a message is still queued, auto-send
-  // it. A hard failure clears the queue in send()'s catch, so this fires only after a normal completion
-  // or a user Stop. The fresh send() (this render's closure, loading=false) sends rather than re-queues.
-  useEffect(() => {
-    if (loading || !queuedRef.current) return;
-    const q = queuedRef.current; queuedRef.current = null; setQueued(null);
-    void send(q);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
 
   // B4c: create a project live (theo_create_project); prepend the returned row to state.
   async function createProject() {
@@ -667,11 +637,11 @@ export function useTheoState() {
 
   return {
     // state
-    view, collapsed, search, projects, projectChats, artifacts, galleryArtifacts, detail, chatProject, art, openArt, messages, draft, attachments, attachmentsAvailable, loading, error, queued,
+    view, collapsed, search, projects, projectChats, artifacts, galleryArtifacts, detail, chatProject, art, openArt, messages, draft, attachments, attachmentsAvailable, loading, error,
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
     // setters / handlers
     go, toggleCollapse: () => setCollapsed((v) => !v), setSearch, setDraft, newChat, startInProject, openProject,
-    clearChatProject: () => setChatProject(null), send, stop, cancelQueued, ingestAppContext, selectRecent, loadRecents, loadProjects, loadGalleryArtifacts,
+    clearChatProject: () => setChatProject(null), send, stop, ingestAppContext, selectRecent, loadRecents, loadProjects, loadGalleryArtifacts,
     addFiles, addPastedText, removeAttachment,
     toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, patchDescription, setKdraft, addKnowledge, removeKnowledge,
     renameProject, deleteProject, setProjectVisibility, visPending, renameConversation, deleteConversation,

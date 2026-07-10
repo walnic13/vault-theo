@@ -68,7 +68,6 @@ export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
               messages={t.messages} loading={t.loading} error={t.error} draft={t.draft}
               attachments={t.attachments} attachmentsAvailable={t.attachmentsAvailable}
               onDraftChange={t.setDraft} onSend={t.send} onStop={t.stop}
-              queuedText={t.queued} onCancelQueued={t.cancelQueued}
               onAddFiles={t.addFiles} onAddPastedText={t.addPastedText} onRemoveAttachment={t.removeAttachment}
               chatProject={t.chatProject}
               assistantName={ASSISTANT_NAME} greeting={t.greeting} starters={STARTERS} renderAssistant={renderAssistant}

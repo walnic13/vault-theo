@@ -4,6 +4,8 @@ Plan-only Verified Evidence Pack. No handler/migration files are written into th
 
 **Revision note (C2 v2):** thread-scoped least-privilege read helper — membership is now enforced INSIDE the `SECURITY DEFINER` function (`theo_chat_get_push_subscriptions_for_thread(p_thread_id uuid)`), which proves the caller is a member via `auth.uid()` and derives recipients itself (`member_oids` MINUS the caller); the old array-of-arbitrary-OIDs signature `theo_chat_get_push_subscriptions(p_oids text[])` is removed entirely. The G-READCLASS authorization has LANDED (`WALTER_AUTHORIZATION_G-READCLASS.md`, committed `2af5ffd`). Addresses Codex Pass 2 findings 1 (procedural — authorization now exists) and 2 (least-privilege — boundary moved into the definer).
 
+**Revision note (C2 v3):** bounded per-send push timeout (`Promise.race` guard + `web-push` socket timeout) so the best-effort fan-out cannot delay the 201; addresses the Codex latency finding. The fan-out is still `await`ed (Azure Functions can freeze the instance after the response, so a true fire-and-forget can drop the push work), but each send is now HARD-BOUNDED to `PUSH_SEND_TIMEOUT_MS = 5000` ms via a library-agnostic `Promise.race`; sends run in parallel under `Promise.allSettled`, so worst-case added latency ≈ one timeout window (not summed) and is typically sub-second in the happy path. The migration `.sql` is UNCHANGED this round.
+
 ## Grounding Conformance Receipt
 
 Role: Claude Code
@@ -97,6 +99,7 @@ Vocabulary is closed (`PROCEED` / `PRE-LAND` / `ESCALATE` / `NO-GAPS`) per Gover
 | G-VAPID | The sender needs `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`. | PROCEED | Already provisioned as `vaultgpt-func-chat` app settings (secrets — never in the repo). The handler guards on all three being present before it attempts any push. No key value appears in this VEP. |
 | G-DEP | `web-push` is not yet in the func-chat wwwroot `node_modules`. | PROCEED | Installed at Pass 3 via Kudu (`npm install web-push@3.6.7`), the pdf-parse precedent (npm in Kudu CMD, pinned version, `require('web-push')`). This is a deploy step, not a plan-only VEP file. See "web-push dependency" below. |
 | G-PRUNE-CAP | `theo_chat_prune_push_subscription(p_endpoint)` deletes by endpoint regardless of owner and is `GRANT EXECUTE TO authenticated`, so the endpoint string acts as a capability. | PROCEED | Cross-owner delete is REQUIRED (the sender is not the owner). It is invoked ONLY on a push the service reported 410/404 (a confirmed-dead endpoint); an `auth.uid()` guard rejects an unauthenticated caller. A future hardening (restrict prune to endpoints the caller just failed to push) is noted but not required for C2. |
+| G-LATENCY | The best-effort fan-out is appended to the hot send path and is `await`ed before the existing 201 (Azure Functions can freeze the instance after the response, so a true fire-and-forget can drop the push work). Without a bound, a slow/stuck push endpoint could delay the normal chat-send response. | PROCEED (v3) | **Bounded.** Each send is hard-capped at `PUSH_SEND_TIMEOUT_MS = 5000` ms by a library-agnostic `Promise.race` (independent of `web-push`'s own socket-only `timeout`); sends run in parallel under `allSettled`, so worst-case added latency ≈ one timeout window (≤ 5 s), not summed, and is typically sub-second in the happy path. The 201 + persist + Web PubSub publish remain byte-unchanged. |
 
 ---
 
@@ -182,27 +185,35 @@ The ONLY change to the handler is the insertion of one self-contained best-effor
 +            const baseUrl = process.env.VAULT_ORIGIN_BASE_URL || "https://vault-origin.com";
 +            const url = `${baseUrl}/?chat=${encodeURIComponent(saved.thread_id)}`;
 +            const payload = JSON.stringify({ title, body: payloadBody, url, tag: saved.thread_id });
++            // Hard bound the hot-path best-effort work: each send is capped at PUSH_SEND_TIMEOUT_MS by a
++            // library-agnostic Promise.race (web-push's `timeout` is a socket timeout, NOT a request cap).
++            // Sends run in parallel under allSettled, so worst-case added latency ≈ one timeout window.
++            const PUSH_SEND_TIMEOUT_MS = 5000;
++            const withTimeout = (p, ms) => Promise.race([
++              p,
++              new Promise((_, reject) => setTimeout(() => reject(new Error("push_send_timeout")), ms)),
++            ]);
 +            await Promise.allSettled(
-+              subs.rows.map((s) =>
-+                webpush
-+                  .sendNotification(
-+                    { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-+                    payload,
-+                    { TTL: 60 }
-+                  )
-+                  .catch(async (e) => {
-+                    const code = e && e.statusCode;
-+                    if (code === 404 || code === 410) {
-+                      try {
-+                        await client.query(`SELECT public.theo_chat_prune_push_subscription($1)`, [s.endpoint]);
-+                      } catch (pruneErr) {
-+                        context.log.error("theo_chat_send_message push prune (non-fatal) failed", pruneErr);
-+                      }
-+                    } else {
-+                      context.log.error("theo_chat_send_message push send (non-fatal) failed", code);
-+                    }
-+                  })
-+              )
++              subs.rows.map(async (s) => {
++                try {
++                  await withTimeout(
++                    webpush.sendNotification(
++                      { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
++                      payload,
++                      { TTL: 60, timeout: 4000 } // web-push socket timeout in MS (Node https.request.timeout); the race is the hard bound
++                    ),
++                    PUSH_SEND_TIMEOUT_MS
++                  );
++                } catch (e) {
++                  // Prune ONLY on a confirmed-dead endpoint (410/404). A timeout/transient/other error
++                  // (no statusCode) is log-and-continue — best-effort, never affects the 201.
++                  if (e && (e.statusCode === 410 || e.statusCode === 404)) {
++                    await client.query(`SELECT public.theo_chat_prune_push_subscription($1)`, [s.endpoint]).catch(() => {});
++                  } else {
++                    context.log.error("theo_chat_send_message push send (non-fatal) failed", e && (e.statusCode || e.message));
++                  }
++                }
++              })
 +            );
 +          }
 +        }
@@ -216,7 +227,7 @@ The ONLY change to the handler is the insertion of one self-contained best-effor
 
 Notes on the delta:
 - **Best-effort / non-fatal.** The whole block is inside `try { … } catch (pushErr) { context.log.error(...) }`, and each per-subscription send additionally `.catch(...)`es via `Promise.allSettled`, so no push error can propagate to the 201 or the realtime publish. This mirrors the deployed pattern for the Web PubSub publish (already `try/catch` "publish (non-fatal) failed").
-- **Bounded await.** The block `await`s `Promise.allSettled(...)` before the 201 because the func-chat classic v4 host does not reliably run background work after the response returns; awaiting keeps the pushes in-flight during the request. Each `webpush.sendNotification` is bounded by the library's HTTP timeout and `TTL:60`. The durable persist and realtime publish have already happened, so the only cost is a small, bounded delay on the 201 ack.
+- **Bounded await (Codex v3 fix).** The block `await`s `Promise.allSettled(...)` before the 201 because the func-chat classic v4 host does not reliably run background work after the response returns — a true fire-and-forget can be dropped when Azure Functions freezes the instance post-response. So the fan-out is awaited BUT each send is HARD-BOUNDED: a library-agnostic `Promise.race` caps every `sendNotification` at `PUSH_SEND_TIMEOUT_MS = 5000` ms, independent of the library. `web-push`'s own `timeout` option (`4000` ms) is a socket-inactivity timeout only (it sets Node's `https.request` `timeout`; verified below), NOT a wall-clock request cap, which is exactly why the race wrapper is required. Because the sends run in parallel under `allSettled`, worst-case added latency ≈ one timeout window (≤ 5 s), not the sum, and is typically sub-second in the happy path. The durable persist and realtime publish have already happened, so the only cost is that small bounded delay on the 201 ack. A timed-out send rejects with `push_send_timeout` (no `statusCode`) → log-and-continue, no prune.
 - **Recipient enumeration is inside the definer (least-privilege).** The handler passes ONLY `threadId` to `theo_chat_get_push_subscriptions_for_thread`; the function proves `auth.uid() = ANY(member_oids)` and derives recipients (`member_oids` MINUS the caller) itself. The handler never enumerates members or passes an OID array, so a caller cannot request another thread's or another user's credentials. A non-member call raises `42501` (caught by the outer try/catch, logged non-fatally).
 - **Uses the existing connection `client`** (already has the `set_config`/JWT triad applied), so `auth.uid()` inside both `SECURITY DEFINER` helpers resolves to the sender. The `SELECT kind, name` lookup is only for the notification title (channel name vs sender name); it is not the membership boundary — that lives inside the read helper.
 
@@ -225,7 +236,7 @@ Notes on the delta:
 | Handler region | Primary Reference region | Classification | Basis |
 | -------------- | ------------------------ | -------------- | ----- |
 | Everything from `require`/Pool through the persist loop, `saved.*` shaping, and the Web PubSub publish block | send_message L1–L201 | EXACT | byte-unchanged; the C2 block is inserted AFTER L201 |
-| C2 best-effort push fan-out block (the `+` lines above) | inserted between L201 (end of publish `if`) and L203 (`return 201`) | ALLOWED DELTA (additive best-effort side-effect) | Golden Handler §4 permits an additive best-effort region mirroring an existing best-effort region; this block mirrors the deployed Web PubSub "publish (non-fatal)" try/catch pattern (same log-and-continue shape) and reads `member_oids` (Schema §8) |
+| C2 best-effort push fan-out block (the `+` lines above), incl. the `PUSH_SEND_TIMEOUT_MS = 5000` / `withTimeout` per-send hard bound | inserted between L201 (end of publish `if`) and L203 (`return 201`) | ALLOWED DELTA (additive best-effort side-effect, latency-bounded) | Golden Handler §4 permits an additive best-effort region mirroring an existing best-effort region; this block mirrors the deployed Web PubSub "publish (non-fatal)" try/catch pattern (same log-and-continue shape), reads `member_oids` (Schema §8), and hard-bounds each send via a `Promise.race` so the hot send path (the 201) cannot be delayed by a slow/stuck push endpoint |
 | `SELECT … FROM public.theo_chat_get_push_subscriptions_for_thread($1)` call | new SQL helper (thread-scoped cross-owner read) | ALLOWED DELTA (G-READCLASS Walter authorization LANDED) | Golden Handler §4: a new-domain helper classified ALLOWED DELTA needs an EXACT deployed mirror OR a verbatim Walter authorization predating the package. No exact mirror exists (no deployed helper returns other users' content) → satisfied by `WALTER_AUTHORIZATION_G-READCLASS.md` (committed `2af5ffd`, predating this Implementation Package). Membership is proven INSIDE the definer (least-privilege); the caller passes only the thread id |
 | `SELECT public.theo_chat_prune_push_subscription($1)` call | deployed `theo_chat_leave` / `theo_chat_delete_message` write-path definer class (Schema §8) | ALLOWED DELTA (EXACT mirror of a deployed definer class) | cross-owner write-path delete; migration-role-owned, `SECURITY DEFINER SET search_path`, `REVOKE`/`GRANT authenticated`, caller from `auth.uid()`; same class as deployed helpers → no new authorization needed |
 | `return send(context, 201, successBody({ message: saved }))` | send_message L203 | EXACT | byte-unchanged |
@@ -673,6 +684,7 @@ The sender uses the `web-push` library (handles VAPID auth + RFC 8291 `aes128gcm
   - Kudu → Debug console → **CMD** → `cd site\wwwroot` → `npm install web-push@3.6.7`
   - Confirm `node_modules/web-push` is present; the handler does `require("web-push")` (lazily, inside the guarded block).
 - This install is part of the Pass-3 deploy, gated on Codex APPROVED + the G-READCLASS authorization. It is intentionally NOT a file in this plan-only package.
+- **`timeout` option units — VERIFIED (web-push@3.6.7 source, `src/web-push-lib.js` at tag `v3.6.7`).** The `timeout` option is read as a number and assigned to `httpsOptions.timeout`, then `pushRequest.on('timeout', …)` destroys the request with `Error('Socket timeout')`. This is Node's `https.request` `timeout` = a **socket-inactivity timeout in MILLISECONDS**, NOT a wall-clock request cap. So the illustrative `timeout: 4` in the review note would be 4 **ms** (far too short); C2 uses `timeout: 4000` (= 4 s). Two consequences the code relies on: (1) a socket timeout is not a full request bound, which is exactly why the `Promise.race` (`PUSH_SEND_TIMEOUT_MS = 5000`) is the authoritative hard bound; (2) a `'Socket timeout'` error carries **no `statusCode`**, so it falls into log-and-continue and NEVER triggers a prune (prune is 410/404-only).
 
 ---
 

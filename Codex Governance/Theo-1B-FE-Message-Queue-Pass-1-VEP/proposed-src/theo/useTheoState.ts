@@ -420,11 +420,16 @@ export function useTheoState() {
         if (userStoppedRef.current) {
           // User pressed Stop: KEEP the partial reply already streamed into the placeholder. If nothing
           // arrived, drop ONLY the empty assistant placeholder (keep the user turn). Do NOT re-ingest
-          // artifacts on a partial and do NOT roll back the user turn.
+          // artifacts on a partial and do NOT roll back the user turn. A queued follow-up is preserved
+          // and auto-sends into THIS (same) thread via the flush effect.
           if (acc.trim() === "") setMessages((m) => m.slice(0, -1));
+        } else {
+          // Implicit abort — a chat switch / newChat (newChat/selectRecent/startInProject) aborted this
+          // stream and already replaced the message list with the fresh/reloaded thread. DISCARD any
+          // queued follow-up so the flush effect (loading → false) does not send it into the NEW thread
+          // (cross-thread send). Message-queue fix.
+          queuedRef.current = null; setQueued(null);
         }
-        // else: an implicit abort (newChat/selectRecent/startInProject) already replaced the message
-        // list with the fresh/reloaded thread — do nothing here.
         return;
       }
       setError("Couldn't reach the assistant. Try again.");

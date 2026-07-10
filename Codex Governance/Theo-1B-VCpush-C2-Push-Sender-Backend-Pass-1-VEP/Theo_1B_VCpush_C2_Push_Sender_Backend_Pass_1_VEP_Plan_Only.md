@@ -2,11 +2,13 @@
 
 Plan-only Verified Evidence Pack. No handler/migration files are written into the app, no deploy, no commit. This pack delivers the Web Push **sender**: two new cross-owner `SECURITY DEFINER` SQL functions and a best-effort push fan-out **delta** on the deployed `theo_chat_send_message` handler. Builds on the DEPLOYED C1 (`theo_chat_push_subscriptions` + single-owner `theo_chat_claim_push_subscription`). The C3 service worker + subscribe UI (FE) are out of scope.
 
+**Revision note (C2 v2):** thread-scoped least-privilege read helper — membership is now enforced INSIDE the `SECURITY DEFINER` function (`theo_chat_get_push_subscriptions_for_thread(p_thread_id uuid)`), which proves the caller is a member via `auth.uid()` and derives recipients itself (`member_oids` MINUS the caller); the old array-of-arbitrary-OIDs signature `theo_chat_get_push_subscriptions(p_oids text[])` is removed entirely. The G-READCLASS authorization has LANDED (`WALTER_AUTHORIZATION_G-READCLASS.md`, committed `2af5ffd`). Addresses Codex Pass 2 findings 1 (procedural — authorization now exists) and 2 (least-privilege — boundary moved into the definer).
+
 ## Grounding Conformance Receipt
 
 Role: Claude Code
 Turn Type: Verified Evidence Pack (backend plan)
-Turn issued against HEAD: `a9c23f14338d19c137236dc0b39d6d9b5a8cad4e` (vault-theo, `development`)
+Turn issued against HEAD: `2af5ffddc6d3b02d82dea62142f3bf85622e37ba` (vault-theo, `development`)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P8
@@ -27,6 +29,7 @@ Currency anchors below are the git blob SHA of each cited file at HEAD (verifiab
 | 10 | Primary Reference — best-available committed `theo_chat_send_message` handler `Codex Governance/Theo-1B-VC19-Archived-Send-Gate-Backend-Pass-1-VEP/theo_chat_send_message.index.js` (see G-PRIMARY: live wwwroot capture required at Pass 3) | `Read(...theo_chat_send_message.index.js)` this turn | `fc7ef0e4f2a72d14265f3fe4cda86f825bc497d2` |
 | 11 | Primary Reference — `theo_chat_send_message.function.json` `Codex Governance/Theo-1B-VC19-Archived-Send-Gate-Backend-Pass-1-VEP/theo_chat_send_message.function.json` | `Read(...theo_chat_send_message.function.json)` this turn | `0284d265cd81bec4c34b5513d46c41b7ba6601ff` |
 | 12 | C1 package (DEPLOYED substrate) — `Codex Governance/Theo-1B-VCpush-C1-Push-Subscriptions-Backend-Pass-1-VEP/migration_theo_chat_push_subscriptions.sql` + its VEP (Gap G2 foresaw the C2 enumeration helper) | `Read(...migration_theo_chat_push_subscriptions.sql)` + `Read(...C1 VEP)` this turn | `n/a — package artifact (not a governance/spec authority row)` |
+| 13 | Walter authorization (G-READCLASS) — `Codex Governance/Theo-1B-VCpush-C2-Push-Sender-Backend-Pass-1-VEP/WALTER_AUTHORIZATION_G-READCLASS.md` (verbatim "yes, i authorize", 2026-07-09; the Golden Handler §4 predating authorization for the elevated cross-owner read class) | `Read(...WALTER_AUTHORIZATION_G-READCLASS.md)` this turn | committed `2af5ffd` |
 
 ## Rule Anchor Table
 
@@ -55,7 +58,7 @@ Sub-phase Track rationale: **P8 (VEP assembly)** is the established convention f
 **Microstep:** Apps Phase C, package C2 — the Web Push **sender**. When a chat message is sent (DM or channel), fire a Web Push notification to each RECIPIENT's registered devices so they are notified even when Vault Origin is closed. C2 scope:
 
 - two net-new `SECURITY DEFINER` SQL functions on the shared `vaultgpt` Postgres `public` schema:
-  - `theo_chat_get_push_subscriptions(p_oids text[]) RETURNS TABLE(created_by, endpoint, p256dh, auth)` — cross-owner read of the recipients' subscriptions;
+  - `theo_chat_get_push_subscriptions_for_thread(p_thread_id uuid) RETURNS TABLE(created_by, endpoint, p256dh, auth)` — thread-scoped cross-owner read: the caller passes only the thread id, the function proves membership (`auth.uid()`) and derives recipients (`member_oids` MINUS the caller) itself;
   - `theo_chat_prune_push_subscription(p_endpoint text) RETURNS boolean` — cross-owner delete of a dead endpoint (410/404);
 - a best-effort push fan-out **delta** appended to the deployed `theo_chat_send_message` handler on `vaultgpt-func-chat` (additive; the existing persist + realtime publish + 201 response are byte-unchanged);
 - the `web-push` npm dependency (installed into the func-chat wwwroot at Pass 3) + the VAPID app-settings read (secrets — not in the repo).
@@ -64,7 +67,7 @@ Out of scope: the C3 service worker + subscribe UI (FE); message-body content be
 
 **Route / object naming.** Governed convention is `theo_<operation>_<entity>` (Theo API Spec §1). C2 adds no new HTTP route — it modifies the existing `theo_chat_send_message` route and adds two `theo_chat_*` SQL helpers, matching the deployed C1 spellings `theo_chat_push_subscriptions` / `theo_chat_claim_push_subscription`.
 
-**Role vocabulary (Orchestration §1A).** Claude Code authors this VEP (Pass 1). Codex reviews (Pass 2). Walter executes the migration SQL and confirms; Claude Code deploys the handler delta to `vaultgpt-func-chat` only after Codex APPROVED (and after the G-READCLASS Walter authorization is obtained). Database writes/migrations remain Walter-only.
+**Role vocabulary (Orchestration §1A).** Claude Code authors this VEP (Pass 1). Codex reviews (Pass 2). Walter executes the migration SQL and confirms; Claude Code deploys the handler delta to `vaultgpt-func-chat` only after Codex APPROVED. The G-READCLASS Walter authorization has LANDED (`WALTER_AUTHORIZATION_G-READCLASS.md`), so that gate is satisfied. Database writes/migrations remain Walter-only.
 
 **Plan currency note.** `governance/THEO_PHASE_1B_BACKEND_PLAN.md` (grep this turn) carries no explicit "Phase C" / "Web Push" / "VAPID" feature row — the native-chat (VC) program has run as a Walter-directed extension (VC-1 … VC-19, then Apps B/C) without plan rows. C1 (the C2 substrate) is DEPLOYED 2026-07-09 per API Spec §2.10. C2 continues that program on identical footing. See Gap Register G1.
 
@@ -73,9 +76,9 @@ Out of scope: the C3 service worker + subscribe UI (FE); message-body content be
 ## P2 — Architecture & boundary reconciliation
 
 - **Repository / app boundary (Architecture §1; Orchestration deploy exception).** C2 is net-new-additive on `vaultgpt-func-chat` (Windows v4, EP1) — the app that hosts all `theo_chat_*` handlers and the C1 push table/claim fn. The monolith `vaultgpt-func-premium` and streaming sidecar `vaultgpt-func-stream` are untouched. No `reporting_*` table or Corporate Reporting surface is read or written.
-- **theo_ schema + RLS baseline (Architecture §5, owned by Schema §1/§2/§8).** C2 adds no table. It adds two `SECURITY DEFINER` functions over the DEPLOYED C1 ownership table `theo_chat_push_subscriptions` (`created_by` OID; `endpoint` globally UNIQUE), and reads the DEPLOYED participant-scoped `theo_chat_threads.member_oids` array (Schema §8) to resolve recipients.
-- **Membership authority is `theo_chat_threads.member_oids` (Schema §8; API Spec §2.10).** Recipients = the target thread's members MINUS the sender. There is a `theo_chat_thread_members` table, but Schema §8 states membership **authority** is `theo_chat_threads.member_oids` (that table tracks per-member read-state). The recipient set is therefore derived from `member_oids`, computed **server-side**, never from client input. A single handler (`theo_chat_send_message`) covers BOTH DM and channel sends — a DM and a channel are both `theo_chat_threads` rows differing only by `kind` — so exactly one send path is modified (API Spec §2.10: `theo_chat_send_message` is the sole server-authoritative send route for both).
-- **Cross-owner access requires SECURITY DEFINER (Schema §8 write-path idiom; Golden Handler §3).** The sender must read OTHER users' subscriptions (to encrypt/deliver) and delete OTHER users' dead endpoints (410/404). C1's ownership RLS (`created_by = auth.uid()`) scopes direct-table access to the caller's own rows, and the shared func-chat connection role has no cross-owner grant. C2 therefore adds two migration-role-owned `SECURITY DEFINER` functions (each `SET search_path = public, pg_temp`, `REVOKE ALL … FROM PUBLIC`, `GRANT EXECUTE … TO authenticated`, caller identity from `auth.uid()` never a parameter), the same justified class as the deployed `theo_chat_leave` / `theo_chat_delete_message` / `theo_chat_claim_push_subscription`. **BUT the READ helper returns another user's push credentials, which exceeds the Golden Handler §3(a)/(b) exceptions — see Gap Register G-READCLASS (ESCALATE).**
+- **theo_ schema + RLS baseline (Architecture §5, owned by Schema §1/§2/§8).** C2 adds no table. It adds two `SECURITY DEFINER` functions over the DEPLOYED C1 ownership table `theo_chat_push_subscriptions` (`created_by` OID; `endpoint` globally UNIQUE); the thread-scoped read helper reads the DEPLOYED participant-scoped `theo_chat_threads.member_oids` array (Schema §8) INTERNALLY to prove membership and resolve recipients.
+- **Membership authority is `theo_chat_threads.member_oids` (Schema §8; API Spec §2.10).** Recipients = the target thread's members MINUS the sender. There is a `theo_chat_thread_members` table, but Schema §8 states membership **authority** is `theo_chat_threads.member_oids` (that table tracks per-member read-state). **v2 least-privilege:** the recipient set is derived INSIDE the `SECURITY DEFINER theo_chat_get_push_subscriptions_for_thread(p_thread_id uuid)` — the caller passes only the thread id, the function proves `auth.uid() = ANY(member_oids)` (a non-member is denied `42501`, an unknown thread returns no rows), and derives `member_oids` MINUS the caller itself. The caller can never pass arbitrary OIDs to harvest credentials, so the enforcement boundary lives at the data layer, not merely in the handler. A single handler (`theo_chat_send_message`) covers BOTH DM and channel sends — a DM and a channel are both `theo_chat_threads` rows differing only by `kind` — so exactly one send path is modified (API Spec §2.10: `theo_chat_send_message` is the sole server-authoritative send route for both).
+- **Cross-owner access requires SECURITY DEFINER (Schema §8 write-path idiom; Golden Handler §3).** The sender must read OTHER users' subscriptions (to encrypt/deliver) and delete OTHER users' dead endpoints (410/404). C1's ownership RLS (`created_by = auth.uid()`) scopes direct-table access to the caller's own rows, and the shared func-chat connection role has no cross-owner grant. C2 therefore adds two migration-role-owned `SECURITY DEFINER` functions (each `SET search_path = public, pg_temp`, `REVOKE ALL … FROM PUBLIC`, `GRANT EXECUTE … TO authenticated`, caller identity from `auth.uid()` never a parameter), the same justified class as the deployed `theo_chat_leave` / `theo_chat_delete_message` / `theo_chat_claim_push_subscription`. **The READ helper returns another user's push credentials, which exceeds the Golden Handler §3(a)/(b) exceptions — resolved by the LANDED Walter authorization (`WALTER_AUTHORIZATION_G-READCLASS.md`) per Golden Handler §4; see Gap Register G-READCLASS.**
 - **Model gateway seam (Architecture §2) / Tool dispatch (Architecture §4; Tool Manifest).** Not touched. `web-push` talks to the browser push services (WNS / FCM / Apple) directly via VAPID; no `reporting_*` endpoint and no manifest row is involved.
 - **Realtime boundary unchanged.** The existing best-effort Web PubSub publish (`serviceClient.group(threadId).sendToAll(...)`) is byte-unchanged. Push is a SECOND, independent best-effort delivery channel for when the app is closed; it is appended after the publish and before the 201, and is wrapped entirely in try/catch so it can never affect either.
 - **No secrets in the pack.** VAPID keys live only in `vaultgpt-func-chat` app settings. No key value appears anywhere in this VEP or in the repo.
@@ -88,8 +91,8 @@ Vocabulary is closed (`PROCEED` / `PRE-LAND` / `ESCALATE` / `NO-GAPS`) per Gover
 
 | # | Gap | Pivot | Note |
 | - | --- | ----- | ---- |
-| G-READCLASS | `theo_chat_get_push_subscriptions` returns ANOTHER user's push credentials (`endpoint` + `p256dh` + `auth`) to an **HTTP** handler (`theo_chat_send_message`). Golden Handler §3 permits elevated reads only for (a) an existence helper for 403/404 discrimination, or (b) a **scheduled (timer)** handler using an enumeration helper that returns "ONLY identifiers + owner ids (never user content)". This helper is HTTP-triggered (not a timer) and returns credentials (not just ids), and no deployed handler contains an EXACT mirror of a cross-owner content-returning read helper. Per §4, a new-domain helper classified ALLOWED DELTA needs an EXACT deployed mirror OR a verbatim Walter authorization predating the package. | **ESCALATE** | This is a genuinely NEW elevated-read class. It is not papered over as PROCEED. **Recommendation:** Walter provides an explicit, verbatim authorization for a "cross-owner Web Push credential enumeration" read class (the credentials are the irreducible RFC 8291 encryption inputs — they cannot be reduced to identifiers), to be quoted in the C2 Implementation Package before Pass-3 deploy. Mitigations already designed in: recipient OIDs are SERVER-DERIVED from `member_oids` (never client input); the caller is membership-gated to the thread before the fan-out runs; the function returns only the encryption-necessary fields; an `auth.uid()` guard rejects an unauthenticated caller. The C1 VEP Gap G2 (Codex-APPROVED) foresaw this helper but framed it under §3(b); this VEP surfaces the exact §3 mismatch rather than inheriting that framing. Codex may review the full design now; APPROVAL for implementation is gated on the authorization. |
-| G-PRIMARY | No committed `theo_chat_send_message` snapshot is byte-faithful to the LIVE deployed handler. The VC-19 snapshot (Primary Reference here) carries reply/delete/forward + the archived-send gate, but NOT the VC-9 attachment and VC-10 gif projection (both DEPLOYED 2026-07-07 per API Spec §2.10, postdating every committed snapshot). Golden Handler §5.5 states "The deployed handler is the source of truth … the repo's `Codex Governance/` artifacts drift behind what is deployed." | **PRE-LAND** | The additive C2 fan-out block is **position-independent**: it reads only `oid`, `principal`, `saved.thread_id`, and a fresh `member_oids` query, and is inserted between the existing publish block and the `return 201`. It does not touch or depend on any attachment/gif/reply field, so it composes cleanly onto the live handler regardless of which projection features it carries. **Precondition for the Implementation Package:** Kudu-GET the live `theo_chat_send_message` wwwroot copy, re-emit the Structural Mirror against it (byte-exact Primary Reference), and confirm the insertion point (after the Web PubSub publish, before the 201) still holds. The delta below is expressed against the VC-19 committed snapshot as the best-available reference. |
+| G-READCLASS | `theo_chat_get_push_subscriptions_for_thread` returns ANOTHER user's push credentials (`endpoint` + `p256dh` + `auth`) to an **HTTP** handler (`theo_chat_send_message`). Golden Handler §3 permits elevated reads only for (a) an existence helper for 403/404 discrimination, or (b) a **scheduled (timer)** handler using an enumeration helper that returns "ONLY identifiers + owner ids (never user content)". This helper is HTTP-triggered (not a timer) and returns credentials (not just ids), and no deployed handler contains an EXACT mirror of a cross-owner content-returning read helper. Per §4, a new-domain helper classified ALLOWED DELTA needs an EXACT deployed mirror OR a verbatim Walter authorization predating the package. | **PROCEED** (was ESCALATE — now resolved) | **RESOLVED — the authorization has LANDED.** `Codex Governance/Theo-1B-VCpush-C2-Push-Sender-Backend-Pass-1-VEP/WALTER_AUTHORIZATION_G-READCLASS.md` (committed `2af5ffd`) carries Walter's verbatim authorization ("yes, i authorize", 2026-07-09) for the elevated cross-owner Web Push credential read class, predating this C2 Implementation Package per Golden Handler §4. The credentials are the irreducible RFC 8291 encryption inputs (they cannot be reduced to identifiers). **The v2 design STRENGTHENS the authorization's bound mitigations:** membership is enforced INSIDE the `SECURITY DEFINER` via `theo_chat_get_push_subscriptions_for_thread(p_thread_id uuid)` — the caller passes only the thread id, the function proves `auth.uid() = ANY(member_oids)` (non-member → `42501`, unknown thread → no rows) and derives recipients (`member_oids` MINUS the caller) itself, so an authenticated caller can never pass arbitrary OIDs to harvest credentials (the old `p_oids text[]` signature is removed). The helper returns only the encryption-necessary fields and is `REVOKE ALL FROM PUBLIC` / `GRANT EXECUTE TO authenticated`. Gate satisfied; design review-ready. |
+| G-PRIMARY | No committed `theo_chat_send_message` snapshot is byte-faithful to the LIVE deployed handler. The VC-19 snapshot (Primary Reference here) carries reply/delete/forward + the archived-send gate, but NOT the VC-9 attachment and VC-10 gif projection (both DEPLOYED 2026-07-07 per API Spec §2.10, postdating every committed snapshot). Golden Handler §5.5 states "The deployed handler is the source of truth … the repo's `Codex Governance/` artifacts drift behind what is deployed." | **PRE-LAND** | The additive C2 fan-out block is **position-independent**: it reads only `oid`, `principal`, `saved.thread_id`, and calls the thread-scoped read helper with `saved.thread_id`, and is inserted between the existing publish block and the `return 201`. It does not touch or depend on any attachment/gif/reply field, so it composes cleanly onto the live handler regardless of which projection features it carries. **Precondition for the Implementation Package:** Kudu-GET the live `theo_chat_send_message` wwwroot copy, re-emit the Structural Mirror against it (byte-exact Primary Reference), and confirm the insertion point (after the Web PubSub publish, before the 201) still holds. The delta below is expressed against the VC-19 committed snapshot as the best-available reference. |
 | G1 | The Phase 1B Backend Plan has no explicit Phase C / Web Push feature row. | PROCEED | The VC program has run as a Walter-directed extension without plan rows; C1 is deployed; C2 continues it. A plan Role-C row is an optional documentation follow-up, not a blocker. |
 | G-VAPID | The sender needs `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`. | PROCEED | Already provisioned as `vaultgpt-func-chat` app settings (secrets — never in the repo). The handler guards on all three being present before it attempts any push. No key value appears in this VEP. |
 | G-DEP | `web-push` is not yet in the func-chat wwwroot `node_modules`. | PROCEED | Installed at Pass 3 via Kudu (`npm install web-push@3.6.7`), the pdf-parse precedent (npm in Kudu CMD, pinned version, `require('web-push')`). This is a deploy step, not a plan-only VEP file. See "web-push dependency" below. |
@@ -105,7 +108,7 @@ PROPOSED (this microstep): two net-new `SECURITY DEFINER` functions over the DEP
 
 | function | signature | class | basis |
 | -------- | --------- | ----- | ----- |
-| `theo_chat_get_push_subscriptions` | `(p_oids text[]) RETURNS TABLE(created_by text, endpoint text, p256dh text, auth text)` | cross-owner enumeration read (NEW elevated-read class — G-READCLASS) | `SECURITY DEFINER`, `SET search_path = public, pg_temp`, `REVOKE ALL FROM PUBLIC`, `GRANT EXECUTE TO authenticated`, `auth.uid()` guard; returns rows where `created_by = ANY(p_oids)` |
+| `theo_chat_get_push_subscriptions_for_thread` | `(p_thread_id uuid) RETURNS TABLE(created_by text, endpoint text, p256dh text, auth text)` | thread-scoped cross-owner enumeration read (elevated-read class — G-READCLASS, authorization LANDED) | `SECURITY DEFINER`, `SET search_path = public, pg_temp`, `REVOKE ALL FROM PUBLIC`, `GRANT EXECUTE TO authenticated`, `auth.uid()` guard; proves `auth.uid() = ANY(member_oids)` INSIDE the fn (non-member → `42501`; unknown thread → no rows); returns rows where `created_by = ANY(member_oids) AND created_by <> auth.uid()` — the caller never passes OIDs |
 | `theo_chat_prune_push_subscription` | `(p_endpoint text) RETURNS boolean` | cross-owner write-path delete (mirrors deployed `theo_chat_leave` / `theo_chat_delete_message` class) | same definer envelope; deletes the `endpoint` row regardless of owner; returns true iff a row was removed |
 
 The complete runnable migration ships as a standalone file in this package: **`Codex Governance/Theo-1B-VCpush-C2-Push-Sender-Backend-Pass-1-VEP/migration_theo_chat_push_sender_functions.sql`** and is reproduced verbatim in P6.
@@ -146,64 +149,61 @@ The ONLY change to the handler is the insertion of one self-contained best-effor
 +      // ── C2: best-effort Web Push fan-out to recipients' registered devices ────────────
 +      // Runs AFTER the durable persist + the realtime publish above. Wrapped ENTIRELY in
 +      // try/catch: a push failure NEVER affects the 201 or the realtime publish (log-and-
-+      // continue). Recipient OIDs are derived SERVER-SIDE from theo_chat_threads.member_oids
-+      // (the membership authority, Schema §8) MINUS the sender — never from client input.
-+      // The cross-owner read/prune go through the SECURITY DEFINER helpers (VEP Gap G-READCLASS).
++      // continue). The cross-owner read/prune go through the SECURITY DEFINER helpers
++      // (VEP Gap G-READCLASS — authorization LANDED). theo_chat_get_push_subscriptions_for_thread
++      // proves the sender's membership and derives recipients (member_oids MINUS the sender)
++      // INSIDE the definer — the handler never enumerates or passes OIDs.
 +      try {
 +        if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT) {
-+          const tRow = await client.query(
-+            `SELECT kind, name, member_oids FROM public.theo_chat_threads WHERE id = $1`,
-+            [saved.thread_id]
++          const subs = await client.query(
++            `SELECT created_by, endpoint, p256dh, auth FROM public.theo_chat_get_push_subscriptions_for_thread($1)`,
++            [threadId]
 +          );
-+          const memberOids = (tRow.rows[0] && tRow.rows[0].member_oids) || [];
-+          const recipientOids = memberOids.filter((m) => m && m !== oid);
-+          if (recipientOids.length > 0) {
-+            const subs = await client.query(
-+              `SELECT created_by, endpoint, p256dh, auth FROM public.theo_chat_get_push_subscriptions($1)`,
-+              [recipientOids]
++          if (subs.rows.length > 0) {
++            const webpush = require("web-push");
++            webpush.setVapidDetails(
++              process.env.VAPID_SUBJECT,
++              process.env.VAPID_PUBLIC_KEY,
++              process.env.VAPID_PRIVATE_KEY
 +            );
-+            if (subs.rows.length > 0) {
-+              const webpush = require("web-push");
-+              webpush.setVapidDetails(
-+                process.env.VAPID_SUBJECT,
-+                process.env.VAPID_PUBLIC_KEY,
-+                process.env.VAPID_PRIVATE_KEY
-+              );
-+              const kind = tRow.rows[0] ? tRow.rows[0].kind : null;
-+              const channelName = tRow.rows[0] ? tRow.rows[0].name : null;
-+              const senderName = getClaimValue(principal, [
-+                "name",
-+                "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name",
-+              ]);
-+              const title = kind === "channel" ? (channelName || "New channel message") : (senderName || "New message");
-+              const preview = typeof saved.body === "string" && saved.body ? saved.body.slice(0, 140) : "";
-+              const payloadBody = preview || "Sent you a message";
-+              const baseUrl = process.env.VAULT_ORIGIN_BASE_URL || "https://vault-origin.com";
-+              const url = `${baseUrl}/?chat=${encodeURIComponent(saved.thread_id)}`;
-+              const payload = JSON.stringify({ title, body: payloadBody, url, tag: saved.thread_id });
-+              await Promise.allSettled(
-+                subs.rows.map((s) =>
-+                  webpush
-+                    .sendNotification(
-+                      { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-+                      payload,
-+                      { TTL: 60 }
-+                    )
-+                    .catch(async (e) => {
-+                      const code = e && e.statusCode;
-+                      if (code === 404 || code === 410) {
-+                        try {
-+                          await client.query(`SELECT public.theo_chat_prune_push_subscription($1)`, [s.endpoint]);
-+                        } catch (pruneErr) {
-+                          context.log.error("theo_chat_send_message push prune (non-fatal) failed", pruneErr);
-+                        }
-+                      } else {
-+                        context.log.error("theo_chat_send_message push send (non-fatal) failed", code);
++            const tRow = await client.query(
++              `SELECT kind, name FROM public.theo_chat_threads WHERE id = $1`,
++              [threadId]
++            );
++            const kind = tRow.rows[0] ? tRow.rows[0].kind : null;
++            const channelName = tRow.rows[0] ? tRow.rows[0].name : null;
++            const senderName = getClaimValue(principal, [
++              "name",
++              "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name",
++            ]);
++            const title = kind === "channel" ? (channelName || "New channel message") : (senderName || "New message");
++            const preview = typeof saved.body === "string" && saved.body ? saved.body.slice(0, 140) : "";
++            const payloadBody = preview || "Sent you a message";
++            const baseUrl = process.env.VAULT_ORIGIN_BASE_URL || "https://vault-origin.com";
++            const url = `${baseUrl}/?chat=${encodeURIComponent(saved.thread_id)}`;
++            const payload = JSON.stringify({ title, body: payloadBody, url, tag: saved.thread_id });
++            await Promise.allSettled(
++              subs.rows.map((s) =>
++                webpush
++                  .sendNotification(
++                    { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
++                    payload,
++                    { TTL: 60 }
++                  )
++                  .catch(async (e) => {
++                    const code = e && e.statusCode;
++                    if (code === 404 || code === 410) {
++                      try {
++                        await client.query(`SELECT public.theo_chat_prune_push_subscription($1)`, [s.endpoint]);
++                      } catch (pruneErr) {
++                        context.log.error("theo_chat_send_message push prune (non-fatal) failed", pruneErr);
 +                      }
-+                    })
-+                )
-+              );
-+            }
++                    } else {
++                      context.log.error("theo_chat_send_message push send (non-fatal) failed", code);
++                    }
++                  })
++              )
++            );
 +          }
 +        }
 +      } catch (pushErr) {
@@ -217,8 +217,8 @@ The ONLY change to the handler is the insertion of one self-contained best-effor
 Notes on the delta:
 - **Best-effort / non-fatal.** The whole block is inside `try { … } catch (pushErr) { context.log.error(...) }`, and each per-subscription send additionally `.catch(...)`es via `Promise.allSettled`, so no push error can propagate to the 201 or the realtime publish. This mirrors the deployed pattern for the Web PubSub publish (already `try/catch` "publish (non-fatal) failed").
 - **Bounded await.** The block `await`s `Promise.allSettled(...)` before the 201 because the func-chat classic v4 host does not reliably run background work after the response returns; awaiting keeps the pushes in-flight during the request. Each `webpush.sendNotification` is bounded by the library's HTTP timeout and `TTL:60`. The durable persist and realtime publish have already happened, so the only cost is a small, bounded delay on the 201 ack.
-- **Recipient enumeration is server-side.** `recipientOids` come from `theo_chat_threads.member_oids` (a DB row the sender can read because it is a member) minus the sender's own `oid` — never from the request body.
-- **Uses the existing connection `client`** (already has the `set_config`/JWT triad applied), so `auth.uid()` inside both `SECURITY DEFINER` helpers resolves to the sender.
+- **Recipient enumeration is inside the definer (least-privilege).** The handler passes ONLY `threadId` to `theo_chat_get_push_subscriptions_for_thread`; the function proves `auth.uid() = ANY(member_oids)` and derives recipients (`member_oids` MINUS the caller) itself. The handler never enumerates members or passes an OID array, so a caller cannot request another thread's or another user's credentials. A non-member call raises `42501` (caught by the outer try/catch, logged non-fatally).
+- **Uses the existing connection `client`** (already has the `set_config`/JWT triad applied), so `auth.uid()` inside both `SECURITY DEFINER` helpers resolves to the sender. The `SELECT kind, name` lookup is only for the notification title (channel name vs sender name); it is not the membership boundary — that lives inside the read helper.
 
 ### Structural Mirror Table (Golden Handler §5.1)
 
@@ -226,12 +226,12 @@ Notes on the delta:
 | -------------- | ------------------------ | -------------- | ----- |
 | Everything from `require`/Pool through the persist loop, `saved.*` shaping, and the Web PubSub publish block | send_message L1–L201 | EXACT | byte-unchanged; the C2 block is inserted AFTER L201 |
 | C2 best-effort push fan-out block (the `+` lines above) | inserted between L201 (end of publish `if`) and L203 (`return 201`) | ALLOWED DELTA (additive best-effort side-effect) | Golden Handler §4 permits an additive best-effort region mirroring an existing best-effort region; this block mirrors the deployed Web PubSub "publish (non-fatal)" try/catch pattern (same log-and-continue shape) and reads `member_oids` (Schema §8) |
-| `SELECT … FROM public.theo_chat_get_push_subscriptions($1)` call | new SQL helper (cross-owner read) | ALLOWED DELTA **conditioned on G-READCLASS Walter authorization** | Golden Handler §4: a new-domain helper classified ALLOWED DELTA needs an EXACT deployed mirror OR a verbatim Walter authorization predating the package. No exact mirror exists (no deployed helper returns other users' content) → the authorization is the gate (ESCALATE) |
+| `SELECT … FROM public.theo_chat_get_push_subscriptions_for_thread($1)` call | new SQL helper (thread-scoped cross-owner read) | ALLOWED DELTA (G-READCLASS Walter authorization LANDED) | Golden Handler §4: a new-domain helper classified ALLOWED DELTA needs an EXACT deployed mirror OR a verbatim Walter authorization predating the package. No exact mirror exists (no deployed helper returns other users' content) → satisfied by `WALTER_AUTHORIZATION_G-READCLASS.md` (committed `2af5ffd`, predating this Implementation Package). Membership is proven INSIDE the definer (least-privilege); the caller passes only the thread id |
 | `SELECT public.theo_chat_prune_push_subscription($1)` call | deployed `theo_chat_leave` / `theo_chat_delete_message` write-path definer class (Schema §8) | ALLOWED DELTA (EXACT mirror of a deployed definer class) | cross-owner write-path delete; migration-role-owned, `SECURITY DEFINER SET search_path`, `REVOKE`/`GRANT authenticated`, caller from `auth.uid()`; same class as deployed helpers → no new authorization needed |
 | `return send(context, 201, successBody({ message: saved }))` | send_message L203 | EXACT | byte-unchanged |
 | catch/finally | send_message L204–L218 | EXACT | byte-unchanged |
 
-No region is DEVIATION. The only classification requiring action is the ALLOWED-DELTA-**conditioned** read-helper call (G-READCLASS). The `function.json` is **unchanged** (same route/methods).
+No region is DEVIATION. The read-helper call's ALLOWED-DELTA classification is satisfied by the LANDED G-READCLASS authorization (`WALTER_AUTHORIZATION_G-READCLASS.md`); with membership now enforced inside the thread-scoped definer, no region is left open. The `function.json` is **unchanged** (same route/methods).
 
 ### Primary Reference — `theo_chat_send_message.index.js` (FULL VERBATIM, no ellipsis; best-available committed VC-19 snapshot, blob `fc7ef0e4f2a72d14265f3fe4cda86f825bc497d2`)
 
@@ -483,15 +483,19 @@ module.exports = async function (context, req) {
 
 ## P6 — SQL grounding (Walter-executable migration; write-SQL is Walter-only)
 
-Plain PostgreSQL SQL, no top-level transaction control, no psql meta-commands (Golden Handler §5.2), idempotent (`CREATE OR REPLACE FUNCTION`; no DDL on the C1 table). Walter runs this at Pass 3 **before** the C2 handler delta deploys — and only after the G-READCLASS authorization is in hand. C2 delivers the SQL; it does not execute it. Shipped as `migration_theo_chat_push_sender_functions.sql` in this package (byte-identical to the block below).
+Plain PostgreSQL SQL, no top-level transaction control, no psql meta-commands (Golden Handler §5.2), idempotent (`CREATE OR REPLACE FUNCTION`; no DDL on the C1 table). Walter runs this at Pass 3 **before** the C2 handler delta deploys; the G-READCLASS authorization has already LANDED (`WALTER_AUTHORIZATION_G-READCLASS.md`). C2 delivers the SQL; it does not execute it. Shipped as `migration_theo_chat_push_sender_functions.sql` in this package (byte-identical to the block below).
 
 ```sql
 -- ============================================================================
--- Theo 1B — Apps Phase C, C2: Web Push SENDER — two SECURITY DEFINER helpers
+-- Theo 1B — Apps Phase C, C2: Web Push SENDER — two SECURITY DEFINER helpers (v2)
 -- Target: shared vaultgpt Azure Postgres instance, schema public. App: vaultgpt-func-chat.
 -- Plain PostgreSQL SQL; no top-level BEGIN/COMMIT (migration governance, Golden Handler section 5.2).
 -- Idempotent (CREATE OR REPLACE FUNCTION; no DDL on the C1 table). Safe to re-run.
 -- Run by Walter as pgadmin_vault at Pass 3 BEFORE the C2 send-handler delta deploys (write-SQL is Walter-only).
+--
+-- v2 (thread-scoped least-privilege): the cross-owner read helper now takes the THREAD id, proves the
+-- caller is a member INSIDE the function (auth.uid()), and derives recipients itself (member_oids MINUS
+-- the caller). The old array-of-arbitrary-OIDs signature is removed entirely. Addresses Codex Pass 2.
 --
 -- Depends on C1 (DEPLOYED 2026-07-09): table public.theo_chat_push_subscriptions
 --   (created_by text, endpoint text UNIQUE, p256dh text, auth text, ...), ownership RLS
@@ -506,45 +510,57 @@ Plain PostgreSQL SQL, no top-level transaction control, no psql meta-commands (G
 -- derive the caller identity from auth.uid() (never a parameter). This is the same justified write-path
 -- class as the deployed theo_chat_leave / theo_chat_delete_message / theo_chat_claim_push_subscription.
 --
--- ELEVATED-READ-CLASS NOTE (see the C2 VEP Gap Register G-READCLASS): theo_chat_get_push_subscriptions
+-- ELEVATED-READ-CLASS NOTE (C2 VEP Gap Register G-READCLASS): theo_chat_get_push_subscriptions_for_thread
 -- returns another user's push credentials (endpoint + p256dh + auth) to an HTTP handler. That exceeds the
--- Golden Handler section 3(a) existence-helper and section 3(b) timer-enumeration exceptions and has no
--- exact deployed mirror, so it is a NEW elevated-read class that REQUIRES explicit Walter authorization
--- (Golden Handler section 4) before the C2 Implementation Package / deploy. This migration is delivered
--- plan-only; it is NOT executed until that authorization is quoted and Codex has APPROVED.
+-- Golden Handler section 3(a) existence-helper and section 3(b) timer-enumeration exceptions, so per
+-- Golden Handler section 4 it required an explicit Walter authorization predating the Implementation
+-- Package. That authorization has LANDED: WALTER_AUTHORIZATION_G-READCLASS.md (this package). The
+-- thread-scoped signature ENFORCES the authorization's bound mitigations (membership proven inside the
+-- definer; recipients server-derived from member_oids MINUS the caller) rather than trusting the handler.
 -- ============================================================================
 
--- 1) Cross-owner enumeration read: return the push subscriptions owned by any of p_oids (the sender passes
---    the RECIPIENT OIDs, derived server-side from theo_chat_threads.member_oids MINUS the sender — never
---    from client input). Returns exactly the fields RFC 8291 aes128gcm encryption requires (endpoint plus
---    the p256dh / auth client keys) plus created_by so the sender can attribute a row. auth.uid() guard
---    rejects an unauthenticated caller. A NULL / empty p_oids yields no rows.
-CREATE OR REPLACE FUNCTION public.theo_chat_get_push_subscriptions(p_oids text[])
+-- 1) Thread-scoped cross-owner enumeration read (LEAST-PRIVILEGE). The caller passes ONLY the thread id.
+--    The function proves the caller is a member of that thread (auth.uid() = ANY(member_oids)) and derives
+--    the recipients itself (member_oids MINUS the caller) — the caller can never pass arbitrary OIDs to
+--    harvest credentials. Returns exactly the fields RFC 8291 aes128gcm encryption requires (endpoint plus
+--    the p256dh / auth client keys) plus created_by so the sender can attribute a row. A non-member caller
+--    is denied (42501); an unknown thread returns no rows; an unauthenticated caller is rejected (28000).
+CREATE OR REPLACE FUNCTION public.theo_chat_get_push_subscriptions_for_thread(p_thread_id uuid)
 RETURNS TABLE(created_by text, endpoint text, p256dh text, auth text)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $fn$
 DECLARE
-  v_oid text := auth.uid();
+  v_oid     text   := auth.uid();
+  v_members text[];
 BEGIN
   IF v_oid IS NULL OR v_oid = '' THEN
-    RAISE EXCEPTION 'theo_chat_get_push_subscriptions: no caller identity' USING ERRCODE = '28000';
+    RAISE EXCEPTION 'theo_chat_get_push_subscriptions_for_thread: no caller identity' USING ERRCODE = '28000';
   END IF;
 
-  IF p_oids IS NULL OR array_length(p_oids, 1) IS NULL THEN
-    RETURN;
+  SELECT t.member_oids INTO v_members
+    FROM public.theo_chat_threads t
+   WHERE t.id = p_thread_id;
+
+  IF v_members IS NULL THEN
+    RETURN;  -- unknown thread -> return no rows
+  END IF;
+
+  IF NOT (v_oid = ANY(v_members)) THEN
+    RAISE EXCEPTION 'theo_chat_get_push_subscriptions_for_thread: caller not a thread member' USING ERRCODE = '42501';
   END IF;
 
   RETURN QUERY
   SELECT s.created_by, s.endpoint, s.p256dh, s.auth
     FROM public.theo_chat_push_subscriptions s
-   WHERE s.created_by = ANY(p_oids);
+   WHERE s.created_by = ANY(v_members)
+     AND s.created_by <> v_oid;
 END;
 $fn$;
 
-REVOKE ALL ON FUNCTION public.theo_chat_get_push_subscriptions(text[]) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.theo_chat_get_push_subscriptions(text[]) TO authenticated;
+REVOKE ALL ON FUNCTION public.theo_chat_get_push_subscriptions_for_thread(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.theo_chat_get_push_subscriptions_for_thread(uuid) TO authenticated;
 
 -- 2) Cross-owner prune: delete the row for p_endpoint regardless of owner. Called ONLY when the push
 --    service returns 410 Gone / 404 for a dead endpoint (a genuinely-expired subscription). SECURITY
@@ -588,7 +604,7 @@ SELECT p.proname, p.prosecdef, pg_get_function_identity_arguments(p.oid) AS args
   FROM pg_proc p
   JOIN pg_namespace n ON n.oid = p.pronamespace
  WHERE n.nspname = 'public'
-   AND p.proname IN ('theo_chat_get_push_subscriptions', 'theo_chat_prune_push_subscription')
+   AND p.proname IN ('theo_chat_get_push_subscriptions_for_thread', 'theo_chat_prune_push_subscription')
  ORDER BY p.proname;
 
 -- EXECUTE granted to authenticated, REVOKEd from PUBLIC (acl inspection). SELECT-only.
@@ -596,7 +612,7 @@ SELECT p.proname, p.proacl
   FROM pg_proc p
   JOIN pg_namespace n ON n.oid = p.pronamespace
  WHERE n.nspname = 'public'
-   AND p.proname IN ('theo_chat_get_push_subscriptions', 'theo_chat_prune_push_subscription')
+   AND p.proname IN ('theo_chat_get_push_subscriptions_for_thread', 'theo_chat_prune_push_subscription')
  ORDER BY p.proname;
 ```
 
@@ -670,6 +686,6 @@ The sender reads `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` fr
 
 This pack opens with the GCR + Rule Anchor Table (Conformance §3/§5), walks P1–P8, carries the Architecture & boundary reconciliation and the Gap Register (Governor §8; vocabulary `PROCEED`/`PRE-LAND`/`ESCALATE`/`NO-GAPS`), delivers the Walter-executable migration SQL (also shipped as `migration_theo_chat_push_sender_functions.sql`), the FULL-verbatim Primary Reference pair, the additive C2 delta + Structural Mirror, deterministic golden curls, and the web-push/VAPID/API-Spec notes. Plan-only: no app/handler/migration files written, no deploy, no commit.
 
-**Two gates flagged for the reviewer / Walter:** G-READCLASS (ESCALATE — the cross-owner credential-returning read helper needs a verbatim Walter authorization before implementation) and G-PRIMARY (PRE-LAND — the live `theo_chat_send_message` wwwroot copy must be captured and the mirror re-emitted at Implementation-Package time). The technical design is complete and review-ready now.
+**Gate status for the reviewer / Walter:** G-READCLASS is RESOLVED — the verbatim Walter authorization has LANDED (`WALTER_AUTHORIZATION_G-READCLASS.md`, committed `2af5ffd`, predating this package per Golden Handler §4), and the v2 thread-scoped read helper additionally enforces membership INSIDE the `SECURITY DEFINER` (least-privilege; the caller passes only the thread id). One PRE-LAND remains: G-PRIMARY — the live `theo_chat_send_message` wwwroot copy must be captured and the mirror re-emitted at Implementation-Package time. The technical design is complete and review-ready now.
 
 Mechanical lint target: `node tools/lint_microstep_submission.mjs "Codex Governance/Theo-1B-VCpush-C2-Push-Sender-Backend-Pass-1-VEP/Theo_1B_VCpush_C2_Push_Sender_Backend_Pass_1_VEP_Plan_Only.md" --repo-root .` — expected PASS.

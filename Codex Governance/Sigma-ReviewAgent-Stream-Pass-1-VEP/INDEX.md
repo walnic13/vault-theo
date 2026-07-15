@@ -7,7 +7,7 @@ Controlling artifact for Codex review. Self-contained: the streaming handler `fu
 ```
 Role: Claude Code
 Turn Type: Verified Evidence Pack (backend plan)
-Turn issued against HEAD: __HEADSHA__ (vault-theo development; updated to the commit that first adds this package — artifact-presence probe resolves there and at every later commit)
+Turn issued against HEAD: 10cc2dc (vault-theo development; updated to the commit that first adds this package — artifact-presence probe resolves there and at every later commit)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5

@@ -7,7 +7,7 @@ Controlling artifact for Codex review. Self-contained: the edited streaming hand
 ```
 Role: Claude Code
 Turn Type: Verified Evidence Pack (backend plan)
-Turn issued against HEAD: <FIRST_ADD_SHA> (vault-theo development; the commit that first adds this package — artifact-presence probe resolves there and at every later commit)
+Turn issued against HEAD: cab24b8 (vault-theo development; the commit that first adds this package — artifact-presence probe resolves there and at every later commit)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5

@@ -7,7 +7,7 @@ Plan-only VEP. Wires Theo's chat FE to the deployed streaming K-1 review agent: 
 ```
 Role: Claude Code
 Turn Type: Pass 1 — Frontend Verified Evidence Pack
-Turn issued against HEAD: __HEADSHA__ (vault-theo development; updated to the commit that first adds this VEP — artifact-presence probe resolves there and at every later commit)
+Turn issued against HEAD: c2b7583 (vault-theo development; updated to the commit that first adds this VEP — artifact-presence probe resolves there and at every later commit)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A

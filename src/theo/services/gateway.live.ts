@@ -772,6 +772,10 @@ export interface StreamHandlers {
   onThinking?: (delta: string) => void;
   onCitation?: (c: StreamCitation) => void;
   onMeta?: (meta: { conversation_id?: string; model?: string }) => void;
+  // VA-T7 review-agent activity (sigma_review_agent_stream only): a tool call fired (`tool`) and its
+  // completion (`tool_result`). Additive/optional — the general chat path never invokes them.
+  onTool?: (t: { name: string; input: unknown }) => void;
+  onToolResult?: (t: { name: string; ok: boolean }) => void;
 }
 
 export async function sendMessageStream(req: GatewayRequest, handlers: StreamHandlers, opts?: { signal?: AbortSignal }): Promise<void> {
@@ -852,6 +856,98 @@ export async function sendMessageStream(req: GatewayRequest, handlers: StreamHan
         if (delta.type === "text_delta" && typeof delta.text === "string") handlers.onText(delta.text);
         else if (delta.type === "thinking_delta" && typeof delta.thinking === "string") handlers.onThinking?.(delta.thinking);
         else if (delta.type === "citations_delta" && delta.citation && typeof delta.citation === "object") handlers.onCitation?.(delta.citation as StreamCitation);
+      }
+    }
+  }
+}
+
+// ── Sigma K-1 review agent (streaming) — sibling of sendMessageStream on the SAME func-stream sidecar
+// (theo_message_stream + sigma_review_agent_stream share `streamBase`), different path. Consumes the
+// agent's CLEAN SSE protocol (NOT the raw Anthropic frames sendMessageStream parses):
+//   event: delta        {kind:'text'|'thinking', text}  → onText / onThinking
+//   event: tool         {name, input}                    → onTool     (a deterministic tool fired)
+//   event: tool_result  {name, ok}                       → onToolResult (that tool finished)
+//   event: done         {conversation_id, model}         → onMeta
+//   event: error        {message}                        → throw
+// Request body { review_id, files, messages, conversation_id? }: review_id + files come from the
+// conversation's app_context (Sigma supplies them when a review is open); the deployed handler requires
+// a uuid review_id and files.input/files.output as { driveId, itemId }. Routing (only when a COMPLETE
+// review payload is present) is decided upstream in useTheoState (hasReviewContext) — this fn assumes it.
+// Pre-stream failures arrive as a JSON error body (thrown with the server message), like sendMessageStream.
+export async function sendReviewAgentStream(req: GatewayRequest, handlers: StreamHandlers, opts?: { signal?: AbortSignal }): Promise<void> {
+  // The review agent has no mock/degraded path: it runs the deterministic engine on func-stream. Without
+  // the streaming sidecar configured (standalone dev harness), surface a clear, non-crashing message.
+  if (!streamBase) {
+    throw new Error("The review agent isn't available in this preview (streaming endpoint not configured).");
+  }
+  const ctx = (req.app_context ?? {}) as Record<string, unknown>;
+  const review_id = typeof ctx.sigma_review_id === "string" ? ctx.sigma_review_id : "";
+  const files = ctx.files && typeof ctx.files === "object" ? (ctx.files as Record<string, unknown>) : undefined;
+
+  const headers = await authHeaders();
+  const resp = await fetch(`${streamBase}/api/sigma_review_agent_stream`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    signal: opts?.signal,   // stop-generating: aborting rejects reader.read() → propagates to send()'s catch
+    body: JSON.stringify({
+      review_id,
+      messages: req.messages,
+      ...(files ? { files } : {}),
+      ...(req.conversation_id ? { conversation_id: req.conversation_id } : {}),
+    }),
+  });
+
+  // Pre-stream error (auth/validation/ownership/unresolved-workbook/gateway) → JSON error body.
+  if (!resp.ok || !resp.body) {
+    let msg = `Review agent error (HTTP ${resp.status}).`;
+    try {
+      const jr = (await resp.json()) as { error?: { message?: string } };
+      msg = jr?.error?.message || msg;
+    } catch { /* non-JSON error body */ }
+    throw new Error(msg);
+  }
+
+  // Read the SSE body incrementally; dispatch one complete event (blank-line separated) at a time.
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let sep: number;
+    while ((sep = buf.indexOf("\n\n")) >= 0) {
+      const evt = buf.slice(0, sep);
+      buf = buf.slice(sep + 2);
+      const dataLine = evt.split("\n").find((l) => l.startsWith("data:"));
+      if (!dataLine) continue;
+      let j: Record<string, unknown> | null = null;
+      try { j = JSON.parse(dataLine.slice(5).trim()) as Record<string, unknown>; } catch { continue; }
+      if (!j || typeof j !== "object") continue;
+
+      // Order matters: match `event: error` and `event: tool_result` BEFORE the `event: tool` substring.
+      if (evt.includes("event: error")) {
+        throw new Error((j.message as string) || "The review stream was interrupted.");
+      }
+      if (evt.includes("event: delta")) {
+        if (typeof j.text === "string") {
+          if (j.kind === "thinking") handlers.onThinking?.(j.text);
+          else handlers.onText(j.text);
+        }
+        continue;
+      }
+      if (evt.includes("event: tool_result")) {
+        handlers.onToolResult?.({ name: typeof j.name === "string" ? j.name : "", ok: Boolean(j.ok) });
+        continue;
+      }
+      if (evt.includes("event: tool")) {
+        handlers.onTool?.({ name: typeof j.name === "string" ? j.name : "", input: j.input });
+        continue;
+      }
+      if (evt.includes("event: done")) {
+        handlers.onMeta?.({ conversation_id: j.conversation_id as string | undefined, model: j.model as string | undefined });
+        continue;
       }
     }
   }

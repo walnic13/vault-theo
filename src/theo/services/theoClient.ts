@@ -9,7 +9,8 @@ import type {
 } from "../types";
 import { parseArtifacts, remapToIds, upsert } from "../lib/artifacts";
 import {
-  sendMessage as gatewaySend, sendMessageStream as gatewaySendStream, configureGateway as gatewayConfigure,
+  sendMessage as gatewaySend, sendMessageStream as gatewaySendStream,
+  sendReviewAgentStream as gatewaySendReviewAgentStream, configureGateway as gatewayConfigure,
   listConversations as gatewayList, getConversation as gatewayGet,
   listProjectConversations as gatewayListProjectConversations,
   listConversationAttachments as gatewayListConvAttachments,
@@ -52,6 +53,13 @@ export const theoClient = {
   // through to the gateway fetch so stop() / a chat switch can abort the in-flight stream.
   sendMessageStream(req: GatewayRequest, handlers: StreamHandlers, opts?: { signal?: AbortSignal }): Promise<void> {
     return gatewaySendStream(req, handlers, opts);
+  },
+  // Sigma K-1 review agent (streaming; sigma_review_agent_stream on the func-stream sidecar). Same
+  // request shape as sendMessageStream (review_id + files ride in req.app_context); the reply arrives
+  // as the agent's clean SSE protocol via the handlers (text/thinking deltas + tool / tool_result +
+  // the final conversation id). useTheoState routes here ONLY when a complete review payload is present.
+  sendReviewAgentStream(req: GatewayRequest, handlers: StreamHandlers, opts?: { signal?: AbortSignal }): Promise<void> {
+    return gatewaySendReviewAgentStream(req, handlers, opts);
   },
 
   // ── Attachments (B8e) — one network round per file: create SAS → PUT bytes → finalize.

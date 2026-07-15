@@ -7,6 +7,7 @@ import type { ChangeEvent, ClipboardEvent, ReactNode } from "react";
 import { C, SANS, SERIF } from "../theme";
 import { Burst } from "./icons";
 import { CitedText } from "./CitedText";
+import { AgentActivity } from "./AgentActivity";
 import type { ComposerAttachment, Message, Project, SentAttachment } from "../types";
 
 export interface ChatViewProps {
@@ -29,6 +30,9 @@ export interface ChatViewProps {
   greeting: string;
   starters: string[];
   renderAssistant: (content: string) => ReactNode;
+  // VA-T7: fund label for the review-agent activity panel (from the conversation's app_context; the
+  // panel falls back to a generic label when absent). Only sigma review turns carry reasoning/tools.
+  reviewFund?: string;
 }
 
 function formatSize(bytes: number): string {
@@ -146,7 +150,7 @@ export function ChatView(props: ChatViewProps) {
   const {
     messages, loading, error, draft, attachments, attachmentsAvailable,
     onDraftChange, onSend, onStop, queuedText, onCancelQueued, onAddFiles, onAddPastedText, onRemoveAttachment,
-    chatProject, assistantName, greeting, starters, renderAssistant,
+    chatProject, assistantName, greeting, starters, renderAssistant, reviewFund,
   } = props;
   const scroller = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -193,6 +197,11 @@ export function ChatView(props: ChatViewProps) {
               <div key={i} style={{ display: "flex", gap: 13, margin: "0 0 26px" }}>
                 <div style={{ marginTop: 2, flexShrink: 0 }}><Burst size={22} /></div>
                 <div style={{ fontSize: 15, paddingTop: 1, minWidth: 0, flex: 1 }}>
+                  {/* VA-T7: review-agent activity (live reasoning + tool calls) above the answer. Only
+                      sigma review turns carry reasoning/tools; general chat turns render neither. */}
+                  {(m.reasoning || (m.tools && m.tools.length)) ? (
+                    <AgentActivity running={loading && i === messages.length - 1} reasoning={m.reasoning ?? ""} tools={m.tools ?? []} fund={reviewFund} />
+                  ) : null}
                   {m.thinking ? <ThinkingPanel text={m.thinking} live={loading && i === messages.length - 1 && !m.content} /> : null}
                   {m.content
                     ? (m.runs?.some((r) => r.citations.length) ? <CitedText runs={m.runs} renderText={renderAssistant} /> : renderAssistant(m.content))

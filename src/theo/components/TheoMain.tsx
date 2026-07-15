@@ -72,6 +72,7 @@ export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
               onAddFiles={t.addFiles} onAddPastedText={t.addPastedText} onRemoveAttachment={t.removeAttachment}
               chatProject={t.chatProject}
               assistantName={ASSISTANT_NAME} greeting={t.greeting} starters={STARTERS} renderAssistant={renderAssistant}
+              reviewFund={typeof t.appContext.app_context?.fund_name === "string" ? (t.appContext.app_context.fund_name as string) : undefined}
             />
           )}
           {t.view === "projects" && (

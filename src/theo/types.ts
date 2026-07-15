@@ -14,9 +14,15 @@ export interface SentAttachment {
   name: string; kind: AttachmentKind; contentType: string; byteSize: number;
   previewText?: string;                              // text/pasted: expandable preview
 }
+// VA-T7 agent-activity: one tool call surfaced live on a streaming agent turn (sigma_review_agent_stream).
+// `status` advances running → done|fail as the `tool` / `tool_result` SSE events arrive. Presentational.
+export interface AgentToolCall { name: string; input: unknown; status: "running" | "done" | "fail" }
 // B9 streaming: `thinking` holds the model's extended-thinking text (streamed via thinking_delta),
 // rendered in a collapsible panel. Presentational/ephemeral — not persisted as message content.
-export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string }
+// VA-T7: `reasoning` + `tools` carry a review-agent turn's live activity (streamed reasoning + each tool
+// call) — rendered by AgentActivity above the answer. Distinct from `thinking` (general-chat panel);
+// a sigma review turn uses reasoning/tools, general chat uses thinking. Presentational/ephemeral.
+export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string; reasoning?: string; tools?: AgentToolCall[] }
 
 export interface Knowledge { id: string; title: string; content: string }
 export type ProjectVisibility = "private" | "group";

@@ -7,7 +7,7 @@ import { stripArtifactRefs } from "./lib/artifacts";
 import { buildSystemPrompt, greeting } from "./lib/prompt";
 import { MODEL } from "./swapBlock";
 import { STYLES } from "./data";
-import type { AppContext, Artifact, ArtifactSummary, Citation, ComposerAttachment, ConversationSummary, KDraft, Message, NpDraft, OpenArtifact, Person, Project, ProjectMember, SentAttachment, Settings, StyleKey, View } from "./types";
+import type { AgentToolCall, AppContext, Artifact, ArtifactSummary, Citation, ComposerAttachment, ConversationSummary, KDraft, Message, NpDraft, OpenArtifact, Person, Project, ProjectMember, SentAttachment, Settings, StyleKey, View } from "./types";
 
 // B8e: a paste longer than this becomes a "Pasted text" attachment (collapsed, expandable) instead
 // of flooding the composer — the Claude-style behaviour. Tunable; ~a long block, not a sentence.
@@ -18,6 +18,27 @@ const INSTRUCTIONS_SAVE_DEBOUNCE_MS = 800;
 
 let attCounter = 0;
 function newLocalId() { attCounter += 1; return "att" + Date.now().toString(36) + "_" + attCounter; }
+
+// VA-T7 review-agent routing (fail-closed). A chat turn is routed to sigma_review_agent_stream ONLY
+// when the conversation carries a COMPLETE review payload — the deployed Sigma mount already sends
+// app_key='sigma' with app_context=null (general dock chat), which must NOT hit the review agent
+// (its contract requires review_id + files). Every other case (incl. that null context, and all
+// non-sigma turns) falls back to the general chat path (sendMessageStream). The complete payload is
+// supplied by Sigma's New-Review flow (the paired Sigma-FE package).
+function isUuid(v: unknown): boolean {
+  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+function isFilePointer(f: unknown): boolean {
+  if (!f || typeof f !== "object") return false;
+  const r = f as Record<string, unknown>;
+  return typeof r.driveId === "string" && !!r.driveId && typeof r.itemId === "string" && !!r.itemId;
+}
+function hasReviewContext(ctx: AppContext): boolean {
+  if (ctx.app_key !== "sigma" || !ctx.app_context) return false;
+  const ac = ctx.app_context as Record<string, unknown>;
+  const files = ac.files && typeof ac.files === "object" ? (ac.files as Record<string, unknown>) : null;
+  return isUuid(ac.sigma_review_id) && !!files && isFilePointer(files.input) && isFilePointer(files.output);
+}
 
 export function useTheoState() {
   const seeded: Settings = theoClient.readSettings();
@@ -361,9 +382,14 @@ export function useTheoState() {
     // stop() (or a chat switch) can cancel it. Held in abortRef for stop()/newChat() to reach.
     const ac = new AbortController(); abortRef.current = ac;
     let acc = "";                                     // accumulated answer text
-    let think = "";                                   // accumulated extended-thinking text
+    let think = "";                                   // accumulated extended-thinking text (general chat)
+    let reasoning = "";                               // VA-T7: accumulated agent reasoning (review agent)
+    const toolCalls: AgentToolCall[] = [];            // VA-T7: the review agent's live tool calls
     const cites: Citation[] = [];                     // web-grounding citations (citations_delta)
     let convId: string | null = null;
+    // Fail-closed routing: a COMPLETE review payload (app_key='sigma' + review_id + files) → the K-1
+    // review agent (sigma_review_agent_stream); anything else → the general chat path. Decided per-send.
+    const useReviewAgent = hasReviewContext(appContext);
     // Patch the last message (the streaming assistant turn) in place as deltas arrive.
     const patchLastAssistant = (patch: Partial<Message>) =>
       setMessages((m) => {
@@ -375,23 +401,43 @@ export function useTheoState() {
         return copy;
       });
     try {
-      await theoClient.sendMessageStream({
+      const req = {
         model: MODEL, max_tokens: 1500, system: buildSystemPrompt(styleKey, custom, chatProject, selfFullName),
         messages: next.map((m) => ({ role: m.role, content: stripArtifactRefs(m.content) })),
         ...(conversationId ? { conversation_id: conversationId } : {}),
         app_key: appContext.app_key, app_context: appContext.app_context,
         ...(ready.length ? { attachment_ids: ready.map((a) => a.id as string) } : {}),
-      }, {
-        onText: (d) => { acc += d; patchLastAssistant({ content: acc }); },
-        onThinking: (d) => { think += d; patchLastAssistant({ thinking: think }); },
-        onCitation: (c) => { cites.push({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text }); },
-        onMeta: (mt) => { if (mt.conversation_id) convId = mt.conversation_id; },
-      }, { signal: ac.signal });
+      };
+      if (useReviewAgent) {
+        // VA-T7: route to the K-1 review agent; stream its reasoning + tool calls into the assistant
+        // turn (rendered by AgentActivity). Thinking deltas feed the activity panel's reasoning line
+        // (NOT the general ThinkingPanel). onTool appends a running row; onToolResult resolves the
+        // most-recent running row of that name to done/fail.
+        await theoClient.sendReviewAgentStream(req, {
+          onText: (d) => { acc += d; patchLastAssistant({ content: acc }); },
+          onThinking: (d) => { reasoning += d; patchLastAssistant({ reasoning }); },
+          onTool: (tc) => { toolCalls.push({ name: tc.name, input: tc.input, status: "running" }); patchLastAssistant({ tools: toolCalls.slice() }); },
+          onToolResult: (tr) => {
+            for (let k = toolCalls.length - 1; k >= 0; k--) {
+              if (toolCalls[k].name === tr.name && toolCalls[k].status === "running") { toolCalls[k] = { ...toolCalls[k], status: tr.ok ? "done" : "fail" }; break; }
+            }
+            patchLastAssistant({ tools: toolCalls.slice() });
+          },
+          onMeta: (mt) => { if (mt.conversation_id) convId = mt.conversation_id; },
+        }, { signal: ac.signal });
+      } else {
+        await theoClient.sendMessageStream(req, {
+          onText: (d) => { acc += d; patchLastAssistant({ content: acc }); },
+          onThinking: (d) => { think += d; patchLastAssistant({ thinking: think }); },
+          onCitation: (c) => { cites.push({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text }); },
+          onMeta: (mt) => { if (mt.conversation_id) convId = mt.conversation_id; },
+        }, { signal: ac.signal });
+      }
       // Finalize on stream end: run artifact ingestion over the full text (markers → links) and, if
       // the model cited sources, attach a single CitedRun so the existing CitedText path renders them.
       const { display, openId, blocks } = theoClient.ingestReply(acc);
       setArtifacts(theoClient.listArtifacts());
-      patchLastAssistant({ content: display, ...(cites.length ? { runs: [{ text: display, citations: cites }] } : {}), ...(think ? { thinking: think } : {}) });
+      patchLastAssistant({ content: display, ...(cites.length ? { runs: [{ text: display, citations: cites }] } : {}), ...(think ? { thinking: think } : {}), ...(reasoning ? { reasoning } : {}), ...(toolCalls.length ? { tools: toolCalls.slice() } : {}) });
       if (openId) setOpenArt({ id: openId, v: -1 });
       if (convId) setConversationId(convId);
       // B4h: persist each artifact block server-side (theo_upsert_artifact — create-or-add-version by

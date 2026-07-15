@@ -1,6 +1,6 @@
 # Sigma review agent — streaming (`sigma_review_agent_stream` on func-stream) — Pass-1 VEP
 
-Controlling artifact for Codex review. Self-contained: the streaming handler `functions/sigma_review_agent_stream.js` (v4, `enableHttpStream`), the deterministic `engine/` (deployed alongside it), and the Primary References `primary-reference/` (the deployed `theo_message_stream.LIVE.js` streaming reference + `sigma_review_agent.index.js` loop/ruleset reference). Adds the **real-time streaming** K-1 review agent as a **sibling** handler on Theo's existing streaming app (func-stream) — same v4 / SSE mechanism as `theo_message_stream`, so streaming is consistent across all of Theo, but purpose-built for the agentic tool loop and leaving `theo_message_stream` untouched (safety). Streams thinking + text deltas AND emits a tool event the instant each deterministic tool fires (Claude-Code-style, unbuffered). Reviewer: Codex (backend).
+Controlling artifact for Codex review. Self-contained: the streaming handler `functions/sigma_review_agent_stream.js` (v4, `enableHttpStream`), the deterministic `engine/` (deployed alongside it), and the single Primary Reference `primary-reference/theo_message_stream.LIVE.js` (the deployed streaming handler this mirrors). `primary-reference/sigma_review_agent.index.js` is included as context only — the prior Codex-APPROVED loop/ruleset this reuses verbatim, cited by prose (NOT a co-Primary Reference). Adds the **real-time streaming** K-1 review agent as a **sibling** handler on Theo's existing streaming app (func-stream) — same v4 / SSE mechanism as `theo_message_stream`, so streaming is consistent across all of Theo, but purpose-built for the agentic tool loop and leaving `theo_message_stream` untouched (safety). Streams thinking + text deltas AND emits a tool event the instant each deterministic tool fires (Claude-Code-style, unbuffered). Reviewer: Codex (backend).
 
 ## Grounding Conformance Receipt
 
@@ -14,6 +14,10 @@ Sub-phase Track: P5
 ```
 
 Current-turn grounding (concrete tool calls this turn): fetched + read the DEPLOYED `theo_message_stream.js` from func-stream (`app.setup({enableHttpStream:true})`, `getFoundryToken`, the `stream:true` Foundry POST, the `PassThrough` relay, `parseSseForPersistence`, `persistTurn`); Read `governance/THEO_GOLDEN_HANDLER_STANDARD.md` §5; `governance/THEO_OPERATING_RULESET.md` §1; `governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md` §2–§3; `governance/THEO_PHASE_1B_BACKEND_PLAN.md`; the sigma engine `tool-loop.js`/`registry.js`/`sheet-tools.js`; the non-streaming Primary Reference `sigma/…/sigma_review_agent/index.js`; the Sigma contract `sigma/spec/SIGMA_API_SPEC.md` §2.6 (`sigma_get_review`); verified the func-stream programming model (v4, `main: src/functions/*.js`, `@azure/functions ^4.5.0`, `FUNCTIONS_EXTENSION_VERSION ~4`) + that func-premium/func-sigma are classic (buffered) — so streaming belongs on func-stream.
+
+## Codex-rejection correction (v2)
+
+v1 was REJECTED at Pass 2 (T10): it declared a **composite** Primary Reference (`theo_message_stream.LIVE.js` + `sigma_review_agent.index.js`) with only rationale, not a quoted Walter authorization. Fix: **single, non-composite Primary Reference** = `theo_message_stream.LIVE.js` (the closest deployed handler of the same kind — a v4 `enableHttpStream` streaming handler on the same app, func-stream; shares the transport/persist/Foundry-stream/SSE). The agent loop + `K1_REVIEW_RULESET` + `reviewStateBlock` + tool dispatch are **reused verbatim from the prior Codex-APPROVED `sigma_review_agent`** (sigma `b1266dd`) — cited by prose as reused, prior-approved code, classified GREENFIELD-to-this-handler in the Structural Mirror. No composite; no Walter authorization required.
 
 ## Rule Anchor Table
 
@@ -52,7 +56,7 @@ The handler runs on func-stream (a **vault-theo** app) and **writes only `theo_*
 
 ## Handler grounding (P5) — Primary Reference + Structural Mirror Table
 
-**Primary References (composite, both cited):** the deployed **`theo_message_stream.LIVE.js`** (the streaming transport: `enableHttpStream`, `getFoundryToken`, the `stream:true` Foundry POST, the `PassThrough` relay, `persistTurn`, the SSE headers) and the non-streaming **`sigma_review_agent.index.js`** (the loop shape, tool dispatch, `K1_REVIEW_RULESET`, `reviewStateBlock`, `ctx`-load). Justified composite: this handler is the intersection — Theo's streaming transport wrapped around Sigma's tool loop.
+**Primary Reference (single, non-composite): the deployed `theo_message_stream.LIVE.js`** — the closest deployed handler of the same kind: a v4 `enableHttpStream` streaming handler on the same app (func-stream). It supplies the transport skeleton: `enableHttpStream`, `getFoundryToken`, the `stream:true` Foundry POST, the `PassThrough` relay, `persistTurn`, the SSE headers, the v4 helpers. The agent's loop + `K1_REVIEW_RULESET` + `reviewStateBlock` + tool `dispatch`/`TOOL_SCHEMAS` + `ctx`-load are **reused verbatim from the prior Codex-APPROVED `sigma_review_agent`** (sigma `b1266dd`) — prior-approved code, cited by prose, classified GREENFIELD-to-this-handler below (not from the Primary Reference). Single, non-composite.
 
 | Region (sigma_review_agent_stream) | Primary Reference region | Classification |
 |---|---|---|
@@ -60,9 +64,9 @@ The handler runs on func-stream (a **vault-theo** app) and **writes only `theo_*
 | `getFoundryToken` (client-credentials, `ai.azure.com/.default`) | `theo_message_stream.getFoundryToken` | EXACT (logic; `https.request` form vs the file's `requestUrl` helper) |
 | `openFoundryStream` (`stream:true` POST, `Accept: text/event-stream`) + the `PassThrough` client stream + SSE headers + return `{status,headers,body:stream}` | `theo_message_stream` upstream Promise + relay + return | EXACT (transport) |
 | `persistTurn` (INSERT `theo_conversations` if new + user/assistant `theo_messages` + `updated_at`) | `theo_message_stream.persistTurn` | EXACT (byte-faithful pattern; drops attachments/citations not used here) |
-| `K1_REVIEW_RULESET` (server-side const), `reviewStateBlock`, `dispatch`/`TOOL_SCHEMAS` reuse, `ctx`-load | `sigma_review_agent` | EXACT (same ruleset + review-state + engine reuse) |
-| `relayTurn` (parse upstream SSE → forward `delta` events + accumulate blocks/stop_reason) + the agentic `for`-loop + `tool`/`tool_result` events | — | GREENFIELD (streaming tool loop: the one novel region — replaces the verbatim relay + the non-streaming `runReviewLoop`) |
-| review state via `sigmaGetReview` (HTTP to `sigma_get_review`) | `sigma_review_agent`'s direct `sigma_*` SELECT | ALLOWED DELTA (published API instead of a table read — this app must not touch `sigma_*`) |
+| `K1_REVIEW_RULESET` (server-side const), `reviewStateBlock`, `dispatch`/`TOOL_SCHEMAS`, `ctx`-load | — (not in the Primary Reference) | GREENFIELD — reused verbatim from the prior Codex-APPROVED `sigma_review_agent` (sigma `b1266dd`), prose-cited |
+| `relayTurn` (parse upstream SSE → forward `delta` events + accumulate blocks/stop_reason) + the agentic `for`-loop + `tool`/`tool_result` events | — | GREENFIELD (streaming tool loop: the one novel region — replaces the Primary Reference's verbatim relay) |
+| review state via `sigmaGetReview` (HTTP to the published `sigma_get_review`) | — (not in the Primary Reference) | GREENFIELD (published Sigma API; this app must not read `sigma_*` directly) |
 | `theo_message_stream`'s web-search/fetch tools, thinking-budget, history-RAG, attachments | that handler's extras | DEVIATION-REMOVED (the review agent uses only the deterministic engine tools; no web tools, no attachments — justified: tool-grounded review) |
 
 ## Golden curls (P7) — run on deploy (Claude Code)

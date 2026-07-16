@@ -7,7 +7,7 @@ Controlling artifact for Codex review. Self-contained: the migration `migration_
 ```
 Role: Claude Code
 Turn Type: Verified Evidence Pack (backend plan)
-Turn issued against HEAD: __HEAD__ (vault-theo development; the commit that first adds this package — artifact-presence probe resolves there and at every later commit)
+Turn issued against HEAD: fb727cedb486b871b4375515f6cdb3619e0b09af (vault-theo development; the commit that first adds this package — artifact-presence probe resolves there and at every later commit)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P6

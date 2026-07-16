@@ -7,7 +7,7 @@ Plan-only VEP. #5 follow-on (Walter 2026-07-16): opening Theo in Sigma with no r
 ```
 Role: Claude Code
 Turn Type: Pass 1 — Frontend Verified Evidence Pack
-Turn issued against HEAD: __HEAD__ (vault-theo development; the commit that first adds this VEP — artifact-presence probe resolves there and at every later commit)
+Turn issued against HEAD: 223f6dce99ac0229d4a3a0bfeb09f5136848cfb0 (vault-theo development; the commit that first adds this VEP — artifact-presence probe resolves there and at every later commit)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A

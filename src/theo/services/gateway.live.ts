@@ -536,6 +536,25 @@ export async function createProject(d: NpDraft): Promise<Project> {
   return toProject(p);
 }
 
+// Get-or-create a project keyed to an external ref (host app + source_ref) — the deployed
+// theo_get_or_create_review_project (idempotent; 201 create / 200 existing). Mirrors createProject's
+// fetch/toProject idiom. Used to map a Sigma review (source_ref = sigma_review_id) to one Theo project.
+export async function getOrCreateReviewProject(appKey: string, sourceRef: string, name: string): Promise<Project> {
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_get_or_create_review_project`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ app_key: appKey, source_ref: sourceRef, name: name.trim() }),
+  });
+  let json: { data?: { project?: RawProject }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const p = json?.data?.project;
+  if (!p) throw new Error("Theo gateway response missing data.project.");
+  return toProject(p);
+}
+
 export async function updateProjectInstructions(id: string, instructions: string): Promise<Project> {
   if (!apiBase && !tokenProvider) return mockUpdateProjectInstructions(id, instructions);
   const headers = await authHeaders();

@@ -18,6 +18,7 @@ import {
   finalizeAttachment as gatewayFinalize, deleteAttachment as gatewayDeleteAttachment,
   attachmentsAvailable as gatewayAttachmentsAvailable,
   listProjects as gatewayListProjects, createProject as gatewayCreateProject,
+  getOrCreateReviewProject as gatewayGetOrCreateReviewProject,
   updateProjectInstructions as gatewayUpdateProjectInstructions,
   updateProjectDescription as gatewayUpdateProjectDescription, deleteProject as gatewayDeleteProject,
   listProjectKnowledge as gatewayListProjectKnowledge, addProjectKnowledge as gatewayAddProjectKnowledge,
@@ -116,6 +117,7 @@ export const theoClient = {
   // FE-mapped shape (gateway.live maps the deployed rows) so the surface is unchanged. ──
   listProjects(): Promise<Project[]> { return gatewayListProjects(); },
   createProject(d: NpDraft): Promise<Project> { return gatewayCreateProject(d); },
+  getOrCreateReviewProject(appKey: string, sourceRef: string, name: string): Promise<Project> { return gatewayGetOrCreateReviewProject(appKey, sourceRef, name); },
   updateProjectInstructions(id: string, instructions: string): Promise<Project> {
     return gatewayUpdateProjectInstructions(id, instructions);
   },

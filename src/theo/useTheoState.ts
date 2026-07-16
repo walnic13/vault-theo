@@ -72,6 +72,10 @@ export function useTheoState() {
   const [np, setNp] = useState<NpDraft>({ name: "", desc: "", instructions: "" });
   const [kdraft, setKdraft] = useState<KDraft>({ title: "", content: "" });
   const [appContext, setAppContext] = useState<AppContext>(() => theoClient.getAppContext());
+  // #5.3b: the Theo project a Sigma review's chats live in, KEYED to its review id (rid) so a stale
+  // project can never be used for a different review. reviewArmRef is the request-key guard.
+  const [reviewProject, setReviewProject] = useState<{ rid: string; id: string } | null>(null);
+  const reviewArmRef = useRef<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [recentsList, setRecentsList] = useState<ConversationSummary[]>([]);
   // B4e: the open project's chats, KEYED by projectId so a slow/stale async load can neither show
@@ -117,7 +121,37 @@ export function useTheoState() {
   // matches detailId (Codex B5c-FE keyed-state finding).
   const projectMembers = projectMembersState && projectMembersState.projectId === detailId ? projectMembersState.members : [];
   const art = openArt ? (artifacts.find((a) => a.id === openArt.id) ?? null) : null;
-  const recents = recentsList.filter((c) => c.title.toLowerCase().includes(search.toLowerCase()));
+
+  // #5.3b: derive the current review id + the project id PROVEN to belong to it (rid-matched). A stale
+  // (other-review) reviewProject resolves activeReviewProjectId to null, so recents/re-arm never use it.
+  const reviewAc = appContext.app_context;
+  const currentRid = hasReviewContext(appContext) && reviewAc && typeof reviewAc.sigma_review_id === "string" ? reviewAc.sigma_review_id : null;
+  const activeReviewProjectId = reviewProject && reviewProject.rid === currentRid ? reviewProject.id : null;
+  // Arm: on every review-id change, immediately drop any other review's project (fail-closed), then
+  // get-or-create this review's project and apply ONLY if we're still on the same review (reviewArmRef).
+  useEffect(() => {
+    reviewArmRef.current = currentRid;
+    if (!currentRid) { setReviewProject(null); return; }
+    setReviewProject((prev) => (prev && prev.rid === currentRid ? prev : null));
+    const fund = reviewAc && typeof reviewAc.fund_name === "string" && reviewAc.fund_name.trim() ? reviewAc.fund_name : "Review";
+    theoClient.getOrCreateReviewProject("sigma", currentRid, fund)
+      .then((p) => { if (reviewArmRef.current === currentRid && p) setReviewProject({ rid: currentRid, id: p.id }); })
+      .catch(() => { /* failed arm → leave unset; recents stay fail-closed until a later arm succeeds */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentRid, appContext]);
+  // Re-arm: put a FRESH empty review chat into the (proven-current) review project — covers initial open,
+  // the Sigma per-review newChatNonce, and the user's "New chat". Never mid-conversation, once already in
+  // the project (no loop), or for a stale project (activeReviewProjectId is null during an A→B window).
+  useEffect(() => {
+    if (activeReviewProjectId && messages.length === 0 && chatProject?.id !== activeReviewProjectId) {
+      void startInProject(activeReviewProjectId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeReviewProjectId, messages.length, chatProject?.id]);
+
+  // recents: global outside review mode; scoped to the review's project once resolved; EMPTY (fail
+  // closed) while a review is armed but its project is still resolving — never global under a review.
+  const recents = recentsList.filter((c) => c.title.toLowerCase().includes(search.toLowerCase()) && (!currentRid ? true : (activeReviewProjectId ? c.project_id === activeReviewProjectId : false)));
   const activeStyle = STYLES.find((s) => s.key === styleKey) ?? STYLES[0];
   // Personalization: the signed-in user's own row in the roster (theo_list_people isSelf) supplies the
   // display name. `selfFullName` is injected into the system prompt (Theo knows who it's with) and

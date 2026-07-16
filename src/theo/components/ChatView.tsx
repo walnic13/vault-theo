@@ -33,6 +33,9 @@ export interface ChatViewProps {
   // VA-T7: fund label for the review-agent activity panel (from the conversation's app_context; the
   // panel falls back to a generic label when absent). Only sigma review turns carry reasoning/tools.
   reviewFund?: string;
+  // Sigma review context armed → review-focused landing (opener names the fund; starters carry the
+  // review action pills). Fail-closed: false for generic Theo / a Sigma dock with no review.
+  reviewMode?: boolean;
 }
 
 function formatSize(bytes: number): string {
@@ -150,7 +153,7 @@ export function ChatView(props: ChatViewProps) {
   const {
     messages, loading, error, draft, attachments, attachmentsAvailable,
     onDraftChange, onSend, onStop, queuedText, onCancelQueued, onAddFiles, onAddPastedText, onRemoveAttachment,
-    chatProject, assistantName, greeting, starters, renderAssistant, reviewFund,
+    chatProject, assistantName, greeting, starters, renderAssistant, reviewFund, reviewMode,
   } = props;
   const scroller = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -181,7 +184,7 @@ export function ChatView(props: ChatViewProps) {
           <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px", textAlign: "center" }}>
             <Burst size={40} />
             <h1 style={{ fontFamily: SERIF, fontWeight: 500, fontSize: 32, margin: "18px 0 6px", letterSpacing: -0.2 }}>{greeting}</h1>
-            <p style={{ color: C.ink2, fontSize: 15, margin: "0 0 22px" }}>{chatProject ? `Working in ${chatProject.name}.` : "How can I help with your work today?"}</p>
+            <p style={{ color: C.ink2, fontSize: 15, margin: "0 0 22px" }}>{reviewMode ? `I've loaded ${reviewFund ?? "this fund"}'s workpapers — pick where to start, or ask me anything about this review.` : chatProject ? `Working in ${chatProject.name}.` : "How can I help with your work today?"}</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", maxWidth: 520 }}>
               {starters.map((s) => <button key={s} className="vo-chip" onClick={() => onSend(s)} style={{ background: "#fff", border: `1px solid ${C.line2}`, borderRadius: 999, padding: "8px 15px", fontSize: 13, color: C.ink2, cursor: "pointer", fontFamily: SANS }}>{s}</button>)}
             </div>

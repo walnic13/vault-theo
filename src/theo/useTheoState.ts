@@ -715,6 +715,8 @@ export function useTheoState() {
     // state
     view, collapsed, search, projects, projectChats, artifacts, galleryArtifacts, detail, chatProject, art, openArt, messages, draft, attachments, attachmentsAvailable, loading, error, queued,
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
+    reviewMode: hasReviewContext(appContext), // Sigma review context armed → review-assistant landing/chip
+
     // setters / handlers
     go, toggleCollapse: () => setCollapsed((v) => !v), setSearch, setDraft, newChat, startInProject, openProject,
     clearChatProject: () => setChatProject(null), send, stop, cancelQueued, ingestAppContext, selectRecent, loadRecents, loadProjects, loadGalleryArtifacts,

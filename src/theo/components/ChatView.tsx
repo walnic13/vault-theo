@@ -36,6 +36,9 @@ export interface ChatViewProps {
   // Sigma review context armed → review-focused landing (opener names the fund; starters carry the
   // review action pills). Fail-closed: false for generic Theo / a Sigma dock with no review.
   reviewMode?: boolean;
+  // In Sigma (with or without a review armed) → app-level review-assistant landing (#5 v2). Distinct
+  // from reviewMode (a specific fund) and generic Theo. false everywhere outside Sigma.
+  sigmaMode?: boolean;
 }
 
 function formatSize(bytes: number): string {
@@ -153,7 +156,7 @@ export function ChatView(props: ChatViewProps) {
   const {
     messages, loading, error, draft, attachments, attachmentsAvailable,
     onDraftChange, onSend, onStop, queuedText, onCancelQueued, onAddFiles, onAddPastedText, onRemoveAttachment,
-    chatProject, assistantName, greeting, starters, renderAssistant, reviewFund, reviewMode,
+    chatProject, assistantName, greeting, starters, renderAssistant, reviewFund, reviewMode, sigmaMode,
   } = props;
   const scroller = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -184,7 +187,7 @@ export function ChatView(props: ChatViewProps) {
           <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px", textAlign: "center" }}>
             <Burst size={40} />
             <h1 style={{ fontFamily: SERIF, fontWeight: 500, fontSize: 32, margin: "18px 0 6px", letterSpacing: -0.2 }}>{greeting}</h1>
-            <p style={{ color: C.ink2, fontSize: 15, margin: "0 0 22px" }}>{reviewMode ? `I've loaded ${reviewFund ?? "this fund"}'s workpapers — pick where to start, or ask me anything about this review.` : chatProject ? `Working in ${chatProject.name}.` : "How can I help with your work today?"}</p>
+            <p style={{ color: C.ink2, fontSize: 15, margin: "0 0 22px" }}>{reviewMode ? `I've loaded ${reviewFund ?? "this fund"}'s workpapers — pick where to start, or ask me anything about this review.` : sigmaMode ? "I'm your K-1 review assistant. Open a fund from the worklist to start a review — I'll walk you through the exceptions, explain the controls, and help you sign off. Or ask me how reviews work." : chatProject ? `Working in ${chatProject.name}.` : "How can I help with your work today?"}</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", maxWidth: 520 }}>
               {starters.map((s) => <button key={s} className="vo-chip" onClick={() => onSend(s)} style={{ background: "#fff", border: `1px solid ${C.line2}`, borderRadius: 999, padding: "8px 15px", fontSize: 13, color: C.ink2, cursor: "pointer", fontFamily: SANS }}>{s}</button>)}
             </div>

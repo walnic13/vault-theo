@@ -436,7 +436,7 @@ export function useTheoState() {
       });
     try {
       const req = {
-        model: MODEL, max_tokens: 1500, system: buildSystemPrompt(styleKey, custom, chatProject, selfFullName),
+        model: MODEL, max_tokens: 1500, system: buildSystemPrompt(styleKey, custom, chatProject, selfFullName, appContext.app_key),
         messages: next.map((m) => ({ role: m.role, content: stripArtifactRefs(m.content) })),
         ...(conversationId ? { conversation_id: conversationId } : {}),
         app_key: appContext.app_key, app_context: appContext.app_context,
@@ -750,6 +750,8 @@ export function useTheoState() {
     view, collapsed, search, projects, projectChats, artifacts, galleryArtifacts, detail, chatProject, art, openArt, messages, draft, attachments, attachmentsAvailable, loading, error, queued,
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
     reviewMode: hasReviewContext(appContext), // Sigma review context armed → review-assistant landing/chip
+    sigmaMode: appContext.app_key === "sigma", // #5 v2: in Sigma (with or without a review) → review persona/landing
+
 
     // setters / handlers
     go, toggleCollapse: () => setCollapsed((v) => !v), setSearch, setDraft, newChat, startInProject, openProject,

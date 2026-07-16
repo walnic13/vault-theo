@@ -31,6 +31,12 @@ export const REVIEW_STARTERS: string[] = [
   "Walk me through the exceptions", "Explain a control", "Draft an attestation", "Check the Sch L tie-out", "Summarize for Jake",
 ];
 
+// App-level Sigma review-assistant pills (#5 v2) — shown when Sigma is open but no fund/review is armed
+// (sigmaMode && !reviewMode). Orienting/guidance prompts (general chat, not a specific review).
+export const REVIEW_APP_STARTERS: string[] = [
+  "How does a K-1 review work?", "What do the controls check?", "Walk me through kickoff → review → sign-off", "What should I look at first?",
+];
+
 // B5a/B5c/B5d: the harness seed omits visibility/isOwner/sharedWithMe/memberCount; gateway.mock adds all four on load.
 export const INIT_PROJECTS: Omit<Project, "visibility" | "isOwner" | "sharedWithMe" | "memberCount">[] = [
   { id: "p1", name: "Da Vinci Capital — 2025 K-1s", desc: "Engagement workspace for the 2025 K-1 cycle.", updated: "2d ago",

@@ -7,7 +7,7 @@ Plan-only VEP. Part 2 of the #5 custom-Theo-dock program (Sigma's "Theo · Revie
 ```
 Role: Claude Code
 Turn Type: Pass 1 — Frontend Verified Evidence Pack
-Turn issued against HEAD: __HEAD__ (vault-theo development; the commit that first adds this VEP — artifact-presence probe resolves there and at every later commit)
+Turn issued against HEAD: f6d5b5705b8d85e59babe6b580ad33d54cdd2e21 (vault-theo development; the commit that first adds this VEP — artifact-presence probe resolves there and at every later commit)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A

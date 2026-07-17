@@ -2,10 +2,13 @@
 // 54px header bar is shared chrome rendered by TheoMain (identical pixels; allowed split delta).
 // B8e: composer gains an attach control + attachment chips + paste-to-attachment (a large paste
 // becomes a collapsed, expandable "Pasted text" chip — Claude-style — instead of flooding the box).
+// VA-T8: composer gains a dictation mic (idle mic / recording tray + coral-tinted stop) and each
+// assistant reply gains a read-aloud control (idle "Read aloud" / playing equalizer). Backends:
+// theo_transcribe_audio + theo_synthesize_speech (API §2.11). Inline-style, no browser storage.
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ClipboardEvent, ReactNode } from "react";
 import { C, SANS, SERIF } from "../theme";
-import { Burst } from "./icons";
+import { Burst, IcMic, IcSpeaker } from "./icons";
 import { CitedText } from "./CitedText";
 import { AgentActivity } from "./AgentActivity";
 import type { ComposerAttachment, Message, Project, SentAttachment } from "../types";
@@ -30,6 +33,19 @@ export interface ChatViewProps {
   greeting: string;
   starters: string[];
   renderAssistant: (content: string) => ReactNode;
+  // VA-T8 voice: dictation (composer mic) + read-aloud (per assistant reply). Shown only when the
+  // live backend is wired (voiceAvailable); state keyed by message index for read-aloud.
+  voiceAvailable: boolean;
+  recording: boolean;
+  transcribing: boolean;
+  recordingSeconds: number;
+  onStartDictation: () => void;
+  onStopDictation: () => void;
+  onCancelDictation: () => void;
+  playingIdx: number | null;
+  synthesizingIdx: number | null;
+  onReadAloud: (idx: number, text: string) => void;
+  onStopReadAloud: () => void;
   // VA-T7: fund label for the review-agent activity panel (from the conversation's app_context; the
   // panel falls back to a generic label when absent). Only sigma review turns carry reasoning/tools.
   reviewFund?: string;
@@ -40,6 +56,10 @@ export interface ChatViewProps {
   // from reviewMode (a specific fund) and generic Theo. false everywhere outside Sigma.
   sigmaMode?: boolean;
 }
+
+// VA-T8: the "listening" waveform + read-aloud equalizer share one keyframe, injected once (the
+// reference-pack idiom — a component-scoped <style>, no Tailwind, no global stylesheet dependency).
+const VOICE_KEYFRAMES = "@keyframes vt-wave { 0%, 100% { transform: scaleY(0.35) } 50% { transform: scaleY(1) } }";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -52,6 +72,85 @@ function Paperclip({ size = 18 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3.5 3.5 0 014.95 4.95l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
     </svg>
+  );
+}
+
+// VA-T8: filled square glyph for the mic's "stop & transcribe" state.
+function StopSquare({ size = 15 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden><rect x="6" y="6" width="12" height="12" rx="2" /></svg>;
+}
+
+// VA-T8: animated listening waveform (recording tray).
+function Waveform() {
+  const delays = [0, 120, 60, 200, 90, 160, 30, 220, 110];
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 3, height: 20, flex: 1 }} aria-hidden>
+      {delays.map((d, i) => (
+        <span key={i} style={{ width: 3, height: 16, borderRadius: 2, background: C.coral, transformOrigin: "center", animation: `vt-wave 1s ${d}ms infinite ease-in-out` }} />
+      ))}
+    </div>
+  );
+}
+
+// VA-T8: tiny equalizer shown while a reply is being read aloud.
+function EqBars() {
+  const delays = [0, 140, 70, 200];
+  return (
+    <span style={{ display: "inline-flex", alignItems: "flex-end", gap: 2, height: 13 }} aria-hidden>
+      {delays.map((d, i) => (
+        <span key={i} style={{ width: 2.5, height: 12, borderRadius: 1, background: C.coralDk, transformOrigin: "bottom", animation: `vt-wave 900ms ${d}ms infinite ease-in-out` }} />
+      ))}
+    </span>
+  );
+}
+
+// VA-T8: the composer dictation button — idle mic / recording coral-tinted stop / transcribing dots.
+// Same 34×34 action-row geometry as the attach + send buttons.
+function MicButton({ recording, transcribing, disabled, onStart, onStop }: { recording: boolean; transcribing: boolean; disabled: boolean; onStart: () => void; onStop: () => void }) {
+  if (transcribing) {
+    return (
+      <span title="Transcribing…" aria-label="Transcribing" style={{ width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", color: C.ink3 }}>
+        <span style={{ display: "inline-flex", gap: 3 }}>{[0, 1, 2].map((d) => <span key={d} style={{ width: 5, height: 5, borderRadius: "50%", background: C.ink3, display: "inline-block", animation: `vo-bounce 1.2s ${d * 0.16}s infinite ease-in-out` }} />)}</span>
+      </span>
+    );
+  }
+  const blocked = disabled && !recording;
+  return (
+    <button
+      className="vo-mic" onClick={() => (recording ? onStop() : onStart())} disabled={blocked}
+      aria-label={recording ? "Stop and transcribe" : "Dictate a message"} title={recording ? "Stop & transcribe" : "Dictate a message"}
+      style={{ width: 34, height: 34, borderRadius: 10, border: "none", cursor: blocked ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: recording ? C.coralSoft : "transparent", color: recording ? C.coralDk : (blocked ? C.line2 : C.ink2) }}
+    >{recording ? <StopSquare /> : <IcMic s={18} />}</button>
+  );
+}
+
+// VA-T8: the recording tray (replaces the textarea while recording) — waveform + tabular-nums timer
+// + a 7:00 cap note + Cancel (discard). Stopping (the mic-as-stop) transcribes into the draft.
+function RecordingTray({ seconds, onCancel }: { seconds: number; onCancel: () => void }) {
+  const mm = Math.floor(seconds / 60);
+  const ss = String(seconds % 60).padStart(2, "0");
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, background: C.coralSoft, border: `1px solid ${C.coralTint}`, borderRadius: 12, padding: "9px 12px" }}>
+      <Waveform />
+      <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600, color: C.coralDk, fontSize: 13.5, flexShrink: 0 }}>{mm}:{ss}</span>
+      <span style={{ fontSize: 11.5, color: C.ink3, flexShrink: 0 }}>up to 7:00</span>
+      <button onClick={onCancel} title="Cancel" style={{ flexShrink: 0, border: "none", background: "transparent", color: C.ink2, cursor: "pointer", fontSize: 13, fontFamily: SANS }}>Cancel</button>
+    </div>
+  );
+}
+
+// VA-T8: the per-reply read-aloud control — idle "Read aloud" / loading dots / playing equalizer.
+function ReadAloudButton({ playing, loading, onToggle }: { playing: boolean; loading: boolean; onToggle: () => void }) {
+  const blocked = loading && !playing;
+  return (
+    <button
+      onClick={onToggle} disabled={blocked}
+      aria-label={playing ? "Stop reading" : "Read this reply aloud"} title={playing ? "Stop" : "Read aloud"}
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "none", background: "transparent", color: playing ? C.coralDk : C.ink3, cursor: blocked ? "default" : "pointer", fontFamily: SANS, fontSize: 12.5, borderRadius: 8, padding: "5px 8px" }}
+    >
+      {loading ? <span style={{ display: "inline-flex", gap: 3 }}>{[0, 1, 2].map((d) => <span key={d} style={{ width: 4, height: 4, borderRadius: "50%", background: C.ink3, display: "inline-block", animation: `vo-bounce 1.2s ${d * 0.16}s infinite ease-in-out` }} />)}</span> : playing ? <EqBars /> : <IcSpeaker s={15} />}
+      {loading ? "Loading…" : playing ? "Playing…" : "Read aloud"}
+    </button>
   );
 }
 
@@ -157,6 +256,8 @@ export function ChatView(props: ChatViewProps) {
     messages, loading, error, draft, attachments, attachmentsAvailable,
     onDraftChange, onSend, onStop, queuedText, onCancelQueued, onAddFiles, onAddPastedText, onRemoveAttachment,
     chatProject, assistantName, greeting, starters, renderAssistant, reviewFund, reviewMode, sigmaMode,
+    voiceAvailable, recording, transcribing, recordingSeconds, onStartDictation, onStopDictation, onCancelDictation,
+    playingIdx, synthesizingIdx, onReadAloud, onStopReadAloud,
   } = props;
   const scroller = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -182,6 +283,7 @@ export function ChatView(props: ChatViewProps) {
 
   return (
     <>
+      <style>{VOICE_KEYFRAMES}</style>
       <div ref={scroller} className="vo-scroll" style={{ flex: 1, overflowY: "auto" }}>
         {messages.length === 0 ? (
           <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px", textAlign: "center" }}>
@@ -212,6 +314,16 @@ export function ChatView(props: ChatViewProps) {
                   {m.content
                     ? (m.runs?.some((r) => r.citations.length) ? <CitedText runs={m.runs} renderText={renderAssistant} /> : renderAssistant(m.content))
                     : (loading && i === messages.length - 1 ? <StatusLine /> : null)}
+                  {/* VA-T8: read-aloud control on a finished reply (not the still-streaming turn). */}
+                  {voiceAvailable && m.content && !(loading && i === messages.length - 1) && (
+                    <div style={{ marginTop: 4 }}>
+                      <ReadAloudButton
+                        playing={playingIdx === i}
+                        loading={synthesizingIdx === i}
+                        onToggle={() => (playingIdx === i ? onStopReadAloud() : onReadAloud(i, m.content))}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -243,15 +355,26 @@ export function ChatView(props: ChatViewProps) {
                 ))}
               </div>
             )}
-            <textarea ref={taRef} value={draft} onChange={(e) => onDraftChange(e.target.value)} onPaste={onPaste} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (canSubmit) onSend(); } }} rows={1} placeholder={`Message ${assistantName}…`} style={{ width: "100%", border: "none", resize: "none", fontFamily: SANS, fontSize: 15, color: C.ink, background: "transparent", lineHeight: 1.5, maxHeight: 200 }} />
+            {/* VA-T8: while recording, the tray replaces the textarea; the mic (below) becomes Stop. */}
+            {recording ? (
+              <RecordingTray seconds={recordingSeconds} onCancel={onCancelDictation} />
+            ) : (
+              <textarea ref={taRef} value={draft} onChange={(e) => onDraftChange(e.target.value)} onPaste={onPaste} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (canSubmit) onSend(); } }} rows={1} placeholder={`Message ${assistantName}…`} style={{ width: "100%", border: "none", resize: "none", fontFamily: SANS, fontSize: 15, color: C.ink, background: "transparent", lineHeight: 1.5, maxHeight: 200 }} />
+            )}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
-              <input ref={fileRef} type="file" multiple onChange={onFilePick} style={{ display: "none" }} />
-              <button
-                className="vo-attach" disabled={!attachmentsAvailable} onClick={() => fileRef.current?.click()}
-                title={attachmentsAvailable ? "Attach files" : "Attachments unavailable in this preview"}
-                aria-label="Attach files"
-                style={{ width: 34, height: 34, borderRadius: 10, border: "none", background: "transparent", color: attachmentsAvailable ? C.ink2 : C.line2, cursor: attachmentsAvailable ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center" }}
-              ><Paperclip size={18} /></button>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <input ref={fileRef} type="file" multiple onChange={onFilePick} style={{ display: "none" }} />
+                <button
+                  className="vo-attach" disabled={!attachmentsAvailable} onClick={() => fileRef.current?.click()}
+                  title={attachmentsAvailable ? "Attach files" : "Attachments unavailable in this preview"}
+                  aria-label="Attach files"
+                  style={{ width: 34, height: 34, borderRadius: 10, border: "none", background: "transparent", color: attachmentsAvailable ? C.ink2 : C.line2, cursor: attachmentsAvailable ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center" }}
+                ><Paperclip size={18} /></button>
+                {/* VA-T8: dictation mic — only when a live backend is wired. */}
+                {voiceAvailable && (
+                  <MicButton recording={recording} transcribing={transcribing} disabled={loading} onStart={onStartDictation} onStop={onStopDictation} />
+                )}
+              </div>
               {loading ? (
                 // Stop-generating: while streaming, the primary action becomes a Stop button in the same
                 // .vo-send slot/size. Always enabled; a filled square glyph; coral (never the disabled

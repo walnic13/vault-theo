@@ -16,6 +16,18 @@ const PASTE_AS_ATTACHMENT_CHARS = 1500;
 // keystroke updates local state immediately; the network save fires once typing pauses).
 const INSTRUCTIONS_SAVE_DEBOUNCE_MS = 800;
 
+// Voice dictation (VA-T8): cap a recording at 7:00 (client-side), and pick the first MediaRecorder
+// mime the browser supports from the §2.11 audio allow-list (Chrome → webm/Opus, Safari → mp4).
+const DICTATION_MAX_MS = 7 * 60 * 1000;
+const DICTATION_MIME_CANDIDATES = ["audio/webm", "audio/mp4", "audio/ogg", "audio/mpeg"];
+function pickAudioMime(): string {
+  const MR: typeof MediaRecorder | undefined = typeof window !== "undefined" ? window.MediaRecorder : undefined;
+  if (MR && typeof MR.isTypeSupported === "function") {
+    for (const m of DICTATION_MIME_CANDIDATES) if (MR.isTypeSupported(m)) return m;
+  }
+  return "audio/webm";
+}
+
 let attCounter = 0;
 function newLocalId() { attCounter += 1; return "att" + Date.now().toString(36) + "_" + attCounter; }
 
@@ -107,6 +119,24 @@ export function useTheoState() {
   const [people, setPeople] = useState<Person[]>([]);
   const memberReq = useRef<Set<string>>(new Set());
   const [memberPending, setMemberPending] = useState<string | null>(null);
+  // Voice I/O (VA-T8). Dictation: MediaRecorder → theo_transcribe_audio → transcript into the draft,
+  // capped at 7:00; recorder/stream/chunks/timers held in refs (no re-render). Read-aloud:
+  // theo_synthesize_speech → an HTMLAudioElement; playReqRef guards a stale async play/synthesis.
+  const voiceAvailable = theoClient.voiceAvailable();
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [playingIdx, setPlayingIdx] = useState<number | null>(null);
+  const [synthesizingIdx, setSynthesizingIdx] = useState<number | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaChunksRef = useRef<Blob[]>([]);
+  const recordTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordCapRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dictationCancelRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const playReqRef = useRef(0);
 
   // Pass B: ingest the inbound app-context anchor (from the Origin shell, in-process) and carry it
   // on the conversation (in-memory). Presentational — no app-data fetch (VA-T3 §2.4).
@@ -525,6 +555,85 @@ export function useTheoState() {
   // Message-queue: cancel the pending queued message (the ✕ on the chip).
   function cancelQueued() { queuedRef.current = null; setQueued(null); }
 
+  // ── Voice dictation (VA-T8) — record → stop → transcribe → transcript into the composer draft ──
+  function cleanupRecorder() {
+    if (recordTickRef.current) { clearInterval(recordTickRef.current); recordTickRef.current = null; }
+    if (recordCapRef.current) { clearTimeout(recordCapRef.current); recordCapRef.current = null; }
+    if (mediaStreamRef.current) { mediaStreamRef.current.getTracks().forEach((tr) => tr.stop()); mediaStreamRef.current = null; }
+    mediaRecorderRef.current = null;
+  }
+  async function startDictation() {
+    if (!voiceAvailable || recording || transcribing) return;
+    let stream: MediaStream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { setError("Microphone access was blocked. Enable it in your browser to dictate."); return; }
+    const mime = pickAudioMime();
+    let rec: MediaRecorder;
+    try { rec = new MediaRecorder(stream, { mimeType: mime }); }
+    catch { try { rec = new MediaRecorder(stream); } catch { stream.getTracks().forEach((tr) => tr.stop()); setError("Voice recording isn't supported in this browser."); return; } }
+    mediaStreamRef.current = stream; mediaRecorderRef.current = rec; mediaChunksRef.current = []; dictationCancelRef.current = false;
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) mediaChunksRef.current.push(e.data); };
+    rec.onstop = () => {
+      const canceled = dictationCancelRef.current;
+      const chunks = mediaChunksRef.current; mediaChunksRef.current = [];
+      const type = (rec.mimeType || mime).split(";")[0];
+      cleanupRecorder();
+      setRecording(false); setRecordingSeconds(0);
+      if (canceled || chunks.length === 0) { setTranscribing(false); return; }
+      const blob = new Blob(chunks, { type });
+      setTranscribing(true);
+      void theoClient.transcribeAudio({ blob, contentType: type })
+        .then(({ text }) => { const t = text.trim(); if (t) setDraft((d) => (d.trim() ? d.replace(/\s*$/, "") + " " + t : t)); })
+        .catch(() => setError("Couldn't transcribe the recording. Please try again."))
+        .finally(() => setTranscribing(false));
+    };
+    rec.start();
+    setError(""); setRecording(true); setRecordingSeconds(0);
+    recordTickRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+    recordCapRef.current = setTimeout(() => { const r = mediaRecorderRef.current; if (r && r.state !== "inactive") r.stop(); }, DICTATION_MAX_MS);
+  }
+  function stopDictation() {
+    const rec = mediaRecorderRef.current;
+    if (rec && rec.state !== "inactive") { dictationCancelRef.current = false; rec.stop(); }
+  }
+  function cancelDictation() {
+    const rec = mediaRecorderRef.current;
+    if (rec && rec.state !== "inactive") { dictationCancelRef.current = true; rec.stop(); }
+    else { cleanupRecorder(); setRecording(false); setRecordingSeconds(0); setTranscribing(false); }
+  }
+
+  // ── Read-aloud (VA-T8) — synthesize a reply → play; playReqRef fences a stale async result ──
+  function stopReadAloud() {
+    playReqRef.current += 1;
+    if (audioRef.current) { try { audioRef.current.pause(); } catch { /* ignore */ } audioRef.current = null; }
+    if (audioUrlRef.current) { URL.revokeObjectURL(audioUrlRef.current); audioUrlRef.current = null; }
+    setPlayingIdx(null); setSynthesizingIdx(null);
+  }
+  async function readAloud(idx: number, text: string) {
+    if (!voiceAvailable) return;
+    if (playingIdx === idx || synthesizingIdx === idx) { stopReadAloud(); return; }  // tap again → stop
+    stopReadAloud();                                                                  // stop any other message's audio
+    const clean = stripArtifactRefs(text).trim();
+    if (!clean) return;
+    const req = ++playReqRef.current;
+    setSynthesizingIdx(idx);
+    try {
+      const { blob } = await theoClient.synthesizeSpeech({ text: clean });
+      if (playReqRef.current !== req) return;                                          // superseded by a newer read/stop
+      const url = URL.createObjectURL(blob);
+      audioUrlRef.current = url;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { if (playReqRef.current === req) { if (audioUrlRef.current) { URL.revokeObjectURL(audioUrlRef.current); audioUrlRef.current = null; } audioRef.current = null; setPlayingIdx(null); } };
+      audio.onerror = () => { if (playReqRef.current === req) { setError("Couldn't play the audio."); stopReadAloud(); } };
+      setSynthesizingIdx((s) => (s === idx ? null : s));
+      setPlayingIdx(idx);
+      await audio.play();
+    } catch {
+      if (playReqRef.current === req) { setError("Couldn't read that reply aloud. Please try again."); setSynthesizingIdx((s) => (s === idx ? null : s)); setPlayingIdx((p) => (p === idx ? null : p)); }
+    }
+  }
+
   // Message-queue: when the current turn ends (loading → false) and a message is still queued, auto-send
   // it. A hard failure clears the queue in send()'s catch, so this fires only after a normal completion
   // or a user Stop. The fresh send() (this render's closure, loading=false) sends rather than re-queues.
@@ -751,6 +860,8 @@ export function useTheoState() {
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
     reviewMode: hasReviewContext(appContext), // Sigma review context armed → review-assistant landing/chip
     sigmaMode: appContext.app_key === "sigma", // #5 v2: in Sigma (with or without a review) → review persona/landing
+    // Voice I/O (VA-T8)
+    voiceAvailable, recording, transcribing, recordingSeconds, playingIdx, synthesizingIdx,
 
 
     // setters / handlers
@@ -764,5 +875,7 @@ export function useTheoState() {
     selectVersion: (v: number) => setOpenArt(openArt ? { id: openArt.id, v } : null),
     openArtifact: (id: string) => setOpenArt({ id, v: -1 }), openGalleryArtifact, closeArt: () => setOpenArt(null),
     greeting: greeting(selfName), loadPeople,
+    // Voice I/O (VA-T8)
+    startDictation, stopDictation, cancelDictation, readAloud, stopReadAloud,
   };
 }

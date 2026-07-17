@@ -73,6 +73,63 @@ async function authHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
+// ── Voice I/O (VA-T8 / API §2.11) — dictation + read-aloud through the deployed func-chat handlers
+// (theo_transcribe_audio / theo_synthesize_speech), reached via `apiBase` + `authHeaders()` exactly
+// like the other theo_* calls (theo_create_attachment_upload, also func-chat-hosted). No mock: voice
+// requires a live backend (the composer gates the controls on `voiceAvailable()` = isLive()). Bytes
+// travel base64 in/out of the JSON envelope; nothing is persisted in the browser (media APIs only). ──
+export function voiceAvailable(): boolean {
+  return isLive();
+}
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const s = String(reader.result || "");
+      const comma = s.indexOf(",");                 // strip the "data:<type>;base64," prefix
+      resolve(comma >= 0 ? s.slice(comma + 1) : s);
+    };
+    reader.onerror = () => reject(new Error("Failed to read the audio recording."));
+    reader.readAsDataURL(blob);
+  });
+}
+function base64ToBlob(b64: string, contentType: string): Blob {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: contentType });
+}
+export async function transcribeAudio(input: { blob: Blob; contentType: string }): Promise<{ text: string }> {
+  const headers = await authHeaders();
+  const audio_base64 = await blobToBase64(input.blob);
+  const res = await fetch(`${apiBase}/api/theo_transcribe_audio`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ audio_base64, content_type: input.contentType }),
+  });
+  let json: { data?: { text?: string }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Transcription returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Transcription error (HTTP ${res.status}).`);
+  return { text: typeof json?.data?.text === "string" ? json.data.text : "" };
+}
+export async function synthesizeSpeech(input: { text: string; voice?: string }): Promise<{ blob: Blob; contentType: string }> {
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_synthesize_speech`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ text: input.text, ...(input.voice ? { voice: input.voice } : {}) }),
+  });
+  let json: { data?: { audio_base64?: string; content_type?: string }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Speech synthesis returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Speech synthesis error (HTTP ${res.status}).`);
+  const b64 = json?.data?.audio_base64;
+  if (!b64) throw new Error("Speech synthesis returned no audio.");
+  const contentType = json?.data?.content_type || "audio/mpeg";
+  return { blob: base64ToBlob(b64, contentType), contentType };
+}
+
 export async function sendMessage(req: GatewayRequest, opts?: { signal?: AbortSignal }): Promise<GatewayResponse> {
   // No live backend wired (standalone dev harness) → preserve the 1A mock behavior unchanged.
   if (!apiBase && !tokenProvider) {

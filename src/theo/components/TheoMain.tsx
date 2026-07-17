@@ -75,6 +75,9 @@ export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
               reviewMode={t.reviewMode}
               sigmaMode={t.sigmaMode}
               reviewFund={typeof t.appContext.app_context?.fund_name === "string" ? (t.appContext.app_context.fund_name as string) : undefined}
+              voiceAvailable={t.voiceAvailable} recording={t.recording} transcribing={t.transcribing} recordingSeconds={t.recordingSeconds}
+              onStartDictation={t.startDictation} onStopDictation={t.stopDictation} onCancelDictation={t.cancelDictation}
+              playingIdx={t.playingIdx} synthesizingIdx={t.synthesizingIdx} onReadAloud={t.readAloud} onStopReadAloud={t.stopReadAloud}
             />
           )}
           {t.view === "projects" && (

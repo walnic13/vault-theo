@@ -31,6 +31,7 @@ import {
   setProjectVisibility as gatewaySetProjectVisibility,
   shareProject as gatewayShareProject, unshareProject as gatewayUnshareProject,
   listProjectMembers as gatewayListProjectMembers, listPeople as gatewayListPeople,
+  voiceAvailable as gatewayVoiceAvailable, transcribeAudio as gatewayTranscribeAudio, synthesizeSpeech as gatewaySynthesizeSpeech,
   type StreamHandlers,
 } from "./gateway.live";
 
@@ -73,6 +74,16 @@ export const theoClient = {
     return gatewayFinalize(up.attachmentId, input.name);
   },
   deleteAttachment(id: string): Promise<void> { return gatewayDeleteAttachment(id); },
+
+  // ── Voice I/O (VA-T8 / API §2.11) — dictation (transcribe an audio clip → text) + read-aloud
+  // (synthesize reply text → audio). Live-only (no mock); the composer gates on voiceAvailable(). ──
+  voiceAvailable(): boolean { return gatewayVoiceAvailable(); },
+  transcribeAudio(input: { blob: Blob; contentType: string }): Promise<{ text: string }> {
+    return gatewayTranscribeAudio(input);
+  },
+  synthesizeSpeech(input: { text: string; voice?: string }): Promise<{ blob: Blob; contentType: string }> {
+    return gatewaySynthesizeSpeech(input);
+  },
 
   // ── Conversation history (Recents + reload; theo_list/get_conversation in 1B) ──
   listConversations(limit?: number): Promise<ConversationSummary[]> {

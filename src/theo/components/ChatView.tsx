@@ -6,7 +6,7 @@
 // assistant reply gains a read-aloud control (idle "Read aloud" / playing equalizer). Backends:
 // theo_transcribe_audio + theo_synthesize_speech (API §2.11). Inline-style, no browser storage.
 import { useEffect, useRef, useState } from "react";
-import type { ChangeEvent, ClipboardEvent, ReactNode } from "react";
+import type { ChangeEvent, ClipboardEvent, DragEvent, ReactNode } from "react";
 import { C, SANS, SERIF } from "../theme";
 import { Burst, IcMic, IcSpeaker } from "./icons";
 import { CitedText } from "./CitedText";
@@ -281,8 +281,46 @@ export function ChatView(props: ChatViewProps) {
     e.target.value = "";   // allow re-picking the same file
   }
 
+  // Drag-and-drop attaching (Akshay #3): dropping files anywhere on the chat panel routes into the
+  // SAME upload path as the paperclip (onAddFiles → useTheoState.addFiles). A transient overlay shows
+  // only while a file drag is over the panel. `dragDepth` counts enter/leave so moving the cursor over
+  // child elements doesn't flicker the state. Gated on attachmentsAvailable; drags without a "Files"
+  // type (e.g. selected text) are ignored, so paste/text behaviour is untouched.
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
+  const dragHasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
+  function onDragEnter(e: DragEvent) {
+    if (!attachmentsAvailable || !dragHasFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragging(true);
+  }
+  function onDragOver(e: DragEvent) {
+    if (!attachmentsAvailable || !dragHasFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }
+  function onDragLeave(e: DragEvent) {
+    if (!dragHasFiles(e)) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragging(false);
+  }
+  function onDrop(e: DragEvent) {
+    if (!attachmentsAvailable || !dragHasFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length) onAddFiles(e.dataTransfer.files);
+  }
+
   return (
-    <>
+    <div
+      style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
       <style>{VOICE_KEYFRAMES}</style>
       <div ref={scroller} className="vo-scroll" style={{ flex: 1, overflowY: "auto" }}>
         {messages.length === 0 ? (
@@ -392,6 +430,21 @@ export function ChatView(props: ChatViewProps) {
           <div style={{ textAlign: "center", fontSize: 11.5, color: C.ink3, marginTop: 9 }}>{assistantName} can make mistakes. Verify tax conclusions before relying on them.</div>
         </div>
       </div>
-    </>
+
+      {/* Akshay #3: transient drop-zone overlay — visible only while a file drag is over the panel.
+          pointerEvents:none so the drag/drop lands on the wrapper's handlers, not the overlay.
+          Inline-style / C palette (VA-T1 idiom); no animation (reduced-motion safe). */}
+      {dragging && (
+        <div
+          aria-hidden
+          style={{ position: "absolute", inset: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(217,119,87,0.06)", border: `2px dashed ${C.coral}`, borderRadius: 12, pointerEvents: "none" }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", border: `1px solid ${C.coral}`, borderRadius: 12, padding: "14px 20px", boxShadow: "0 4px 20px rgba(40,38,31,0.10)", color: C.ink }}>
+            <Paperclip size={18} />
+            <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 600 }}>Drop files to attach</span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,0 +1,9 @@
+{
+  "name": "vaultgpt-func-theo-tools",
+  "version": "1.0.0",
+  "description": "Vault Theo model-callable tools (dedicated Function App). First tool: theo_export_spreadsheet.",
+  "private": true,
+  "dependencies": {
+    "xlsx-js-style": "^1.2.0"
+  }
+}

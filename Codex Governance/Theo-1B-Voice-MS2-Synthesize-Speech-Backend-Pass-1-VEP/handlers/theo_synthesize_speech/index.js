@@ -89,7 +89,37 @@ function xmlEscape(s) {
     .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
-// ---- Raw https helper — BINARY variant of the theo_transcribe_audio `requestUrl`: collects
+// ---- Raw https helper (verbatim from the theo_transcribe_audio Primary Reference):
+// writes an optional request body (string OR Buffer) and buffers the response text.
+function requestUrl(urlStr, options = {}, body = null) {
+  return new Promise((resolve, reject) => {
+    const http = require("http");
+    const https = require("https");
+    const url = new URL(urlStr);
+    const lib = url.protocol === "http:" ? http : https;
+    const req = lib.request(
+      {
+        method: options.method || "GET",
+        hostname: url.hostname,
+        port: url.port ? Number(url.port) : undefined,
+        path: url.pathname + url.search,
+        headers: options.headers || {},
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => { data += chunk; });
+        res.on("end", () => {
+          resolve({ statusCode: res.statusCode || 0, headers: res.headers || {}, body: data });
+        });
+      }
+    );
+    req.on("error", reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+// ---- Raw https helper — BINARY variant of the Primary Reference `requestUrl`: collects
 // the response as a Buffer (audio bytes) instead of a utf8 string; writes an optional body.
 function requestUrlBinary(urlStr, options = {}, body = null) {
   return new Promise((resolve, reject) => {
@@ -130,17 +160,7 @@ async function getManagedIdentityAccessToken(resource) {
     );
   }
   const tokenUrl = `${identityEndpoint}?resource=${encodeURIComponent(resource)}&api-version=2019-08-01`;
-  // token response is small JSON — use a text collector inline (mirrors the sibling's requestUrl).
-  const r = await new Promise((resolve, reject) => {
-    const https = require("https");
-    const url = new URL(tokenUrl);
-    const rq = https.request(
-      { method: "GET", hostname: url.hostname, port: url.port ? Number(url.port) : undefined, path: url.pathname + url.search, headers: { "X-IDENTITY-HEADER": identityHeader } },
-      (res) => { let data = ""; res.on("data", (c) => { data += c; }); res.on("end", () => resolve({ statusCode: res.statusCode || 0, body: data })); }
-    );
-    rq.on("error", reject);
-    rq.end();
-  });
+  const r = await requestUrl(tokenUrl, { method: "GET", headers: { "X-IDENTITY-HEADER": identityHeader } });
   if (r.statusCode < 200 || r.statusCode >= 300) {
     throw new Error(`Managed Identity token endpoint failed (${r.statusCode}): ${r.body}`);
   }

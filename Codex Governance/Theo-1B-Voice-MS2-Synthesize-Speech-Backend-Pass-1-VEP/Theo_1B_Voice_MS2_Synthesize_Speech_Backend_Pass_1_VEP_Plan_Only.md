@@ -86,7 +86,7 @@ Vocabulary is closed (`PROCEED` / `PRE-LAND` / `ESCALATE` / `NO-GAPS`) per Gover
 
 | # | Gap | Pivot | Note |
 | - | --- | ----- | ---- |
-| G-NEWEXTERNAL | The outbound Azure AI Speech TTS call is a **new external system** (Golden Handler §4 / T12) — no deployed handler contains an EXACT mirror. | **PROCEED** | Resolved by the LANDED Walter authorization recorded as **DR-T8** (Orchestration §1B, Codex-APPROVED `f466ffd`, predating this VEP) + quoted verbatim in `WALTER_AUTHORIZATION_HF-T6-TTS.md`. The MI-token acquisition is an **EXACT** verbatim reuse of the deployed `getManagedIdentityAccessToken` (Primary Reference `theo_transcribe_audio`); the Speech endpoint/SSML/`aad#` auth are the delta under DR-T8. The synthesis call + `aad#` auth + SSML + output-format were **live-probed this turn** (HTTP 200, 24 KB MP3, `fff3` frame header) to de-risk before authoring. |
+| G-NEWEXTERNAL | The outbound Azure AI Speech TTS call is a **new external system** (Golden Handler §4 / T12) — no deployed handler contains an EXACT mirror. | **PROCEED** | Resolved by the LANDED Walter authorization recorded as **DR-T8** (Orchestration §1B, Codex-APPROVED `f466ffd`, predating this VEP) + quoted verbatim in `WALTER_AUTHORIZATION_HF-T6-TTS.md`. The MI-token acquisition is an **EXACT byte-identical** reuse of the deployed `getManagedIdentityAccessToken` AND its `requestUrl` helper (Primary Reference `theo_transcribe_audio`; confirmed by `diff` this turn — both zero-diff). The only helper delta is `requestUrlBinary` (a Buffer-response variant of `requestUrl`, required for audio bytes), classified ALLOWED DELTA; the Speech endpoint/SSML/`aad#` auth are the external-system delta under DR-T8. The synthesis call + `aad#` auth + SSML + output-format were **live-probed this turn** (HTTP 200, 24 KB MP3, `fff3` frame header) to de-risk before authoring. |
 | G-PROVISION | The three `vaultgpt-func-chat` app settings (`THEO_TTS_ENDPOINT`, `THEO_TTS_RESOURCE_ID`, `THEO_TTS_DEFAULT_VOICE`) are not set yet. | **PRE-LAND** | Set by Claude Code **only after** Codex APPROVAL, at Pass 3, before the happy-path curl: `THEO_TTS_ENDPOINT=https://switzerlandnorth.tts.speech.microsoft.com`, `THEO_TTS_RESOURCE_ID=/subscriptions/3023d124-e577-4e16-a89d-de6d60c279ef/resourceGroups/vault-tax/providers/Microsoft.CognitiveServices/accounts/wmans-mqxwlcdp-switzerlandnorth`, `THEO_TTS_DEFAULT_VOICE=en-US-AvaMultilingualNeural`. **No new MI role and no model deployment** — the func-chat MI (`5a0cf3c6-07c9-4412-aa50-e39987ae3bfb`) already holds `Cognitive Services User` on that resource (granted for Voice-MS1), which covers Speech data-plane; Azure AI Speech is a service on the resource (nothing to deploy). |
 | G-VOICE-SELECTION | Walter asked whether to offer a voice selection; directed "simple and high quality to start." | **PROCEED** | v1 = one premium default (`en-US-AvaMultilingualNeural`), no FE picker. The handler accepts an optional `voice` validated against a curated allow-list (`en-US` Ava/Andrew/Emma Multilingual, `en-US` Jenny, `en-GB` Sonia/Ryan — all confirmed in the region catalog this turn), so a picker is later a FE-only change; the backend needs no re-approval to light it up. |
 | G-TRANSPORT | Response returns the full audio inline as base64 (buffered), not a stream. | PROCEED | Deliberate for v1 — a Theo message is bounded (`THEO_TTS_MAX_CHARS`, default 8000), so buffered base64 is simple and adequate; the FE plays it directly. Streaming synthesis (chunked) is a noted future option, not required for v1. |
@@ -412,11 +412,12 @@ module.exports = async function (context, req) {
 | Handler region (`theo_synthesize_speech`) | Primary Reference region | Classification | Basis / Rule Anchor |
 | ------------------------------------------ | ------------------------ | -------------- | ------------------- |
 | `require("crypto")`, `corsHeaders`, `send`, `nowIso`, `errorBody`, `successBody`, `getPrincipal`, `getClaimValue`, `parseBody` | same | EXACT | verbatim byte-identical |
-| `getManagedIdentityAccessToken(resource)` | same | EXACT (behavioural) | keyless MI token; called with `"https://cognitiveservices.azure.com/"`. (Token collector inlined as `https.request` rather than the sibling's `requestUrl`, because `requestUrl` is not reused here — the binary variant is; functionally identical text-collect) |
+| `requestUrl(urlStr, options, body)` (string response collector) | same | EXACT | verbatim byte-identical (confirmed by `diff` this turn); reused by `getManagedIdentityAccessToken` for the token call |
+| `getManagedIdentityAccessToken(resource)` | same | EXACT | verbatim byte-identical (confirmed by `diff` this turn); calls `requestUrl` exactly as the sibling does, with `"https://cognitiveservices.azure.com/"` (resource string = a config value, not a structural change) |
 | Config constants (`TTS_ENDPOINT`/`TTS_RESOURCE_ID`/`DEFAULT_VOICE`/`OUTPUT_FORMAT`/`MAX_CHARS`/`ALLOWED_VOICES`) | `AOAI_AUDIO_ENDPOINT`/`WHISPER_DEPLOYMENT`/`MAX_AUDIO_BYTES`/`AUDIO_CONTENT_TYPES` | ALLOWED DELTA | Golden Handler §4 "endpoint names; the specific validated field set" |
 | Handler shell: OPTIONS→204, OID→401, `parseBody`→400, validate→400, `try/catch`→500 | same shell | EXACT (structure) | mirror of the Primary Reference control flow; validated field set (`text`/`voice` + char cap) is the ALLOWED DELTA |
 | `xmlEscape(s)` | (not in this reference; present verbatim in the deployed sibling `theo_create_attachment_upload`) | ALLOWED DELTA (standard helper) | Golden Handler §4; standard XML escaper for SSML injection-safety, byte-identical to the deployed `theo_create_attachment_upload` copy |
-| `requestUrlBinary(...)` (Buffer response collector) | `requestUrl(...)` (string response collector) | ALLOWED DELTA | Golden Handler §4; binary-response variant required because the TTS response is audio bytes (mirrors the sibling's request shape; only the response accumulation differs — `Buffer.concat(chunks)` vs `data += chunk`) |
+| `requestUrlBinary(...)` (Buffer response collector) | `requestUrl(...)` (string response collector) | ALLOWED DELTA | Golden Handler §4; binary-response variant required because the TTS response is audio bytes — added ALONGSIDE the byte-verbatim `requestUrl` (which stays for the token call); only the response accumulation differs (`Buffer.concat(chunks)` vs `data += chunk`), request shape identical |
 | Outbound Azure AI Speech POST (SSML body, `aad#{resourceId}#{token}` auth, `X-Microsoft-OutputFormat`, `User-Agent`) | Outbound Whisper POST (multipart, bearer) | ALLOWED DELTA (new external system) | Golden Handler §4; DR-T8 + `WALTER_AUTHORIZATION_HF-T6-TTS.md`; live-probed 200 this turn |
 | Response `200 successBody({ audio_base64, content_type, voice })` | `200 successBody({ text })` | ALLOWED DELTA | Golden Handler §4 "the contract's response shape" (API Spec §2.11) |
 | `function.json` (anonymous httpTrigger, `post`+`options`, `route: theo_synthesize_speech`, http out) | same shape, `route: theo_transcribe_audio` | ALLOWED DELTA | Golden Handler §4 "endpoint names"; EasyAuth upstream unchanged |
@@ -519,7 +520,37 @@ function xmlEscape(s) {
     .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
-// ---- Raw https helper — BINARY variant of the theo_transcribe_audio `requestUrl`: collects
+// ---- Raw https helper (verbatim from the theo_transcribe_audio Primary Reference):
+// writes an optional request body (string OR Buffer) and buffers the response text.
+function requestUrl(urlStr, options = {}, body = null) {
+  return new Promise((resolve, reject) => {
+    const http = require("http");
+    const https = require("https");
+    const url = new URL(urlStr);
+    const lib = url.protocol === "http:" ? http : https;
+    const req = lib.request(
+      {
+        method: options.method || "GET",
+        hostname: url.hostname,
+        port: url.port ? Number(url.port) : undefined,
+        path: url.pathname + url.search,
+        headers: options.headers || {},
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => { data += chunk; });
+        res.on("end", () => {
+          resolve({ statusCode: res.statusCode || 0, headers: res.headers || {}, body: data });
+        });
+      }
+    );
+    req.on("error", reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+// ---- Raw https helper — BINARY variant of the Primary Reference `requestUrl`: collects
 // the response as a Buffer (audio bytes) instead of a utf8 string; writes an optional body.
 function requestUrlBinary(urlStr, options = {}, body = null) {
   return new Promise((resolve, reject) => {
@@ -560,17 +591,7 @@ async function getManagedIdentityAccessToken(resource) {
     );
   }
   const tokenUrl = `${identityEndpoint}?resource=${encodeURIComponent(resource)}&api-version=2019-08-01`;
-  // token response is small JSON — use a text collector inline (mirrors the sibling's requestUrl).
-  const r = await new Promise((resolve, reject) => {
-    const https = require("https");
-    const url = new URL(tokenUrl);
-    const rq = https.request(
-      { method: "GET", hostname: url.hostname, port: url.port ? Number(url.port) : undefined, path: url.pathname + url.search, headers: { "X-IDENTITY-HEADER": identityHeader } },
-      (res) => { let data = ""; res.on("data", (c) => { data += c; }); res.on("end", () => resolve({ statusCode: res.statusCode || 0, body: data })); }
-    );
-    rq.on("error", reject);
-    rq.end();
-  });
+  const r = await requestUrl(tokenUrl, { method: "GET", headers: { "X-IDENTITY-HEADER": identityHeader } });
   if (r.statusCode < 200 || r.statusCode >= 300) {
     throw new Error(`Managed Identity token endpoint failed (${r.statusCode}): ${r.body}`);
   }

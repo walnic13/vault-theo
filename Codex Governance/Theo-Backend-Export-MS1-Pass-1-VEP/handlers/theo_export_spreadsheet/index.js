@@ -301,38 +301,76 @@ function buildWorkbookBuffer(sheets) {
   return XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 }
 
-function validateSheets(sheets) {
-  if (!Array.isArray(sheets) || sheets.length < 1 || sheets.length > MAX_SHEETS) {
-    return `Field 'sheets' must be a non-empty array of at most ${MAX_SHEETS} sheets.`;
+// Contract-defined object shapes (API Spec §2.12). Rows are an open `{ <key>: value }` map,
+// but every row key MUST correspond to a declared column key — unknown keys are rejected so
+// data is never silently dropped (Golden Handler §3.3 "rejects unknown/extra fields").
+const ALLOWED_BODY_KEYS = new Set(["filename", "sheets", "meta"]);
+const ALLOWED_SHEET_KEYS = new Set(["name", "columns", "rows"]);
+const ALLOWED_COLUMN_KEYS = new Set(["key", "header", "type"]);
+
+// Typed contract errors (API Spec §2.12): shape violations → 400 INVALID_REQUEST;
+// cap violations → 400 PAYLOAD_TOO_LARGE.
+function invalidRequest(message) { return { code: "INVALID_REQUEST", status: 400, message }; }
+function payloadTooLarge(message) { return { code: "PAYLOAD_TOO_LARGE", status: 400, message }; }
+
+function firstUnknownKey(obj, allowed) {
+  for (const k of Object.keys(obj)) if (!allowed.has(k)) return k;
+  return null;
+}
+
+// Returns a typed contract error {code,status,message} or null when the request is well-formed.
+function validateExportRequest(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return invalidRequest("Request body must be a JSON object.");
+  }
+  const badTop = firstUnknownKey(body, ALLOWED_BODY_KEYS);
+  if (badTop) return invalidRequest(`Unknown field '${badTop}'. Allowed: filename, sheets, meta.`);
+
+  const sheets = body.sheets;
+  if (!Array.isArray(sheets) || sheets.length < 1) {
+    return invalidRequest("Field 'sheets' must be a non-empty array.");
+  }
+  if (sheets.length > MAX_SHEETS) {
+    return payloadTooLarge(`Field 'sheets' exceeds the ${MAX_SHEETS}-sheet limit.`);
   }
   let totalCells = 0;
   for (const sheet of sheets) {
-    if (!sheet || typeof sheet !== "object") return "Each sheet must be an object.";
+    if (!sheet || typeof sheet !== "object" || Array.isArray(sheet)) return invalidRequest("Each sheet must be an object.");
+    const badSheet = firstUnknownKey(sheet, ALLOWED_SHEET_KEYS);
+    if (badSheet) return invalidRequest(`Unknown sheet field '${badSheet}'. Allowed: name, columns, rows.`);
     const columns = sheet.columns;
-    if (!Array.isArray(columns) || columns.length < 1 || columns.length > MAX_COLS) {
-      return `Each sheet needs a 'columns' array of 1..${MAX_COLS} column definitions.`;
+    if (!Array.isArray(columns) || columns.length < 1) {
+      return invalidRequest("Each sheet needs a non-empty 'columns' array.");
     }
+    if (columns.length > MAX_COLS) {
+      return payloadTooLarge(`A sheet exceeds the ${MAX_COLS}-column limit.`);
+    }
+    const colKeys = new Set();
     for (const c of columns) {
-      if (!c || typeof c !== "object" || typeof c.key !== "string" || !c.key.trim()) {
-        return "Each column needs a non-empty string 'key'.";
-      }
+      if (!c || typeof c !== "object" || Array.isArray(c)) return invalidRequest("Each column must be an object.");
+      const badCol = firstUnknownKey(c, ALLOWED_COLUMN_KEYS);
+      if (badCol) return invalidRequest(`Unknown column field '${badCol}'. Allowed: key, header, type.`);
+      if (typeof c.key !== "string" || !c.key.trim()) return invalidRequest("Each column needs a non-empty string 'key'.");
       if (c.type !== undefined && !["text", "number", "date"].includes(c.type)) {
-        return "Column 'type' must be one of 'text' | 'number' | 'date'.";
+        return invalidRequest("Column 'type' must be one of 'text' | 'number' | 'date'.");
       }
+      colKeys.add(c.key);
     }
     const rows = sheet.rows;
-    if (rows !== undefined && !Array.isArray(rows)) return "Sheet 'rows' must be an array.";
+    if (rows !== undefined && !Array.isArray(rows)) return invalidRequest("Sheet 'rows' must be an array.");
     const rowCount = Array.isArray(rows) ? rows.length : 0;
-    if (rowCount > MAX_ROWS) return `A sheet may have at most ${MAX_ROWS} rows.`;
+    if (rowCount > MAX_ROWS) return payloadTooLarge(`A sheet exceeds the ${MAX_ROWS}-row limit.`);
     totalCells += (rowCount + 1) * columns.length;
-    if (totalCells > MAX_TOTAL_CELLS) return `Workbook exceeds the ${MAX_TOTAL_CELLS}-cell limit.`;
+    if (totalCells > MAX_TOTAL_CELLS) return payloadTooLarge(`Workbook exceeds the ${MAX_TOTAL_CELLS}-cell limit.`);
     for (const r of Array.isArray(rows) ? rows : []) {
-      if (r && typeof r === "object") {
-        for (const c of columns) {
-          const v = r[c.key];
-          if (typeof v === "string" && v.length > MAX_CELL_CHARS) {
-            return `A cell exceeds the ${MAX_CELL_CHARS}-character limit.`;
-          }
+      if (r === null || typeof r !== "object" || Array.isArray(r)) return invalidRequest("Each row must be an object.");
+      for (const rk of Object.keys(r)) {
+        if (!colKeys.has(rk)) return invalidRequest(`Row contains unknown field '${rk}' not declared in columns.`);
+      }
+      for (const c of columns) {
+        const v = r[c.key];
+        if (typeof v === "string" && v.length > MAX_CELL_CHARS) {
+          return payloadTooLarge(`A cell exceeds the ${MAX_CELL_CHARS}-character limit.`);
         }
       }
     }
@@ -362,21 +400,32 @@ module.exports = async function (context, req) {
     return send(context, 400, errorBody("BAD_REQUEST", "Request body is not valid JSON.", 400));
   }
 
-  const invalid = validateSheets(body.sheets);
-  if (invalid) {
-    return send(context, 400, errorBody("INVALID_REQUEST", invalid, 400));
+  const problem = validateExportRequest(body);
+  if (problem) {
+    return send(context, problem.status, errorBody(problem.code, problem.message, problem.status));
   }
 
   // Friendly download filename (defaults; always ends .xlsx).
   let filename = cleanFileName(body.filename) || "Theo Export.xlsx";
   if (!/\.xlsx$/i.test(filename)) filename = `${filename}.xlsx`;
 
+  // Phase 1 — in-process workbook build (SheetJS, no network). Failures here are the
+  // handler's own fault → 500 INTERNAL_SERVER_ERROR.
+  let buffer;
   try {
-    const buffer = buildWorkbookBuffer(body.sheets);
-    if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
-      return send(context, 500, errorBody("INTERNAL_SERVER_ERROR", "Workbook generation produced no output.", 500));
-    }
+    buffer = buildWorkbookBuffer(body.sheets);
+  } catch (err) {
+    context.log.error("theo_export_spreadsheet workbook build failed:", err && err.message);
+    return send(context, 500, errorBody("INTERNAL_SERVER_ERROR", "Failed to generate the spreadsheet.", 500));
+  }
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    return send(context, 500, errorBody("INTERNAL_SERVER_ERROR", "Workbook generation produced no output.", 500));
+  }
 
+  // Phase 2 — upstream: managed-identity SAS issuance + Blob upload. Failures here are
+  // upstream (Entra MI / Azure Storage) → 502 UPSTREAM_ERROR (API Spec §2.12). No upstream
+  // URL/body is surfaced in the response or log (Golden Handler §3.4).
+  try {
     // Owner-scoped, deterministic blob path: exports/<oid>/<exportId>.xlsx.
     const exportId = crypto.randomUUID();
     const blobKey = `exports/${oid}/${exportId}.xlsx`;
@@ -390,7 +439,7 @@ module.exports = async function (context, req) {
       buffer
     );
     if (putRes.statusCode < 200 || putRes.statusCode >= 300) {
-      throw new Error(`Blob PUT failed (${putRes.statusCode}): ${putRes.body}`);
+      throw new Error(`Blob PUT failed (${putRes.statusCode})`);
     }
 
     // 2) Short-lived read SAS with a Content-Disposition filename → the download URL.
@@ -406,7 +455,7 @@ module.exports = async function (context, req) {
       expiresAt: readSas.expiresAt,
     }));
   } catch (err) {
-    context.log.error("theo_export_spreadsheet failed", err);
-    return send(context, 500, errorBody("INTERNAL_SERVER_ERROR", "An unexpected error occurred generating the spreadsheet.", 500));
+    context.log.error("theo_export_spreadsheet upstream (blob/MI) failed:", err && err.message);
+    return send(context, 502, errorBody("UPSTREAM_ERROR", "Failed to store or issue a link for the spreadsheet.", 502));
   }
 };

@@ -9,7 +9,7 @@ Turn Type: Verified Evidence Pack (backend plan)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5
-Turn issued against HEAD: vault-theo `b8e1aacabc39b2c4050775f3277d74b1cd4b3d39` (the commit that contains this package; grounding reads against parent `7f8e6eda2c7e61d42130b0ba508f02ce594dc6db`; cited-doc blob SHAs below are HEAD-stable across that parent→child commit).
+Turn issued against HEAD: vault-theo `__PKG_COMMIT__` (the commit that contains this package; grounding reads against parent `7f8e6eda2c7e61d42130b0ba508f02ce594dc6db`; cited-doc blob SHAs below are HEAD-stable across that parent→child commit).
 Currency-anchor form: git blob SHA at HEAD (Conformance §8 fallback). Absolute paths in the Rule Anchor Table.
 
 ## Rule Anchor Table
@@ -51,6 +51,8 @@ Primary Reference = deployed `theo_create_attachment_upload` (SAS/MI blob broker
 
 | Region (theo_export_spreadsheet) | vs Primary Reference | Classification | Anchor |
 |---|---|---|---|
+| Error contract: 401 `UNAUTHORIZED`, 400 `INVALID_REQUEST` (shape/unknown-field), 400 `PAYLOAD_TOO_LARGE` (row/cell/sheet/col caps), 502 `UPSTREAM_ERROR` (MI/Blob), 500 (build) | maps status+code to API Spec §2.12 | **contract-locked** — `validateExportRequest` returns typed `{code,status}`; upstream failures caught in a dedicated Phase-2 try → 502; build failures → 500 | API Spec §2.12 + Golden Handler §3.3 |
+| Unknown/extra-field rejection at body/sheet/column levels (rows keyed only by declared column keys) | new (spec posture) | **contract-locked** — `firstUnknownKey` against `ALLOWED_{BODY,SHEET,COLUMN}_KEYS` | Golden Handler §3.3 ("rejects unknown/extra fields") |
 | Family-B block: `send`/`nowIso`/`errorBody`/`successBody`/`getPrincipal`/`getClaimValue`/`parseBody`/`cleanFileName` | byte-identical | **EXACT** | Golden Handler §4 (helper block EXACT) |
 | SAS/MI block: `requestUrl`/`getManagedIdentityAccessToken`/`xmlEscape`/`encodeBlobPath`/`decodeXmlTag`/`toIsoNoMillis`/`getUserDelegationKey` | byte-identical | **EXACT** | primary-ref anchor |
 | `computeUserDelegationSignature` / `buildUserDelegationSas` | identical EXCEPT the canonical `rscd` (Content-Disposition) field is **populated** for the read SAS (a friendly download filename), where the primary ref left it empty; adds a `contentDisposition` param + `rscd` query param | **ALLOWED DELTA** (existing canonical SAS field populated — no field added/reordered) | handler delta anchor |
@@ -65,7 +67,9 @@ No DEVIATION rows.
 Auth: `TOKEN=$(az account get-access-token --resource api://4e1a1e31-5c20-4480-99e4-098901707d9e --query accessToken -o tsv)` (as `wmansfield@vault-tax.com`).
 1. **OPTIONS** `theo_export_spreadsheet` → `204` (or EasyAuth 401 on a bare preflight — documented).
 2. **Unauth** POST (no bearer) → `401`.
-3. **Bad input** POST `{}` (no `sheets`) with bearer → `400 INVALID_REQUEST`.
+3. **Bad shape** POST `{}` (no `sheets`) with bearer → `400 INVALID_REQUEST`.
+3b. **Unknown field** POST `{ sheets:[…valid…], bogus:1 }` with bearer → `400 INVALID_REQUEST` (`Unknown field 'bogus'`). Also a row with a key not in `columns` → `400 INVALID_REQUEST`.
+3c. **Cap** POST a payload with 21 sheets (or a cell > 5000 chars) → `400 PAYLOAD_TOO_LARGE`. (502 `UPSTREAM_ERROR` is the MI/Blob failure code per §2.12 — not deterministically triggerable from a well-formed request; verified by code-path review + the Phase-2 try boundary.)
 4. **Happy** POST with bearer, body `{ filename:"K-1 Export", sheets:[{ name:"Schedule K-1", columns:[{key:"box",header:"Box",type:"text"},{key:"desc",header:"Description",type:"text"},{key:"amt",header:"Amount",type:"number"}], rows:[{box:"1",desc:"Ordinary business income",amt:12345.67},{box:"2",desc:"Net rental real estate",amt:-987}] }] }` → **200** `{ downloadUrl, filename:"K-1 Export.xlsx", contentType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", byteSize>0, expiresAt }`. Then **GET the `downloadUrl`** → `200`, `Content-Type` xlsx, non-empty body; assert the bytes are a valid `.xlsx` (PK zip signature `50 4B`), and (parse) that `amt` cells are **numeric** (not text) and the header row is bold — proving typed/styled output + the `xlsx-js-style` lib loaded.
 
 ## §6 Deploy (Pass-3, on APPROVAL) — classic-v4 Kudu VFS to `vaultgpt-func-theo-tools` (DR-T7/DR-T10; Golden Handler §5.5)

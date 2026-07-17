@@ -4,13 +4,10 @@ const crypto = require("crypto");
 // Accepts response text and returns synthesized audio from in-tenant Azure AI Speech
 // neural voices, brokered with the Function's managed identity (keyless). No text/audio
 // leaves the tenant; no credential/endpoint reaches the browser. STATELESS — no theo_* table.
-// Mirrors the deployed HF-T6 sibling theo_transcribe_audio (func-chat) helper set + MI-token
-// pattern; the outbound Azure AI Speech call is the DR-T8 / API-Spec §2.11 authorized delta.
-//
-// v1 ships ONE premium default voice (no FE picker); the optional `voice` override is
-// validated against a curated allow-list so a voice picker is later a FE-only change.
-const TTS_ENDPOINT = process.env.THEO_TTS_ENDPOINT;         // e.g. https://switzerlandnorth.tts.speech.microsoft.com
-const TTS_RESOURCE_ID = process.env.THEO_TTS_RESOURCE_ID;   // ARM resource id for the Speech AAD `aad#{id}#{token}` header
+// Mirrors the deployed HF-T6 sibling theo_transcribe_audio (func-chat): SAME custom-subdomain
+// cognitive endpoint + SAME plain `Authorization: Bearer <MI token>` auth (the sibling's Whisper
+// call). The Speech synthesis endpoint/SSML body is the DR-T8 / API-Spec §2.11 authorized delta.
+const TTS_ENDPOINT = process.env.THEO_TTS_ENDPOINT; // custom subdomain, e.g. https://<resource>.cognitiveservices.azure.com
 const DEFAULT_VOICE = process.env.THEO_TTS_DEFAULT_VOICE || "en-US-AvaMultilingualNeural";
 const OUTPUT_FORMAT = process.env.THEO_TTS_OUTPUT_FORMAT || "audio-24khz-48kbitrate-mono-mp3";
 const MAX_CHARS = Number(process.env.THEO_TTS_MAX_CHARS || 8000);
@@ -214,8 +211,8 @@ module.exports = async function (context, req) {
     voice = body.voice;
   }
 
-  if (!TTS_ENDPOINT || !TTS_RESOURCE_ID) {
-    context.log.error("theo_synthesize_speech: THEO_TTS_ENDPOINT/THEO_TTS_RESOURCE_ID not configured.");
+  if (!TTS_ENDPOINT) {
+    context.log.error("theo_synthesize_speech: THEO_TTS_ENDPOINT not configured.");
     return send(context, 500, errorBody("INTERNAL_SERVER_ERROR", "Speech synthesis is not configured.", 500));
   }
 
@@ -226,13 +223,15 @@ module.exports = async function (context, req) {
       `<speak version='1.0' xml:lang='${lang}'>` +
       `<voice name='${voice}'>${xmlEscape(text)}</voice></speak>`;
 
-    const url = `${TTS_ENDPOINT.replace(/\/$/, "")}/cognitiveservices/v1`;
+    // Custom-subdomain Speech endpoint + plain Bearer MI token — the SAME auth pattern the
+    // deployed sibling uses for Whisper (a plain-bearer MI call to this cognitive resource).
+    const url = `${TTS_ENDPOINT.replace(/\/$/, "")}/tts/cognitiveservices/v1`;
     const r = await requestUrlBinary(
       url,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer aad#${TTS_RESOURCE_ID}#${token}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/ssml+xml",
           "X-Microsoft-OutputFormat": OUTPUT_FORMAT,
           "User-Agent": "vault-theo",

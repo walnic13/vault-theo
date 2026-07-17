@@ -56,7 +56,7 @@ Sub-phase Track rationale: **P8 (VEP assembly)** is the established convention f
 
 **Microstep:** Tier Voice, **Voice-MS2** — `theo_synthesize_speech` (read-aloud / text-to-speech). Feature entry: Phase 1B Backend Plan §7 "Tier Voice", Voice-MS2 bullet; contract: API Spec §2.11 (`theo_synthesize_speech`, `1B-PROPOSED`); handler family: Golden Handler §6 HF-T6; decision: Orchestration §1B DR-T8. Sibling `theo_transcribe_audio` (Voice-MS1) is DEPLOYED (2026-07-17).
 
-**Scope.** One net-new HTTP handler `POST /api/theo_synthesize_speech` on `vaultgpt-func-chat`. Body `{ text, voice? }` → `{ audio_base64, content_type, voice }`. The handler resolves the caller OID (EasyAuth), validates text (non-empty, ≤ `THEO_TTS_MAX_CHARS` chars) + the optional `voice` (against a curated allow-list), XML-escapes the text into SSML, acquires a managed-identity token for `https://cognitiveservices.azure.com/`, and POSTs to the in-tenant Azure AI Speech synthesis endpoint (`/cognitiveservices/v1`, AAD `aad#{resourceId}#{token}` auth), returning the synthesized MP3 as base64. **Stateless** — no `theo_*` table, no migration, no persistence.
+**Scope.** One net-new HTTP handler `POST /api/theo_synthesize_speech` on `vaultgpt-func-chat`. Body `{ text, voice? }` → `{ audio_base64, content_type, voice }`. The handler resolves the caller OID (EasyAuth), validates text (non-empty, ≤ `THEO_TTS_MAX_CHARS` chars) + the optional `voice` (against a curated allow-list), XML-escapes the text into SSML, acquires a managed-identity token for `https://cognitiveservices.azure.com/`, and POSTs to the in-tenant Azure AI Speech synthesis endpoint (the resource's **custom-subdomain** `/tts/cognitiveservices/v1`, plain `Authorization: Bearer <MI token>` — the SAME auth the deployed Whisper sibling uses on this resource), returning the synthesized MP3 as base64. **Stateless** — no `theo_*` table, no migration, no persistence.
 
 **v1 simplicity (Walter, 2026-07-17: "simple and high quality to start").** v1 ships ONE premium default voice `en-US-AvaMultilingualNeural` (no FE picker). The optional `voice` override is validated against a curated allow-list of 6 premium neural voices so a picker is later a FE-only change against an unchanged backend.
 
@@ -74,7 +74,7 @@ Out of scope: the FE per-message read-aloud control + any voice picker (Theo-FE 
 - **theo_ schema + RLS baseline (Architecture §5; Schema §1/§2).** No table/column/policy/function added or touched — stateless. Schema Reality Lock (Governor §4): N/A (nothing to classify).
 - **Model gateway seam (Architecture §2 / §2.4).** A keyless-MI gateway of the HF-T1 class, to a different in-tenant endpoint — Azure AI Speech TTS — not the Anthropic Messages endpoint. Per §2.4 the Claude text model is Anthropic-hosted (Sweden Central); the Speech audio model is true in-tenant Azure Cognitive Services (DR-T8), so no text/audio leaves the tenant.
 - **New external system → Golden Handler §4 / Conformance §10 T12.** The outbound Azure AI Speech call is a new external system with no EXACT deployed mirror. §4 permits an ALLOWED DELTA with "a Walter authorization quoted verbatim and predating the VEP" — LANDED as DR-T8 (Orchestration §1B, Codex-APPROVED `f466ffd`) and quoted verbatim in `WALTER_AUTHORIZATION_HF-T6-TTS.md`. See Gap G-NEWEXTERNAL.
-- **Credential posture.** The cognitive token is acquired server-side by the Function's managed identity and wrapped in the Speech AAD header `Bearer aad#{resourceId}#{token}` (the documented Speech AAD form; a plain bearer 401s). No key/endpoint/token reaches the browser; the response carries only base64 audio.
+- **Credential posture.** The cognitive token is acquired server-side by the Function's managed identity and sent as a plain `Authorization: Bearer <token>` to the resource's **custom-subdomain** Speech endpoint — the SAME auth pattern the deployed Whisper sibling uses on this resource (verified this turn: the regional endpoint + `aad#` form 401s the managed identity, while the custom-subdomain + plain bearer succeeds). No key/endpoint/token reaches the browser; the response carries only base64 audio.
 - **Injection safety.** User text is XML-escaped into the SSML `<voice>` element (the `xmlEscape` helper, also present in the deployed `theo_create_attachment_upload`); the `voice` attribute is constrained to a curated allow-list, so neither field can inject SSML/markup.
 - **Tool dispatch / Tool Manifest (Architecture §4).** Not touched — no `reporting_*` endpoint consumed.
 
@@ -86,8 +86,8 @@ Vocabulary is closed (`PROCEED` / `PRE-LAND` / `ESCALATE` / `NO-GAPS`) per Gover
 
 | # | Gap | Pivot | Note |
 | - | --- | ----- | ---- |
-| G-NEWEXTERNAL | The outbound Azure AI Speech TTS call is a **new external system** (Golden Handler §4 / T12) — no deployed handler contains an EXACT mirror. | **PROCEED** | Resolved by the LANDED Walter authorization recorded as **DR-T8** (Orchestration §1B, Codex-APPROVED `f466ffd`, predating this VEP) + quoted verbatim in `WALTER_AUTHORIZATION_HF-T6-TTS.md`. The MI-token acquisition is an **EXACT byte-identical** reuse of the deployed `getManagedIdentityAccessToken` AND its `requestUrl` helper (Primary Reference `theo_transcribe_audio`; confirmed by `diff` this turn — both zero-diff). The only helper delta is `requestUrlBinary` (a Buffer-response variant of `requestUrl`, required for audio bytes), classified ALLOWED DELTA; the Speech endpoint/SSML/`aad#` auth are the external-system delta under DR-T8. The synthesis call + `aad#` auth + SSML + output-format were **live-probed this turn** (HTTP 200, 24 KB MP3, `fff3` frame header) to de-risk before authoring. |
-| G-PROVISION | The three `vaultgpt-func-chat` app settings (`THEO_TTS_ENDPOINT`, `THEO_TTS_RESOURCE_ID`, `THEO_TTS_DEFAULT_VOICE`) are not set yet. | **PRE-LAND** | Set by Claude Code **only after** Codex APPROVAL, at Pass 3, before the happy-path curl: `THEO_TTS_ENDPOINT=https://switzerlandnorth.tts.speech.microsoft.com`, `THEO_TTS_RESOURCE_ID=/subscriptions/3023d124-e577-4e16-a89d-de6d60c279ef/resourceGroups/vault-tax/providers/Microsoft.CognitiveServices/accounts/wmans-mqxwlcdp-switzerlandnorth`, `THEO_TTS_DEFAULT_VOICE=en-US-AvaMultilingualNeural`. **No new MI role and no model deployment** — the func-chat MI (`5a0cf3c6-07c9-4412-aa50-e39987ae3bfb`) already holds `Cognitive Services User` on that resource (granted for Voice-MS1), which covers Speech data-plane; Azure AI Speech is a service on the resource (nothing to deploy). |
+| G-NEWEXTERNAL | The outbound Azure AI Speech TTS call is a **new external system** (Golden Handler §4 / T12) — no deployed handler contains an EXACT mirror. | **PROCEED** | Resolved by the LANDED Walter authorization recorded as **DR-T8** (Orchestration §1B, Codex-APPROVED `f466ffd`, predating this VEP) + quoted verbatim in `WALTER_AUTHORIZATION_HF-T6-TTS.md`. The MI-token acquisition is an **EXACT byte-identical** reuse of the deployed `getManagedIdentityAccessToken` AND its `requestUrl` helper (Primary Reference `theo_transcribe_audio`; confirmed by `diff` this turn — both zero-diff). The only helper delta is `requestUrlBinary` (a Buffer-response variant of `requestUrl`, required for audio bytes), classified ALLOWED DELTA; the Speech custom-subdomain endpoint + SSML body are the external-system delta under DR-T8. The **auth is now IDENTICAL to the sibling's Whisper call** — a plain `Authorization: Bearer <MI token>` to the same custom-subdomain cognitive resource. The synthesis path (custom-subdomain `/tts/cognitiveservices/v1` + plain-bearer + SSML + output-format) was **live-probed this turn** (HTTP 200, MP3 `fff3` frame header). |
+| G-PROVISION | The two `vaultgpt-func-chat` app settings (`THEO_TTS_ENDPOINT`, `THEO_TTS_DEFAULT_VOICE`) are not set to their final values yet. | **PRE-LAND** | Set by Claude Code **only after** Codex APPROVAL, at Pass 3, before the happy-path curl: `THEO_TTS_ENDPOINT=https://wmans-mqxwlcdp-switzerlandnorth.cognitiveservices.azure.com` (the resource **custom subdomain** — NOT the regional `tts.speech.microsoft.com` host, which 401s the MI), `THEO_TTS_DEFAULT_VOICE=en-US-AvaMultilingualNeural`. No `THEO_TTS_RESOURCE_ID` is needed (plain-bearer auth, no `aad#` wrapper). **No new MI role and no model deployment** — the func-chat MI (`5a0cf3c6-07c9-4412-aa50-e39987ae3bfb`) already holds `Cognitive Services User` on that resource (granted for Voice-MS1) and is proven to call it (Whisper), which covers Speech data-plane; Azure AI Speech is a service on the resource (nothing to deploy). |
 | G-VOICE-SELECTION | Walter asked whether to offer a voice selection; directed "simple and high quality to start." | **PROCEED** | v1 = one premium default (`en-US-AvaMultilingualNeural`), no FE picker. The handler accepts an optional `voice` validated against a curated allow-list (`en-US` Ava/Andrew/Emma Multilingual, `en-US` Jenny, `en-GB` Sonia/Ryan — all confirmed in the region catalog this turn), so a picker is later a FE-only change; the backend needs no re-approval to light it up. |
 | G-TRANSPORT | Response returns the full audio inline as base64 (buffered), not a stream. | PROCEED | Deliberate for v1 — a Theo message is bounded (`THEO_TTS_MAX_CHARS`, default 8000), so buffered base64 is simple and adequate; the FE plays it directly. Streaming synthesis (chunked) is a noted future option, not required for v1. |
 | G-PRIMARY | Golden Handler §5.5: "The deployed handler is the source of truth." | **NO DRIFT** (PROCEED) | Primary Reference `theo_transcribe_audio` was **Kudu-GET live from func-chat wwwroot this turn** (blob `adb2767f`, byte-identical to the DEPLOYED MS1 handler), copied into `primary-reference/`. |
@@ -414,11 +414,11 @@ module.exports = async function (context, req) {
 | `require("crypto")`, `corsHeaders`, `send`, `nowIso`, `errorBody`, `successBody`, `getPrincipal`, `getClaimValue`, `parseBody` | same | EXACT | verbatim byte-identical |
 | `requestUrl(urlStr, options, body)` (string response collector) | same | EXACT | verbatim byte-identical (confirmed by `diff` this turn); reused by `getManagedIdentityAccessToken` for the token call |
 | `getManagedIdentityAccessToken(resource)` | same | EXACT | verbatim byte-identical (confirmed by `diff` this turn); calls `requestUrl` exactly as the sibling does, with `"https://cognitiveservices.azure.com/"` (resource string = a config value, not a structural change) |
-| Config constants (`TTS_ENDPOINT`/`TTS_RESOURCE_ID`/`DEFAULT_VOICE`/`OUTPUT_FORMAT`/`MAX_CHARS`/`ALLOWED_VOICES`) | `AOAI_AUDIO_ENDPOINT`/`WHISPER_DEPLOYMENT`/`MAX_AUDIO_BYTES`/`AUDIO_CONTENT_TYPES` | ALLOWED DELTA | Golden Handler §4 "endpoint names; the specific validated field set" |
+| Config constants (`TTS_ENDPOINT`/`DEFAULT_VOICE`/`OUTPUT_FORMAT`/`MAX_CHARS`/`ALLOWED_VOICES`/`COGNITIVE_SCOPE`) | `AOAI_AUDIO_ENDPOINT`/`WHISPER_DEPLOYMENT`/`MAX_AUDIO_BYTES`/`AUDIO_CONTENT_TYPES`/`COGNITIVE_SCOPE` | ALLOWED DELTA | Golden Handler §4 "endpoint names; the specific validated field set"; `COGNITIVE_SCOPE` is byte-identical to the sibling |
 | Handler shell: OPTIONS→204, OID→401, `parseBody`→400, validate→400, `try/catch`→500 | same shell | EXACT (structure) | mirror of the Primary Reference control flow; validated field set (`text`/`voice` + char cap) is the ALLOWED DELTA |
 | `xmlEscape(s)` | (not in this reference; present verbatim in the deployed sibling `theo_create_attachment_upload`) | ALLOWED DELTA (standard helper) | Golden Handler §4; standard XML escaper for SSML injection-safety, byte-identical to the deployed `theo_create_attachment_upload` copy |
 | `requestUrlBinary(...)` (Buffer response collector) | `requestUrl(...)` (string response collector) | ALLOWED DELTA | Golden Handler §4; binary-response variant required because the TTS response is audio bytes — added ALONGSIDE the byte-verbatim `requestUrl` (which stays for the token call); only the response accumulation differs (`Buffer.concat(chunks)` vs `data += chunk`), request shape identical |
-| Outbound Azure AI Speech POST (SSML body, `aad#{resourceId}#{token}` auth, `X-Microsoft-OutputFormat`, `User-Agent`) | Outbound Whisper POST (multipart, bearer) | ALLOWED DELTA (new external system) | Golden Handler §4; DR-T8 + `WALTER_AUTHORIZATION_HF-T6-TTS.md`; live-probed 200 this turn |
+| Outbound Azure AI Speech POST (custom-subdomain `/tts/cognitiveservices/v1`, SSML body, **plain `Bearer <MI token>`** auth — same as the sibling's Whisper POST — `X-Microsoft-OutputFormat`, `User-Agent`) | Outbound Whisper POST (custom-subdomain `/openai/…`, multipart, plain `Bearer <MI token>`) | ALLOWED DELTA (new external system) | Golden Handler §4; DR-T8 + `WALTER_AUTHORIZATION_HF-T6-TTS.md`; auth pattern byte-for-byte the sibling's; live-probed 200 this turn |
 | Response `200 successBody({ audio_base64, content_type, voice })` | `200 successBody({ text })` | ALLOWED DELTA | Golden Handler §4 "the contract's response shape" (API Spec §2.11) |
 | `function.json` (anonymous httpTrigger, `post`+`options`, `route: theo_synthesize_speech`, http out) | same shape, `route: theo_transcribe_audio` | ALLOWED DELTA | Golden Handler §4 "endpoint names"; EasyAuth upstream unchanged |
 
@@ -435,13 +435,10 @@ const crypto = require("crypto");
 // Accepts response text and returns synthesized audio from in-tenant Azure AI Speech
 // neural voices, brokered with the Function's managed identity (keyless). No text/audio
 // leaves the tenant; no credential/endpoint reaches the browser. STATELESS — no theo_* table.
-// Mirrors the deployed HF-T6 sibling theo_transcribe_audio (func-chat) helper set + MI-token
-// pattern; the outbound Azure AI Speech call is the DR-T8 / API-Spec §2.11 authorized delta.
-//
-// v1 ships ONE premium default voice (no FE picker); the optional `voice` override is
-// validated against a curated allow-list so a voice picker is later a FE-only change.
-const TTS_ENDPOINT = process.env.THEO_TTS_ENDPOINT;         // e.g. https://switzerlandnorth.tts.speech.microsoft.com
-const TTS_RESOURCE_ID = process.env.THEO_TTS_RESOURCE_ID;   // ARM resource id for the Speech AAD `aad#{id}#{token}` header
+// Mirrors the deployed HF-T6 sibling theo_transcribe_audio (func-chat): SAME custom-subdomain
+// cognitive endpoint + SAME plain `Authorization: Bearer <MI token>` auth (the sibling's Whisper
+// call). The Speech synthesis endpoint/SSML body is the DR-T8 / API-Spec §2.11 authorized delta.
+const TTS_ENDPOINT = process.env.THEO_TTS_ENDPOINT; // custom subdomain, e.g. https://<resource>.cognitiveservices.azure.com
 const DEFAULT_VOICE = process.env.THEO_TTS_DEFAULT_VOICE || "en-US-AvaMultilingualNeural";
 const OUTPUT_FORMAT = process.env.THEO_TTS_OUTPUT_FORMAT || "audio-24khz-48kbitrate-mono-mp3";
 const MAX_CHARS = Number(process.env.THEO_TTS_MAX_CHARS || 8000);
@@ -645,8 +642,8 @@ module.exports = async function (context, req) {
     voice = body.voice;
   }
 
-  if (!TTS_ENDPOINT || !TTS_RESOURCE_ID) {
-    context.log.error("theo_synthesize_speech: THEO_TTS_ENDPOINT/THEO_TTS_RESOURCE_ID not configured.");
+  if (!TTS_ENDPOINT) {
+    context.log.error("theo_synthesize_speech: THEO_TTS_ENDPOINT not configured.");
     return send(context, 500, errorBody("INTERNAL_SERVER_ERROR", "Speech synthesis is not configured.", 500));
   }
 
@@ -657,13 +654,15 @@ module.exports = async function (context, req) {
       `<speak version='1.0' xml:lang='${lang}'>` +
       `<voice name='${voice}'>${xmlEscape(text)}</voice></speak>`;
 
-    const url = `${TTS_ENDPOINT.replace(/\/$/, "")}/cognitiveservices/v1`;
+    // Custom-subdomain Speech endpoint + plain Bearer MI token — the SAME auth pattern the
+    // deployed sibling uses for Whisper (a plain-bearer MI call to this cognitive resource).
+    const url = `${TTS_ENDPOINT.replace(/\/$/, "")}/tts/cognitiveservices/v1`;
     const r = await requestUrlBinary(
       url,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer aad#${TTS_RESOURCE_ID}#${token}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/ssml+xml",
           "X-Microsoft-OutputFormat": OUTPUT_FORMAT,
           "User-Agent": "vault-theo",
@@ -739,7 +738,7 @@ Deterministic (verifiable immediately post-deploy, no Speech dependency):
 
 Happy path (requires the app settings — run last at Pass 3):
 
-7. **Valid text → 200 `{ data: { audio_base64, content_type:"audio/mpeg", voice } }`.** body `{"text":"Hello from Theo. Your workpaper review is ready."}` ⇒ `200`, `data.audio_base64` decodes to a non-empty MP3 (`0xFFFx` frame header). Command/response captured under `.local/` (audio bytes not printed). The synthesis path (SSML + `aad#` auth + output-format) was pre-verified live this turn (200, 24 KB MP3).
+7. **Valid text → 200 `{ data: { audio_base64, content_type:"audio/mpeg", voice } }`.** body `{"text":"Hello from Theo. Your workpaper review is ready."}` ⇒ `200`, `data.audio_base64` decodes to a non-empty MP3 (`0xFFFx` frame header). Command/response captured under `.local/` (audio bytes not printed). The synthesis path (custom-subdomain `/tts/cognitiveservices/v1` + plain-bearer auth + SSML + output-format) was pre-verified live this turn (200, MP3).
 
 ---
 
@@ -747,7 +746,7 @@ Happy path (requires the app settings — run last at Pass 3):
 
 Executed by Claude Code (az authority granted 2026-07-17), strictly **after** Codex APPROVED and before the happy-path curl:
 
-1. **Set app settings** on `vaultgpt-func-chat`: `THEO_TTS_ENDPOINT=https://switzerlandnorth.tts.speech.microsoft.com`, `THEO_TTS_RESOURCE_ID=/subscriptions/3023d124-e577-4e16-a89d-de6d60c279ef/resourceGroups/vault-tax/providers/Microsoft.CognitiveServices/accounts/wmans-mqxwlcdp-switzerlandnorth`, `THEO_TTS_DEFAULT_VOICE=en-US-AvaMultilingualNeural`.
+1. **Set app settings** on `vaultgpt-func-chat`: `THEO_TTS_ENDPOINT=https://wmans-mqxwlcdp-switzerlandnorth.cognitiveservices.azure.com` (custom subdomain), `THEO_TTS_DEFAULT_VOICE=en-US-AvaMultilingualNeural` (and remove any prior `THEO_TTS_RESOURCE_ID`, unused under plain-bearer auth).
 2. **Deploy the handler** to `vaultgpt-func-chat` via Kudu VFS surgical overwrite (§5.5): PUT `theo_synthesize_speech/index.js` + `function.json`, GET-back diff, restart, unauth-curl health (expect 401).
 3. **No new MI role, no model deployment** — the func-chat MI already holds `Cognitive Services User` on the Switzerland North resource (granted for Voice-MS1), which covers Speech data-plane; Azure AI Speech is a service on that resource.
 

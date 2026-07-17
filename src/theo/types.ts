@@ -22,7 +22,17 @@ export interface AgentToolCall { name: string; input: unknown; status: "running"
 // VA-T7: `reasoning` + `tools` carry a review-agent turn's live activity (streamed reasoning + each tool
 // call) — rendered by AgentActivity above the answer. Distinct from `thinking` (general-chat panel);
 // a sigma review turn uses reasoning/tools, general chat uses thinking. Presentational/ephemeral.
-export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string; reasoning?: string; tools?: AgentToolCall[] }
+// DR-T11 tool-loop: a downloadable file a tool produced, streamed to the turn as `event: vault_export`
+// (API Spec §2.10; payload shape = the export tool result, §2.12). Rendered as a DownloadCard (VA-T9)
+// after the reply body. `expiresAt` rides along (short-lived SAS) but is not displayed (Walter-approved).
+export interface FileDownload {
+  downloadUrl: string;
+  filename: string;
+  contentType?: string;
+  byteSize?: number;
+  expiresAt?: string;
+}
+export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string; reasoning?: string; tools?: AgentToolCall[]; download?: FileDownload }
 
 export interface Knowledge { id: string; title: string; content: string }
 export type ProjectVisibility = "private" | "group";

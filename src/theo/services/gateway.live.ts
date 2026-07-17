@@ -10,7 +10,7 @@
 // Until a live backend is configured (no `VITE_FUNCTIONS_URL` and no `configureGateway` token/base),
 // this delegates to the in-repo 1A mock so the standalone vault-theo dev harness keeps working.
 import type {
-  Artifact, ArtifactSummary, AttachmentUpload, ConversationAttachment, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
+  Artifact, ArtifactSummary, AttachmentUpload, ConversationAttachment, ConversationDetail, ConversationSummary, FileDownload, GatewayRequest, GatewayResponse,
   KDraft, Knowledge, NpDraft, Person, Project, ProjectMember,
 } from "../types";
 import {
@@ -861,6 +861,9 @@ export interface StreamHandlers {
   // completion (`tool_result`). Additive/optional — the general chat path never invokes them.
   onTool?: (t: { name: string; input: unknown }) => void;
   onToolResult?: (t: { name: string; ok: boolean }) => void;
+  // DR-T11 tool-loop: a downloadable tool result (theo_export_spreadsheet et al.) arrived as the
+  // additive `event: vault_export` SSE frame. General chat only; additive — absent = no download card.
+  onExport?: (d: FileDownload) => void;
 }
 
 export async function sendMessageStream(req: GatewayRequest, handlers: StreamHandlers, opts?: { signal?: AbortSignal }): Promise<void> {
@@ -934,6 +937,20 @@ export async function sendMessageStream(req: GatewayRequest, handlers: StreamHan
       }
       if (evt.includes("event: vault_meta")) {
         handlers.onMeta?.({ conversation_id: j.conversation_id as string | undefined, model: j.model as string | undefined });
+        continue;
+      }
+      // DR-T11: a downloadable tool result → render a DownloadCard on this turn (additive; the FE
+      // ignores it when no handler is wired). The payload IS the tool's `data` object.
+      if (evt.includes("event: vault_export")) {
+        if (typeof j.downloadUrl === "string" && typeof j.filename === "string") {
+          handlers.onExport?.({
+            downloadUrl: j.downloadUrl as string,
+            filename: j.filename as string,
+            contentType: j.contentType as string | undefined,
+            byteSize: typeof j.byteSize === "number" ? (j.byteSize as number) : undefined,
+            expiresAt: j.expiresAt as string | undefined,
+          });
+        }
         continue;
       }
       if (j.type === "content_block_delta" && j.delta && typeof j.delta === "object") {

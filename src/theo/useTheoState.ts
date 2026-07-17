@@ -7,7 +7,7 @@ import { stripArtifactRefs } from "./lib/artifacts";
 import { buildSystemPrompt, greeting } from "./lib/prompt";
 import { MODEL } from "./swapBlock";
 import { STYLES } from "./data";
-import type { AgentToolCall, AppContext, Artifact, ArtifactSummary, Citation, ComposerAttachment, ConversationSummary, KDraft, Message, NpDraft, OpenArtifact, Person, Project, ProjectMember, SentAttachment, Settings, StyleKey, View } from "./types";
+import type { AgentToolCall, AppContext, Artifact, ArtifactSummary, Citation, ComposerAttachment, ConversationSummary, FileDownload, KDraft, Message, NpDraft, OpenArtifact, Person, Project, ProjectMember, SentAttachment, Settings, StyleKey, View } from "./types";
 
 // B8e: a paste longer than this becomes a "Pasted text" attachment (collapsed, expandable) instead
 // of flooding the composer — the Claude-style behaviour. Tunable; ~a long block, not a sentence.
@@ -450,6 +450,7 @@ export function useTheoState() {
     let reasoning = "";                               // VA-T7: accumulated agent reasoning (review agent)
     const toolCalls: AgentToolCall[] = [];            // VA-T7: the review agent's live tool calls
     const cites: Citation[] = [];                     // web-grounding citations (citations_delta)
+    let exportPayload: FileDownload | null = null;    // DR-T11: a tool-produced download (vault_export)
     let convId: string | null = null;
     // Fail-closed routing: a COMPLETE review payload (app_key='sigma' + review_id + files) → the K-1
     // review agent (sigma_review_agent_stream); anything else → the general chat path. Decided per-send.
@@ -494,6 +495,7 @@ export function useTheoState() {
           onText: (d) => { acc += d; patchLastAssistant({ content: acc }); },
           onThinking: (d) => { think += d; patchLastAssistant({ thinking: think }); },
           onCitation: (c) => { cites.push({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text }); },
+          onExport: (d) => { exportPayload = d; patchLastAssistant({ download: d }); },
           onMeta: (mt) => { if (mt.conversation_id) convId = mt.conversation_id; },
         }, { signal: ac.signal });
       }
@@ -501,7 +503,7 @@ export function useTheoState() {
       // the model cited sources, attach a single CitedRun so the existing CitedText path renders them.
       const { display, openId, blocks } = theoClient.ingestReply(acc);
       setArtifacts(theoClient.listArtifacts());
-      patchLastAssistant({ content: display, ...(cites.length ? { runs: [{ text: display, citations: cites }] } : {}), ...(think ? { thinking: think } : {}), ...(reasoning ? { reasoning } : {}), ...(toolCalls.length ? { tools: toolCalls.slice() } : {}) });
+      patchLastAssistant({ content: display, ...(cites.length ? { runs: [{ text: display, citations: cites }] } : {}), ...(think ? { thinking: think } : {}), ...(reasoning ? { reasoning } : {}), ...(toolCalls.length ? { tools: toolCalls.slice() } : {}), ...(exportPayload ? { download: exportPayload } : {}) });
       if (openId) setOpenArt({ id: openId, v: -1 });
       if (convId) setConversationId(convId);
       // B4h: persist each artifact block server-side (theo_upsert_artifact — create-or-add-version by

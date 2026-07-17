@@ -11,6 +11,7 @@ import { C, SANS, SERIF } from "../theme";
 import { Burst, IcMic, IcSpeaker } from "./icons";
 import { CitedText } from "./CitedText";
 import { AgentActivity } from "./AgentActivity";
+import { DownloadCard } from "./DownloadCard";
 import type { ComposerAttachment, Message, Project, SentAttachment } from "../types";
 
 export interface ChatViewProps {
@@ -352,6 +353,9 @@ export function ChatView(props: ChatViewProps) {
                   {m.content
                     ? (m.runs?.some((r) => r.citations.length) ? <CitedText runs={m.runs} renderText={renderAssistant} /> : renderAssistant(m.content))
                     : (loading && i === messages.length - 1 ? <StatusLine /> : null)}
+                  {/* VA-T9: a tool-produced downloadable file → download card, directly after the reply
+                      body and BEFORE the read-aloud control (DR-T11 event: vault_export). */}
+                  {m.download && <DownloadCard download={m.download} />}
                   {/* VA-T8: read-aloud control on a finished reply (not the still-streaming turn). */}
                   {voiceAvailable && m.content && !(loading && i === messages.length - 1) && (
                     <div style={{ marginTop: 4 }}>

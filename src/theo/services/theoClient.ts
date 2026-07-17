@@ -41,7 +41,7 @@ let appContext: AppContext = { app_key: null, app_context: null };
 
 export const theoClient = {
   // ── Gateway wiring (Origin mount supplies the token provider; switches mock → live) ──
-  configureGateway(opts: { getAccessToken?: (() => Promise<string | null>) | null; baseUrl?: string | null; streamBaseUrl?: string | null }): void {
+  configureGateway(opts: { getAccessToken?: (() => Promise<string | null>) | null; baseUrl?: string | null; streamBaseUrl?: string | null; chatBaseUrl?: string | null }): void {
     gatewayConfigure(opts);
   },
 

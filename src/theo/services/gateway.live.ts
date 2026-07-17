@@ -45,14 +45,21 @@ let apiBase: string = normalizeBase((import.meta.env as Record<string, unknown>)
 // Used ONLY by sendMessageStream; all other calls (attachments, recents, reload, projects,
 // non-streaming chat) stay on `apiBase`. When unset, streaming degrades to the non-streaming monolith path.
 let streamBase: string = normalizeBase((import.meta.env as Record<string, unknown>).VITE_STREAM_FUNCTIONS_URL);
+// VA-T8 voice (G-APIBASE Pass-3 resolution): the dictation + read-aloud handlers
+// (theo_transcribe_audio / theo_synthesize_speech) live on the dedicated `vaultgpt-func-chat` app
+// (Claude-deployable per DR-T7), NOT the monolith `apiBase` (which hosts theo_message). Its base URL
+// is baked via VITE_CHAT_FUNCTIONS_URL (or injected via configureGateway), mirroring `streamBase` for
+// the func-stream sidecar. Used ONLY by the two voice calls; falls back to `apiBase` when unset.
+let chatBase: string = normalizeBase((import.meta.env as Record<string, unknown>).VITE_CHAT_FUNCTIONS_URL);
 
 // Configured once by the federated TheoSurface mount with the Origin shell's token provider (and,
 // optionally, the monolith Functions base URL and the streaming sidecar base URL). Supplying a token
 // provider switches this gateway mock → live.
-export function configureGateway(opts: { getAccessToken?: TokenProvider | null; baseUrl?: string | null; streamBaseUrl?: string | null }): void {
+export function configureGateway(opts: { getAccessToken?: TokenProvider | null; baseUrl?: string | null; streamBaseUrl?: string | null; chatBaseUrl?: string | null }): void {
   if (opts.getAccessToken !== undefined) tokenProvider = opts.getAccessToken;
   if (opts.baseUrl != null) apiBase = normalizeBase(opts.baseUrl);
   if (opts.streamBaseUrl != null) streamBase = normalizeBase(opts.streamBaseUrl);
+  if (opts.chatBaseUrl != null) chatBase = normalizeBase(opts.chatBaseUrl);
 }
 
 // True once a live backend is wired (token provider or a Functions base URL). Attachments require it.
@@ -102,7 +109,8 @@ function base64ToBlob(b64: string, contentType: string): Blob {
 export async function transcribeAudio(input: { blob: Blob; contentType: string }): Promise<{ text: string }> {
   const headers = await authHeaders();
   const audio_base64 = await blobToBase64(input.blob);
-  const res = await fetch(`${apiBase}/api/theo_transcribe_audio`, {
+  const voiceBase = chatBase || apiBase;   // voice lives on func-chat (chatBase); apiBase fallback
+  const res = await fetch(`${voiceBase}/api/theo_transcribe_audio`, {
     method: "POST",
     credentials: "same-origin",
     headers,
@@ -115,7 +123,8 @@ export async function transcribeAudio(input: { blob: Blob; contentType: string }
 }
 export async function synthesizeSpeech(input: { text: string; voice?: string }): Promise<{ blob: Blob; contentType: string }> {
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_synthesize_speech`, {
+  const voiceBase = chatBase || apiBase;   // voice lives on func-chat (chatBase); apiBase fallback
+  const res = await fetch(`${voiceBase}/api/theo_synthesize_speech`, {
     method: "POST",
     credentials: "same-origin",
     headers,

@@ -9,7 +9,7 @@ Turn Type: Pass 1 — Frontend Verified Evidence Pack (frontend plan)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A
-Turn issued against HEAD: vault-theo `b081d4a1ef41972ea7b6a91553915ccb179ee7d9` (pre-commit; the GCR HEAD is repointed to the package-present commit on landing per Conformance T25)
+Turn issued against HEAD: vault-theo `8e229d043820341d06e0c80142ea2582e229f275` (the commit that contains this package; grounding reads were performed against parent `b081d4a1ef41972ea7b6a91553915ccb179ee7d9`, and the cited-file blob SHAs below are HEAD-stable across that parent→child commit since none of those files were modified)
 Currency-anchor form: git blob SHA at HEAD (Conformance §8 fallback), captured via `git rev-parse HEAD:<path>` this turn. Absolute paths used in the Rule Anchor Table.
 
 | # | Document (name + absolute path) | Read this turn | Currency anchor (HEAD blob SHA) |

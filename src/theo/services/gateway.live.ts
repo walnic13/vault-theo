@@ -45,14 +45,21 @@ let apiBase: string = normalizeBase((import.meta.env as Record<string, unknown>)
 // Used ONLY by sendMessageStream; all other calls (attachments, recents, reload, projects,
 // non-streaming chat) stay on `apiBase`. When unset, streaming degrades to the non-streaming monolith path.
 let streamBase: string = normalizeBase((import.meta.env as Record<string, unknown>).VITE_STREAM_FUNCTIONS_URL);
+// VA-T8 voice (G-APIBASE Pass-3 resolution): the dictation + read-aloud handlers
+// (theo_transcribe_audio / theo_synthesize_speech) live on the dedicated `vaultgpt-func-chat` app
+// (Claude-deployable per DR-T7), NOT the monolith `apiBase` (which hosts theo_message). Its base URL
+// is baked via VITE_CHAT_FUNCTIONS_URL (or injected via configureGateway), mirroring `streamBase` for
+// the func-stream sidecar. Used ONLY by the two voice calls; falls back to `apiBase` when unset.
+let chatBase: string = normalizeBase((import.meta.env as Record<string, unknown>).VITE_CHAT_FUNCTIONS_URL);
 
 // Configured once by the federated TheoSurface mount with the Origin shell's token provider (and,
 // optionally, the monolith Functions base URL and the streaming sidecar base URL). Supplying a token
 // provider switches this gateway mock → live.
-export function configureGateway(opts: { getAccessToken?: TokenProvider | null; baseUrl?: string | null; streamBaseUrl?: string | null }): void {
+export function configureGateway(opts: { getAccessToken?: TokenProvider | null; baseUrl?: string | null; streamBaseUrl?: string | null; chatBaseUrl?: string | null }): void {
   if (opts.getAccessToken !== undefined) tokenProvider = opts.getAccessToken;
   if (opts.baseUrl != null) apiBase = normalizeBase(opts.baseUrl);
   if (opts.streamBaseUrl != null) streamBase = normalizeBase(opts.streamBaseUrl);
+  if (opts.chatBaseUrl != null) chatBase = normalizeBase(opts.chatBaseUrl);
 }
 
 // True once a live backend is wired (token provider or a Functions base URL). Attachments require it.
@@ -71,6 +78,65 @@ async function authHeaders(): Promise<Record<string, string>> {
     if (token) headers.Authorization = `Bearer ${token}`;
   }
   return headers;
+}
+
+// ── Voice I/O (VA-T8 / API §2.11) — dictation + read-aloud through the deployed func-chat handlers
+// (theo_transcribe_audio / theo_synthesize_speech), reached via `apiBase` + `authHeaders()` exactly
+// like the other theo_* calls (theo_create_attachment_upload, also func-chat-hosted). No mock: voice
+// requires a live backend (the composer gates the controls on `voiceAvailable()` = isLive()). Bytes
+// travel base64 in/out of the JSON envelope; nothing is persisted in the browser (media APIs only). ──
+export function voiceAvailable(): boolean {
+  return isLive();
+}
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const s = String(reader.result || "");
+      const comma = s.indexOf(",");                 // strip the "data:<type>;base64," prefix
+      resolve(comma >= 0 ? s.slice(comma + 1) : s);
+    };
+    reader.onerror = () => reject(new Error("Failed to read the audio recording."));
+    reader.readAsDataURL(blob);
+  });
+}
+function base64ToBlob(b64: string, contentType: string): Blob {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: contentType });
+}
+export async function transcribeAudio(input: { blob: Blob; contentType: string }): Promise<{ text: string }> {
+  const headers = await authHeaders();
+  const audio_base64 = await blobToBase64(input.blob);
+  const voiceBase = chatBase || apiBase;   // voice lives on func-chat (chatBase); apiBase fallback
+  const res = await fetch(`${voiceBase}/api/theo_transcribe_audio`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ audio_base64, content_type: input.contentType }),
+  });
+  let json: { data?: { text?: string }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Transcription returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Transcription error (HTTP ${res.status}).`);
+  return { text: typeof json?.data?.text === "string" ? json.data.text : "" };
+}
+export async function synthesizeSpeech(input: { text: string; voice?: string }): Promise<{ blob: Blob; contentType: string }> {
+  const headers = await authHeaders();
+  const voiceBase = chatBase || apiBase;   // voice lives on func-chat (chatBase); apiBase fallback
+  const res = await fetch(`${voiceBase}/api/theo_synthesize_speech`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ text: input.text, ...(input.voice ? { voice: input.voice } : {}) }),
+  });
+  let json: { data?: { audio_base64?: string; content_type?: string }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Speech synthesis returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Speech synthesis error (HTTP ${res.status}).`);
+  const b64 = json?.data?.audio_base64;
+  if (!b64) throw new Error("Speech synthesis returned no audio.");
+  const contentType = json?.data?.content_type || "audio/mpeg";
+  return { blob: base64ToBlob(b64, contentType), contentType };
 }
 
 export async function sendMessage(req: GatewayRequest, opts?: { signal?: AbortSignal }): Promise<GatewayResponse> {
@@ -536,6 +602,25 @@ export async function createProject(d: NpDraft): Promise<Project> {
   return toProject(p);
 }
 
+// Get-or-create a project keyed to an external ref (host app + source_ref) — the deployed
+// theo_get_or_create_review_project (idempotent; 201 create / 200 existing). Mirrors createProject's
+// fetch/toProject idiom. Used to map a Sigma review (source_ref = sigma_review_id) to one Theo project.
+export async function getOrCreateReviewProject(appKey: string, sourceRef: string, name: string): Promise<Project> {
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_get_or_create_review_project`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ app_key: appKey, source_ref: sourceRef, name: name.trim() }),
+  });
+  let json: { data?: { project?: RawProject }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const p = json?.data?.project;
+  if (!p) throw new Error("Theo gateway response missing data.project.");
+  return toProject(p);
+}
+
 export async function updateProjectInstructions(id: string, instructions: string): Promise<Project> {
   if (!apiBase && !tokenProvider) return mockUpdateProjectInstructions(id, instructions);
   const headers = await authHeaders();
@@ -772,6 +857,10 @@ export interface StreamHandlers {
   onThinking?: (delta: string) => void;
   onCitation?: (c: StreamCitation) => void;
   onMeta?: (meta: { conversation_id?: string; model?: string }) => void;
+  // VA-T7 review-agent activity (sigma_review_agent_stream only): a tool call fired (`tool`) and its
+  // completion (`tool_result`). Additive/optional — the general chat path never invokes them.
+  onTool?: (t: { name: string; input: unknown }) => void;
+  onToolResult?: (t: { name: string; ok: boolean }) => void;
 }
 
 export async function sendMessageStream(req: GatewayRequest, handlers: StreamHandlers, opts?: { signal?: AbortSignal }): Promise<void> {
@@ -852,6 +941,98 @@ export async function sendMessageStream(req: GatewayRequest, handlers: StreamHan
         if (delta.type === "text_delta" && typeof delta.text === "string") handlers.onText(delta.text);
         else if (delta.type === "thinking_delta" && typeof delta.thinking === "string") handlers.onThinking?.(delta.thinking);
         else if (delta.type === "citations_delta" && delta.citation && typeof delta.citation === "object") handlers.onCitation?.(delta.citation as StreamCitation);
+      }
+    }
+  }
+}
+
+// ── Sigma K-1 review agent (streaming) — sibling of sendMessageStream on the SAME func-stream sidecar
+// (theo_message_stream + sigma_review_agent_stream share `streamBase`), different path. Consumes the
+// agent's CLEAN SSE protocol (NOT the raw Anthropic frames sendMessageStream parses):
+//   event: delta        {kind:'text'|'thinking', text}  → onText / onThinking
+//   event: tool         {name, input}                    → onTool     (a deterministic tool fired)
+//   event: tool_result  {name, ok}                       → onToolResult (that tool finished)
+//   event: done         {conversation_id, model}         → onMeta
+//   event: error        {message}                        → throw
+// Request body { review_id, files, messages, conversation_id? }: review_id + files come from the
+// conversation's app_context (Sigma supplies them when a review is open); the deployed handler requires
+// a uuid review_id and files.input/files.output as { driveId, itemId }. Routing (only when a COMPLETE
+// review payload is present) is decided upstream in useTheoState (hasReviewContext) — this fn assumes it.
+// Pre-stream failures arrive as a JSON error body (thrown with the server message), like sendMessageStream.
+export async function sendReviewAgentStream(req: GatewayRequest, handlers: StreamHandlers, opts?: { signal?: AbortSignal }): Promise<void> {
+  // The review agent has no mock/degraded path: it runs the deterministic engine on func-stream. Without
+  // the streaming sidecar configured (standalone dev harness), surface a clear, non-crashing message.
+  if (!streamBase) {
+    throw new Error("The review agent isn't available in this preview (streaming endpoint not configured).");
+  }
+  const ctx = (req.app_context ?? {}) as Record<string, unknown>;
+  const review_id = typeof ctx.sigma_review_id === "string" ? ctx.sigma_review_id : "";
+  const files = ctx.files && typeof ctx.files === "object" ? (ctx.files as Record<string, unknown>) : undefined;
+
+  const headers = await authHeaders();
+  const resp = await fetch(`${streamBase}/api/sigma_review_agent_stream`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    signal: opts?.signal,   // stop-generating: aborting rejects reader.read() → propagates to send()'s catch
+    body: JSON.stringify({
+      review_id,
+      messages: req.messages,
+      ...(files ? { files } : {}),
+      ...(req.conversation_id ? { conversation_id: req.conversation_id } : {}),
+    }),
+  });
+
+  // Pre-stream error (auth/validation/ownership/unresolved-workbook/gateway) → JSON error body.
+  if (!resp.ok || !resp.body) {
+    let msg = `Review agent error (HTTP ${resp.status}).`;
+    try {
+      const jr = (await resp.json()) as { error?: { message?: string } };
+      msg = jr?.error?.message || msg;
+    } catch { /* non-JSON error body */ }
+    throw new Error(msg);
+  }
+
+  // Read the SSE body incrementally; dispatch one complete event (blank-line separated) at a time.
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let sep: number;
+    while ((sep = buf.indexOf("\n\n")) >= 0) {
+      const evt = buf.slice(0, sep);
+      buf = buf.slice(sep + 2);
+      const dataLine = evt.split("\n").find((l) => l.startsWith("data:"));
+      if (!dataLine) continue;
+      let j: Record<string, unknown> | null = null;
+      try { j = JSON.parse(dataLine.slice(5).trim()) as Record<string, unknown>; } catch { continue; }
+      if (!j || typeof j !== "object") continue;
+
+      // Order matters: match `event: error` and `event: tool_result` BEFORE the `event: tool` substring.
+      if (evt.includes("event: error")) {
+        throw new Error((j.message as string) || "The review stream was interrupted.");
+      }
+      if (evt.includes("event: delta")) {
+        if (typeof j.text === "string") {
+          if (j.kind === "thinking") handlers.onThinking?.(j.text);
+          else handlers.onText(j.text);
+        }
+        continue;
+      }
+      if (evt.includes("event: tool_result")) {
+        handlers.onToolResult?.({ name: typeof j.name === "string" ? j.name : "", ok: Boolean(j.ok) });
+        continue;
+      }
+      if (evt.includes("event: tool")) {
+        handlers.onTool?.({ name: typeof j.name === "string" ? j.name : "", input: j.input });
+        continue;
+      }
+      if (evt.includes("event: done")) {
+        handlers.onMeta?.({ conversation_id: j.conversation_id as string | undefined, model: j.model as string | undefined });
+        continue;
       }
     }
   }

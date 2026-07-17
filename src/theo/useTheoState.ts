@@ -7,7 +7,7 @@ import { stripArtifactRefs } from "./lib/artifacts";
 import { buildSystemPrompt, greeting } from "./lib/prompt";
 import { MODEL } from "./swapBlock";
 import { STYLES } from "./data";
-import type { AppContext, Artifact, ArtifactSummary, Citation, ComposerAttachment, ConversationSummary, KDraft, Message, NpDraft, OpenArtifact, Person, Project, ProjectMember, SentAttachment, Settings, StyleKey, View } from "./types";
+import type { AgentToolCall, AppContext, Artifact, ArtifactSummary, Citation, ComposerAttachment, ConversationSummary, KDraft, Message, NpDraft, OpenArtifact, Person, Project, ProjectMember, SentAttachment, Settings, StyleKey, View } from "./types";
 
 // B8e: a paste longer than this becomes a "Pasted text" attachment (collapsed, expandable) instead
 // of flooding the composer — the Claude-style behaviour. Tunable; ~a long block, not a sentence.
@@ -16,8 +16,41 @@ const PASTE_AS_ATTACHMENT_CHARS = 1500;
 // keystroke updates local state immediately; the network save fires once typing pauses).
 const INSTRUCTIONS_SAVE_DEBOUNCE_MS = 800;
 
+// Voice dictation (VA-T8): cap a recording at 7:00 (client-side), and pick the first MediaRecorder
+// mime the browser supports from the §2.11 audio allow-list (Chrome → webm/Opus, Safari → mp4).
+const DICTATION_MAX_MS = 7 * 60 * 1000;
+const DICTATION_MIME_CANDIDATES = ["audio/webm", "audio/mp4", "audio/ogg", "audio/mpeg"];
+function pickAudioMime(): string {
+  const MR: typeof MediaRecorder | undefined = typeof window !== "undefined" ? window.MediaRecorder : undefined;
+  if (MR && typeof MR.isTypeSupported === "function") {
+    for (const m of DICTATION_MIME_CANDIDATES) if (MR.isTypeSupported(m)) return m;
+  }
+  return "audio/webm";
+}
+
 let attCounter = 0;
 function newLocalId() { attCounter += 1; return "att" + Date.now().toString(36) + "_" + attCounter; }
+
+// VA-T7 review-agent routing (fail-closed). A chat turn is routed to sigma_review_agent_stream ONLY
+// when the conversation carries a COMPLETE review payload — the deployed Sigma mount already sends
+// app_key='sigma' with app_context=null (general dock chat), which must NOT hit the review agent
+// (its contract requires review_id + files). Every other case (incl. that null context, and all
+// non-sigma turns) falls back to the general chat path (sendMessageStream). The complete payload is
+// supplied by Sigma's New-Review flow (the paired Sigma-FE package).
+function isUuid(v: unknown): boolean {
+  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+function isFilePointer(f: unknown): boolean {
+  if (!f || typeof f !== "object") return false;
+  const r = f as Record<string, unknown>;
+  return typeof r.driveId === "string" && !!r.driveId && typeof r.itemId === "string" && !!r.itemId;
+}
+function hasReviewContext(ctx: AppContext): boolean {
+  if (ctx.app_key !== "sigma" || !ctx.app_context) return false;
+  const ac = ctx.app_context as Record<string, unknown>;
+  const files = ac.files && typeof ac.files === "object" ? (ac.files as Record<string, unknown>) : null;
+  return isUuid(ac.sigma_review_id) && !!files && isFilePointer(files.input) && isFilePointer(files.output);
+}
 
 export function useTheoState() {
   const seeded: Settings = theoClient.readSettings();
@@ -51,6 +84,10 @@ export function useTheoState() {
   const [np, setNp] = useState<NpDraft>({ name: "", desc: "", instructions: "" });
   const [kdraft, setKdraft] = useState<KDraft>({ title: "", content: "" });
   const [appContext, setAppContext] = useState<AppContext>(() => theoClient.getAppContext());
+  // #5.3b: the Theo project a Sigma review's chats live in, KEYED to its review id (rid) so a stale
+  // project can never be used for a different review. reviewArmRef is the request-key guard.
+  const [reviewProject, setReviewProject] = useState<{ rid: string; id: string } | null>(null);
+  const reviewArmRef = useRef<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [recentsList, setRecentsList] = useState<ConversationSummary[]>([]);
   // B4e: the open project's chats, KEYED by projectId so a slow/stale async load can neither show
@@ -82,6 +119,24 @@ export function useTheoState() {
   const [people, setPeople] = useState<Person[]>([]);
   const memberReq = useRef<Set<string>>(new Set());
   const [memberPending, setMemberPending] = useState<string | null>(null);
+  // Voice I/O (VA-T8). Dictation: MediaRecorder → theo_transcribe_audio → transcript into the draft,
+  // capped at 7:00; recorder/stream/chunks/timers held in refs (no re-render). Read-aloud:
+  // theo_synthesize_speech → an HTMLAudioElement; playReqRef guards a stale async play/synthesis.
+  const voiceAvailable = theoClient.voiceAvailable();
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [playingIdx, setPlayingIdx] = useState<number | null>(null);
+  const [synthesizingIdx, setSynthesizingIdx] = useState<number | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaChunksRef = useRef<Blob[]>([]);
+  const recordTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordCapRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dictationCancelRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const playReqRef = useRef(0);
 
   // Pass B: ingest the inbound app-context anchor (from the Origin shell, in-process) and carry it
   // on the conversation (in-memory). Presentational — no app-data fetch (VA-T3 §2.4).
@@ -96,7 +151,37 @@ export function useTheoState() {
   // matches detailId (Codex B5c-FE keyed-state finding).
   const projectMembers = projectMembersState && projectMembersState.projectId === detailId ? projectMembersState.members : [];
   const art = openArt ? (artifacts.find((a) => a.id === openArt.id) ?? null) : null;
-  const recents = recentsList.filter((c) => c.title.toLowerCase().includes(search.toLowerCase()));
+
+  // #5.3b: derive the current review id + the project id PROVEN to belong to it (rid-matched). A stale
+  // (other-review) reviewProject resolves activeReviewProjectId to null, so recents/re-arm never use it.
+  const reviewAc = appContext.app_context;
+  const currentRid = hasReviewContext(appContext) && reviewAc && typeof reviewAc.sigma_review_id === "string" ? reviewAc.sigma_review_id : null;
+  const activeReviewProjectId = reviewProject && reviewProject.rid === currentRid ? reviewProject.id : null;
+  // Arm: on every review-id change, immediately drop any other review's project (fail-closed), then
+  // get-or-create this review's project and apply ONLY if we're still on the same review (reviewArmRef).
+  useEffect(() => {
+    reviewArmRef.current = currentRid;
+    if (!currentRid) { setReviewProject(null); return; }
+    setReviewProject((prev) => (prev && prev.rid === currentRid ? prev : null));
+    const fund = reviewAc && typeof reviewAc.fund_name === "string" && reviewAc.fund_name.trim() ? reviewAc.fund_name : "Review";
+    theoClient.getOrCreateReviewProject("sigma", currentRid, fund)
+      .then((p) => { if (reviewArmRef.current === currentRid && p) setReviewProject({ rid: currentRid, id: p.id }); })
+      .catch(() => { /* failed arm → leave unset; recents stay fail-closed until a later arm succeeds */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentRid, appContext]);
+  // Re-arm: put a FRESH empty review chat into the (proven-current) review project — covers initial open,
+  // the Sigma per-review newChatNonce, and the user's "New chat". Never mid-conversation, once already in
+  // the project (no loop), or for a stale project (activeReviewProjectId is null during an A→B window).
+  useEffect(() => {
+    if (activeReviewProjectId && messages.length === 0 && chatProject?.id !== activeReviewProjectId) {
+      void startInProject(activeReviewProjectId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeReviewProjectId, messages.length, chatProject?.id]);
+
+  // recents: global outside review mode; scoped to the review's project once resolved; EMPTY (fail
+  // closed) while a review is armed but its project is still resolving — never global under a review.
+  const recents = recentsList.filter((c) => c.title.toLowerCase().includes(search.toLowerCase()) && (!currentRid ? true : (activeReviewProjectId ? c.project_id === activeReviewProjectId : false)));
   const activeStyle = STYLES.find((s) => s.key === styleKey) ?? STYLES[0];
   // Personalization: the signed-in user's own row in the roster (theo_list_people isSelf) supplies the
   // display name. `selfFullName` is injected into the system prompt (Theo knows who it's with) and
@@ -361,9 +446,14 @@ export function useTheoState() {
     // stop() (or a chat switch) can cancel it. Held in abortRef for stop()/newChat() to reach.
     const ac = new AbortController(); abortRef.current = ac;
     let acc = "";                                     // accumulated answer text
-    let think = "";                                   // accumulated extended-thinking text
+    let think = "";                                   // accumulated extended-thinking text (general chat)
+    let reasoning = "";                               // VA-T7: accumulated agent reasoning (review agent)
+    const toolCalls: AgentToolCall[] = [];            // VA-T7: the review agent's live tool calls
     const cites: Citation[] = [];                     // web-grounding citations (citations_delta)
     let convId: string | null = null;
+    // Fail-closed routing: a COMPLETE review payload (app_key='sigma' + review_id + files) → the K-1
+    // review agent (sigma_review_agent_stream); anything else → the general chat path. Decided per-send.
+    const useReviewAgent = hasReviewContext(appContext);
     // Patch the last message (the streaming assistant turn) in place as deltas arrive.
     const patchLastAssistant = (patch: Partial<Message>) =>
       setMessages((m) => {
@@ -375,23 +465,43 @@ export function useTheoState() {
         return copy;
       });
     try {
-      await theoClient.sendMessageStream({
-        model: MODEL, max_tokens: 1500, system: buildSystemPrompt(styleKey, custom, chatProject, selfFullName),
+      const req = {
+        model: MODEL, max_tokens: 1500, system: buildSystemPrompt(styleKey, custom, chatProject, selfFullName, appContext.app_key),
         messages: next.map((m) => ({ role: m.role, content: stripArtifactRefs(m.content) })),
         ...(conversationId ? { conversation_id: conversationId } : {}),
         app_key: appContext.app_key, app_context: appContext.app_context,
         ...(ready.length ? { attachment_ids: ready.map((a) => a.id as string) } : {}),
-      }, {
-        onText: (d) => { acc += d; patchLastAssistant({ content: acc }); },
-        onThinking: (d) => { think += d; patchLastAssistant({ thinking: think }); },
-        onCitation: (c) => { cites.push({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text }); },
-        onMeta: (mt) => { if (mt.conversation_id) convId = mt.conversation_id; },
-      }, { signal: ac.signal });
+      };
+      if (useReviewAgent) {
+        // VA-T7: route to the K-1 review agent; stream its reasoning + tool calls into the assistant
+        // turn (rendered by AgentActivity). Thinking deltas feed the activity panel's reasoning line
+        // (NOT the general ThinkingPanel). onTool appends a running row; onToolResult resolves the
+        // most-recent running row of that name to done/fail.
+        await theoClient.sendReviewAgentStream(req, {
+          onText: (d) => { acc += d; patchLastAssistant({ content: acc }); },
+          onThinking: (d) => { reasoning += d; patchLastAssistant({ reasoning }); },
+          onTool: (tc) => { toolCalls.push({ name: tc.name, input: tc.input, status: "running" }); patchLastAssistant({ tools: toolCalls.slice() }); },
+          onToolResult: (tr) => {
+            for (let k = toolCalls.length - 1; k >= 0; k--) {
+              if (toolCalls[k].name === tr.name && toolCalls[k].status === "running") { toolCalls[k] = { ...toolCalls[k], status: tr.ok ? "done" : "fail" }; break; }
+            }
+            patchLastAssistant({ tools: toolCalls.slice() });
+          },
+          onMeta: (mt) => { if (mt.conversation_id) convId = mt.conversation_id; },
+        }, { signal: ac.signal });
+      } else {
+        await theoClient.sendMessageStream(req, {
+          onText: (d) => { acc += d; patchLastAssistant({ content: acc }); },
+          onThinking: (d) => { think += d; patchLastAssistant({ thinking: think }); },
+          onCitation: (c) => { cites.push({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text }); },
+          onMeta: (mt) => { if (mt.conversation_id) convId = mt.conversation_id; },
+        }, { signal: ac.signal });
+      }
       // Finalize on stream end: run artifact ingestion over the full text (markers → links) and, if
       // the model cited sources, attach a single CitedRun so the existing CitedText path renders them.
       const { display, openId, blocks } = theoClient.ingestReply(acc);
       setArtifacts(theoClient.listArtifacts());
-      patchLastAssistant({ content: display, ...(cites.length ? { runs: [{ text: display, citations: cites }] } : {}), ...(think ? { thinking: think } : {}) });
+      patchLastAssistant({ content: display, ...(cites.length ? { runs: [{ text: display, citations: cites }] } : {}), ...(think ? { thinking: think } : {}), ...(reasoning ? { reasoning } : {}), ...(toolCalls.length ? { tools: toolCalls.slice() } : {}) });
       if (openId) setOpenArt({ id: openId, v: -1 });
       if (convId) setConversationId(convId);
       // B4h: persist each artifact block server-side (theo_upsert_artifact — create-or-add-version by
@@ -444,6 +554,85 @@ export function useTheoState() {
 
   // Message-queue: cancel the pending queued message (the ✕ on the chip).
   function cancelQueued() { queuedRef.current = null; setQueued(null); }
+
+  // ── Voice dictation (VA-T8) — record → stop → transcribe → transcript into the composer draft ──
+  function cleanupRecorder() {
+    if (recordTickRef.current) { clearInterval(recordTickRef.current); recordTickRef.current = null; }
+    if (recordCapRef.current) { clearTimeout(recordCapRef.current); recordCapRef.current = null; }
+    if (mediaStreamRef.current) { mediaStreamRef.current.getTracks().forEach((tr) => tr.stop()); mediaStreamRef.current = null; }
+    mediaRecorderRef.current = null;
+  }
+  async function startDictation() {
+    if (!voiceAvailable || recording || transcribing) return;
+    let stream: MediaStream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { setError("Microphone access was blocked. Enable it in your browser to dictate."); return; }
+    const mime = pickAudioMime();
+    let rec: MediaRecorder;
+    try { rec = new MediaRecorder(stream, { mimeType: mime }); }
+    catch { try { rec = new MediaRecorder(stream); } catch { stream.getTracks().forEach((tr) => tr.stop()); setError("Voice recording isn't supported in this browser."); return; } }
+    mediaStreamRef.current = stream; mediaRecorderRef.current = rec; mediaChunksRef.current = []; dictationCancelRef.current = false;
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) mediaChunksRef.current.push(e.data); };
+    rec.onstop = () => {
+      const canceled = dictationCancelRef.current;
+      const chunks = mediaChunksRef.current; mediaChunksRef.current = [];
+      const type = (rec.mimeType || mime).split(";")[0];
+      cleanupRecorder();
+      setRecording(false); setRecordingSeconds(0);
+      if (canceled || chunks.length === 0) { setTranscribing(false); return; }
+      const blob = new Blob(chunks, { type });
+      setTranscribing(true);
+      void theoClient.transcribeAudio({ blob, contentType: type })
+        .then(({ text }) => { const t = text.trim(); if (t) setDraft((d) => (d.trim() ? d.replace(/\s*$/, "") + " " + t : t)); })
+        .catch(() => setError("Couldn't transcribe the recording. Please try again."))
+        .finally(() => setTranscribing(false));
+    };
+    rec.start();
+    setError(""); setRecording(true); setRecordingSeconds(0);
+    recordTickRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+    recordCapRef.current = setTimeout(() => { const r = mediaRecorderRef.current; if (r && r.state !== "inactive") r.stop(); }, DICTATION_MAX_MS);
+  }
+  function stopDictation() {
+    const rec = mediaRecorderRef.current;
+    if (rec && rec.state !== "inactive") { dictationCancelRef.current = false; rec.stop(); }
+  }
+  function cancelDictation() {
+    const rec = mediaRecorderRef.current;
+    if (rec && rec.state !== "inactive") { dictationCancelRef.current = true; rec.stop(); }
+    else { cleanupRecorder(); setRecording(false); setRecordingSeconds(0); setTranscribing(false); }
+  }
+
+  // ── Read-aloud (VA-T8) — synthesize a reply → play; playReqRef fences a stale async result ──
+  function stopReadAloud() {
+    playReqRef.current += 1;
+    if (audioRef.current) { try { audioRef.current.pause(); } catch { /* ignore */ } audioRef.current = null; }
+    if (audioUrlRef.current) { URL.revokeObjectURL(audioUrlRef.current); audioUrlRef.current = null; }
+    setPlayingIdx(null); setSynthesizingIdx(null);
+  }
+  async function readAloud(idx: number, text: string) {
+    if (!voiceAvailable) return;
+    if (playingIdx === idx || synthesizingIdx === idx) { stopReadAloud(); return; }  // tap again → stop
+    stopReadAloud();                                                                  // stop any other message's audio
+    const clean = stripArtifactRefs(text).trim();
+    if (!clean) return;
+    const req = ++playReqRef.current;
+    setSynthesizingIdx(idx);
+    try {
+      const { blob } = await theoClient.synthesizeSpeech({ text: clean });
+      if (playReqRef.current !== req) return;                                          // superseded by a newer read/stop
+      const url = URL.createObjectURL(blob);
+      audioUrlRef.current = url;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { if (playReqRef.current === req) { if (audioUrlRef.current) { URL.revokeObjectURL(audioUrlRef.current); audioUrlRef.current = null; } audioRef.current = null; setPlayingIdx(null); } };
+      audio.onerror = () => { if (playReqRef.current === req) { setError("Couldn't play the audio."); stopReadAloud(); } };
+      setSynthesizingIdx((s) => (s === idx ? null : s));
+      setPlayingIdx(idx);
+      await audio.play();
+    } catch {
+      if (playReqRef.current === req) { setError("Couldn't read that reply aloud. Please try again."); setSynthesizingIdx((s) => (s === idx ? null : s)); setPlayingIdx((p) => (p === idx ? null : p)); }
+    }
+  }
 
   // Message-queue: when the current turn ends (loading → false) and a message is still queued, auto-send
   // it. A hard failure clears the queue in send()'s catch, so this fires only after a normal completion
@@ -669,6 +858,12 @@ export function useTheoState() {
     // state
     view, collapsed, search, projects, projectChats, artifacts, galleryArtifacts, detail, chatProject, art, openArt, messages, draft, attachments, attachmentsAvailable, loading, error, queued,
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
+    reviewMode: hasReviewContext(appContext), // Sigma review context armed → review-assistant landing/chip
+    sigmaMode: appContext.app_key === "sigma", // #5 v2: in Sigma (with or without a review) → review persona/landing
+    // Voice I/O (VA-T8)
+    voiceAvailable, recording, transcribing, recordingSeconds, playingIdx, synthesizingIdx,
+
+
     // setters / handlers
     go, toggleCollapse: () => setCollapsed((v) => !v), setSearch, setDraft, newChat, startInProject, openProject,
     clearChatProject: () => setChatProject(null), send, stop, cancelQueued, ingestAppContext, selectRecent, loadRecents, loadProjects, loadGalleryArtifacts,
@@ -680,5 +875,7 @@ export function useTheoState() {
     selectVersion: (v: number) => setOpenArt(openArt ? { id: openArt.id, v } : null),
     openArtifact: (id: string) => setOpenArt({ id, v: -1 }), openGalleryArtifact, closeArt: () => setOpenArt(null),
     greeting: greeting(selfName), loadPeople,
+    // Voice I/O (VA-T8)
+    startDictation, stopDictation, cancelDictation, readAloud, stopReadAloud,
   };
 }

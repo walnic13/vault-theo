@@ -8,7 +8,7 @@
 import type { ReactNode } from "react";
 import { C } from "../theme";
 import { ASSISTANT_NAME, PRODUCT_NAME, MODEL_LABEL } from "../swapBlock";
-import { STYLES, STARTERS } from "../data";
+import { STYLES, STARTERS, REVIEW_STARTERS, REVIEW_APP_STARTERS } from "../data";
 import { IcBack, IcClose } from "./icons";
 import { Formatted } from "../lib/markdown";
 import { splitAssistant } from "../lib/artifacts";
@@ -71,7 +71,13 @@ export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
               queuedText={t.queued} onCancelQueued={t.cancelQueued}
               onAddFiles={t.addFiles} onAddPastedText={t.addPastedText} onRemoveAttachment={t.removeAttachment}
               chatProject={t.chatProject}
-              assistantName={ASSISTANT_NAME} greeting={t.greeting} starters={STARTERS} renderAssistant={renderAssistant}
+              assistantName={ASSISTANT_NAME} greeting={t.greeting} starters={t.reviewMode ? REVIEW_STARTERS : (t.sigmaMode ? REVIEW_APP_STARTERS : STARTERS)} renderAssistant={renderAssistant}
+              reviewMode={t.reviewMode}
+              sigmaMode={t.sigmaMode}
+              reviewFund={typeof t.appContext.app_context?.fund_name === "string" ? (t.appContext.app_context.fund_name as string) : undefined}
+              voiceAvailable={t.voiceAvailable} recording={t.recording} transcribing={t.transcribing} recordingSeconds={t.recordingSeconds}
+              onStartDictation={t.startDictation} onStopDictation={t.stopDictation} onCancelDictation={t.cancelDictation}
+              playingIdx={t.playingIdx} synthesizingIdx={t.synthesizingIdx} onReadAloud={t.readAloud} onStopReadAloud={t.stopReadAloud}
             />
           )}
           {t.view === "projects" && (

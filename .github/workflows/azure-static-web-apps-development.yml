@@ -33,6 +33,7 @@ jobs:
           VITE_ENTRA_API_SCOPE=${{ secrets.VITE_ENTRA_API_SCOPE }}
           VITE_FUNCTIONS_URL=${{ secrets.VITE_FUNCTIONS_URL }}
           VITE_STREAM_FUNCTIONS_URL=${{ secrets.VITE_STREAM_FUNCTIONS_URL }}
+          VITE_CHAT_FUNCTIONS_URL=https://vaultgpt-func-chat.azurewebsites.net
           EOF
 
       # The SWA deploy action builds (Oryx: npm install + npm run build) and deploys in one step.

@@ -9,7 +9,8 @@ import type {
 } from "../types";
 import { parseArtifacts, remapToIds, upsert } from "../lib/artifacts";
 import {
-  sendMessage as gatewaySend, sendMessageStream as gatewaySendStream, configureGateway as gatewayConfigure,
+  sendMessage as gatewaySend, sendMessageStream as gatewaySendStream,
+  sendReviewAgentStream as gatewaySendReviewAgentStream, configureGateway as gatewayConfigure,
   listConversations as gatewayList, getConversation as gatewayGet,
   listProjectConversations as gatewayListProjectConversations,
   listConversationAttachments as gatewayListConvAttachments,
@@ -17,6 +18,7 @@ import {
   finalizeAttachment as gatewayFinalize, deleteAttachment as gatewayDeleteAttachment,
   attachmentsAvailable as gatewayAttachmentsAvailable,
   listProjects as gatewayListProjects, createProject as gatewayCreateProject,
+  getOrCreateReviewProject as gatewayGetOrCreateReviewProject,
   updateProjectInstructions as gatewayUpdateProjectInstructions,
   updateProjectDescription as gatewayUpdateProjectDescription, deleteProject as gatewayDeleteProject,
   listProjectKnowledge as gatewayListProjectKnowledge, addProjectKnowledge as gatewayAddProjectKnowledge,
@@ -29,6 +31,7 @@ import {
   setProjectVisibility as gatewaySetProjectVisibility,
   shareProject as gatewayShareProject, unshareProject as gatewayUnshareProject,
   listProjectMembers as gatewayListProjectMembers, listPeople as gatewayListPeople,
+  voiceAvailable as gatewayVoiceAvailable, transcribeAudio as gatewayTranscribeAudio, synthesizeSpeech as gatewaySynthesizeSpeech,
   type StreamHandlers,
 } from "./gateway.live";
 
@@ -38,7 +41,7 @@ let appContext: AppContext = { app_key: null, app_context: null };
 
 export const theoClient = {
   // ── Gateway wiring (Origin mount supplies the token provider; switches mock → live) ──
-  configureGateway(opts: { getAccessToken?: (() => Promise<string | null>) | null; baseUrl?: string | null; streamBaseUrl?: string | null }): void {
+  configureGateway(opts: { getAccessToken?: (() => Promise<string | null>) | null; baseUrl?: string | null; streamBaseUrl?: string | null; chatBaseUrl?: string | null }): void {
     gatewayConfigure(opts);
   },
 
@@ -53,6 +56,13 @@ export const theoClient = {
   sendMessageStream(req: GatewayRequest, handlers: StreamHandlers, opts?: { signal?: AbortSignal }): Promise<void> {
     return gatewaySendStream(req, handlers, opts);
   },
+  // Sigma K-1 review agent (streaming; sigma_review_agent_stream on the func-stream sidecar). Same
+  // request shape as sendMessageStream (review_id + files ride in req.app_context); the reply arrives
+  // as the agent's clean SSE protocol via the handlers (text/thinking deltas + tool / tool_result +
+  // the final conversation id). useTheoState routes here ONLY when a complete review payload is present.
+  sendReviewAgentStream(req: GatewayRequest, handlers: StreamHandlers, opts?: { signal?: AbortSignal }): Promise<void> {
+    return gatewaySendReviewAgentStream(req, handlers, opts);
+  },
 
   // ── Attachments (B8e) — one network round per file: create SAS → PUT bytes → finalize.
   // Returns the server attachment id (used as attachment_ids on the next sendMessage). The bytes
@@ -64,6 +74,16 @@ export const theoClient = {
     return gatewayFinalize(up.attachmentId, input.name);
   },
   deleteAttachment(id: string): Promise<void> { return gatewayDeleteAttachment(id); },
+
+  // ── Voice I/O (VA-T8 / API §2.11) — dictation (transcribe an audio clip → text) + read-aloud
+  // (synthesize reply text → audio). Live-only (no mock); the composer gates on voiceAvailable(). ──
+  voiceAvailable(): boolean { return gatewayVoiceAvailable(); },
+  transcribeAudio(input: { blob: Blob; contentType: string }): Promise<{ text: string }> {
+    return gatewayTranscribeAudio(input);
+  },
+  synthesizeSpeech(input: { text: string; voice?: string }): Promise<{ blob: Blob; contentType: string }> {
+    return gatewaySynthesizeSpeech(input);
+  },
 
   // ── Conversation history (Recents + reload; theo_list/get_conversation in 1B) ──
   listConversations(limit?: number): Promise<ConversationSummary[]> {
@@ -108,6 +128,7 @@ export const theoClient = {
   // FE-mapped shape (gateway.live maps the deployed rows) so the surface is unchanged. ──
   listProjects(): Promise<Project[]> { return gatewayListProjects(); },
   createProject(d: NpDraft): Promise<Project> { return gatewayCreateProject(d); },
+  getOrCreateReviewProject(appKey: string, sourceRef: string, name: string): Promise<Project> { return gatewayGetOrCreateReviewProject(appKey, sourceRef, name); },
   updateProjectInstructions(id: string, instructions: string): Promise<Project> {
     return gatewayUpdateProjectInstructions(id, instructions);
   },

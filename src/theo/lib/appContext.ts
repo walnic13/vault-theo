@@ -10,6 +10,7 @@ const APP_NAMES: Record<string, string> = {
   pfic: "PFIC",
   "structure-charts": "Structure Charts",
   advisory: "Advisory",
+  sigma: "Review assistant",
 };
 
 export function appContextLabel(ctx: AppContext): string | null {
@@ -19,6 +20,7 @@ export function appContextLabel(ctx: AppContext): string | null {
   let anchor = "";
   if (c && typeof c === "object") {
     if ("workpaper_id" in c) anchor = "Workpaper";
+    else if ("sigma_review_id" in c) anchor = typeof c.fund_name === "string" ? String(c.fund_name) : "Review";
     else if (Object.keys(c).length > 0) anchor = "Context";
   }
   return anchor ? `${name} · ${anchor}` : name;

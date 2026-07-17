@@ -17,6 +17,9 @@ export const IcDoc = ({ s = 18 }: { s?: number }) => (<svg {...SV} width={s} hei
 export const IcBack = ({ s = 18 }: { s?: number }) => (<svg {...SV} width={s} height={s}><path d="m15 18-6-6 6-6" /></svg>);
 export const IcClose = ({ s = 18 }: { s?: number }) => (<svg {...SV} width={s} height={s}><path d="M18 6 6 18M6 6l12 12" /></svg>);
 export const IcTrash = ({ s = 16 }: { s?: number }) => (<svg {...SV} width={s} height={s}><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></svg>);
+// Voice controls (VA-T8): dictation mic + read-aloud speaker, in the SV idiom.
+export const IcMic = ({ s = 18 }: { s?: number }) => (<svg {...SV} width={s} height={s}><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10a7 7 0 0 0 14 0" /><path d="M12 19v3" /></svg>);
+export const IcSpeaker = ({ s = 16 }: { s?: number }) => (<svg {...SV} width={s} height={s}><path d="M11 5 6 9H3v6h3l5 4z" /><path d="M16 9a4 4 0 0 1 0 6" /><path d="M19 6.5a8 8 0 0 1 0 11" /></svg>);
 
 export function Burst({ size = 22, color = C.coral }: { size?: number; color?: string }) {
   return (<svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true"><g fill={color}>

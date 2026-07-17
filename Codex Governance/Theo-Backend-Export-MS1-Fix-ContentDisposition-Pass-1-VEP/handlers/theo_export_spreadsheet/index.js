@@ -446,9 +446,12 @@ module.exports = async function (context, req) {
     // RFC 6266 / RFC 5987: the SAS `rscd` (Content-Disposition) query value must be valid ASCII, so a
     // non-ASCII filename (e.g. an em dash "—") — which Azure Blob rejects with InvalidQueryParameterValue
     // — is delivered as an ASCII `filename="…"` fallback PLUS a UTF-8 `filename*` carrying the real name.
+    // The `filename*` ext-value must be RFC-5987 `attr-char`/pct-encoded ONLY: encodeURIComponent leaves
+    // ' ( ) * unescaped but those are NOT attr-chars, so escape them too (cleanFileName permits ' ( )).
     // Both parts are pure ASCII, so the signed rscd + the query param stay valid; browsers honour filename*.
     const asciiName = filename.replace(/[^\x20-\x7E]/g, "-").replace(/"/g, "");
-    const contentDisposition = `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+    const utf8Name = encodeURIComponent(filename).replace(/['()*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+    const contentDisposition = `attachment; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`;
     const readSas = await buildUserDelegationSas(STORAGE_ACCOUNT, STORAGE_CONTAINER, blobKey, "r", SAS_TTL_MINUTES, XLSX_CONTENT_TYPE, contentDisposition);
     const downloadUrl = `${blobUrl}?${readSas.sas}`;
 

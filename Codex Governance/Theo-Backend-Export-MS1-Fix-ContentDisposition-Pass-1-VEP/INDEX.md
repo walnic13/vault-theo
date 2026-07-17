@@ -9,7 +9,7 @@ Turn Type: Verified Evidence Pack (backend plan)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5
-Turn issued against HEAD: vault-theo `72cb24b5afead03c17f79d9b728d2db53d6b8c92`.
+Turn issued against HEAD: vault-theo `__PKG_COMMIT__`.
 Currency-anchor form: git blob SHA at HEAD.
 
 ## Rule Anchor Table
@@ -28,7 +28,7 @@ Currency-anchor form: git blob SHA at HEAD.
 
 ## §1 Feature Identification + Architecture & boundary reconciliation
 - **Defect:** the read-SAS builder set `rscd = attachment; filename="<filename>"`; when `<filename>` contains any non-ASCII character, the value is not a valid HTTP header / SAS query value and Azure rejects the whole download URL (`InvalidQueryParameterValue`, param `rscd`). Reproduced live 2026-07-17.
-- **Fix (one region, ~L446):** build the Content-Disposition per RFC 6266 — an ASCII fallback `filename="<ascii>"` (non-ASCII → `-`) **plus** `filename*=UTF-8''<encodeURIComponent(filename)>`. The whole value is pure ASCII (verified), so the SIGNED `rscd` and the query param stay valid and identical; the browser downloads with the real Unicode name via `filename*`. Nothing else changes — same write/read SAS flow, same response envelope, same validation.
+- **Fix (one region, ~L446):** build the Content-Disposition per RFC 6266 — an ASCII fallback `filename="<ascii>"` (non-ASCII → `-`, `"` stripped) **plus** a proper RFC-5987 `filename*=UTF-8''<ext-value>`. The `ext-value` is `encodeURIComponent(filename)` **with `' ( ) *` additionally percent-escaped** (`%27 %28 %29 %2A`), because `encodeURIComponent` leaves those four unescaped yet they are NOT RFC-5987 `attr-char`s — and `cleanFileName` permits `' ( )`, so a name like `K-1 (Final) — O'Brien.xlsx` would otherwise emit a non-compliant `filename*` (Codex T13). The whole value is pure ASCII (verified across em-dash, curly-apostrophe, parens, asterisks, café), so the SIGNED `rscd` and the query param stay valid + identical; browsers download with the real Unicode name via `filename*`. Nothing else changes — same write/read SAS flow, same response envelope, same validation.
 - **Boundary unchanged:** stateless; func-theo-tools; MI user-delegation SAS; as-the-user; no schema/migration.
 
 ## §2 Gap Register
@@ -51,6 +51,7 @@ No DEVIATION rows.
 Auth: `az account get-access-token --resource api://4e1a1e31-5c20-4480-99e4-098901707d9e` as `wmansfield@vault-tax.com`.
 1. **Regression happy (ASCII name):** POST a valid `sheets` payload with `filename:"K-1 Export"` → **200**; GET `downloadUrl` → **200** xlsx (unchanged).
 2. **The fix (non-ASCII name):** POST with `filename:"Seedcamp V LP 2021 K-1 — Shakil Khan"` (em dash) → **200**; **GET the `downloadUrl` → 200** (NOT `InvalidQueryParameterValue`), `Content-Type` xlsx, `Content-Disposition` carries both `filename="…-…"` and `filename*=UTF-8''…%E2%80%94…`; bytes are a valid `.xlsx`. This is the exact case that failed on the dev SWA.
+3. **RFC-5987 edge (Codex T13 case):** POST with `filename:"K-1 (Final) — O'Brien"` (parens + apostrophe + em dash) → **200**; **GET → 200**; assert the `rscd`/`filename*` contains `%28 %29 %27` (not literal `( ) '`) and no `InvalidQueryParameterValue`.
 
 ## §6 Deploy (Pass-3, on APPROVAL) — Claude Code to `vaultgpt-func-theo-tools` (DR-T7/DR-T10; Golden Handler §5.5)
 1. Resolve SCM host (`az functionapp show … enabledHostNames`); Kudu-GET the live `theo_export_spreadsheet/index.js` (rollback baseline).

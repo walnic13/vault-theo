@@ -9,7 +9,7 @@ Turn Type: Pass 4 — Documentation-update package (Role-C authoring)
 Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 4
 Sub-phase Track: N/A
-Turn issued against HEAD: vault-theo `b972ce79e12d665d14a623d12919112eaa45d177` (the four target docs are unmodified at this HEAD; blob SHAs below). This package's own commit adds only this INDEX.
+Turn issued against HEAD: vault-theo `6b92ae9d615b47092f037d0ca88cd82700d8a596` (package-present; the four target docs are unmodified here; blob SHAs below). This package's own commit adds only this INDEX.
 Currency-anchor form: git blob SHA at HEAD (Conformance §8 fallback). Absolute paths in the Rule Anchor Table.
 
 ## Rule Anchor Table

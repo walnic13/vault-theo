@@ -6,7 +6,7 @@ Plan-only Frontend VEP (no component code lands this turn; implementation is Pas
 
 Role: Claude Code
 Turn Type: Pass 1 — Frontend Verified Evidence Pack
-Turn issued against HEAD: `5f0486487282cc7552825d600e1aa2146fbb9277` (vault-theo, `development` — the commit that contains this package)
+Turn issued against HEAD: `__PKG_COMMIT__` (vault-theo, `development` — the commit that contains this package)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A
@@ -132,7 +132,7 @@ export interface ChatViewProps {
 }
 ```
 - **(2) Visual authority:** VA-T9 (the new card) + VA-T1 (unchanged rest).
-- **(3) Data/contract dependency:** the assistant-branch render gains one line after the reply body (≈ after the `ReadAloudButton` block, L356–364): `{m.download && <DownloadCard download={m.download} />}`. Reads `m.download` from the existing `messages` prop; no new prop, no new call.
+- **(3) Data/contract dependency:** the assistant-branch render gains one line **immediately after the reply body** — after the `{m.content ? (…CitedText…|renderAssistant…) : …}` block (~L354) and **BEFORE** the VA-T8 `ReadAloudButton` block (~L355–364): `{m.download && <DownloadCard download={m.download} />}`. The resulting assistant-turn render order is **AgentActivity → ThinkingPanel → reply body → DownloadCard → read-aloud actions row**, which is VA-T9's "directly after the reply body" (the card sits between the body and the read-aloud control, not below it). Reads `m.download` from the existing `messages` prop; no new prop, no new call.
 
 ### Component 4 — service seam (`src/theo/services/gateway.live.ts`) — `StreamHandlers` gains one optional handler
 - **(1) Interface** (full literal after change; the added member is optional/last):

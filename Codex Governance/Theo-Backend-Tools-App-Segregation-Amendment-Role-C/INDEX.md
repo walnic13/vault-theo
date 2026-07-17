@@ -1,6 +1,6 @@
 # Theo Backend — Tools-App segregation amendment (Role-C) — for Codex
 
-Establishes a dedicated **`vaultgpt-func-theo-tools`** Function App (existing EP1 Premium plan) as the home for Theo's model-callable **tools** — the differentiator surface expected to grow to hundreds of tools. Segregating tools from the chat gateway / CRUD / feature apps isolates blast radius, keeps each app small (cold-start), and makes the whole tool library **Claude-deployable end-to-end** (no monolith touch). This amendment: (a) adds **DR-T10** (tools-app segregation), (b) **extends the DR-T7 deploy exception** to name `vaultgpt-func-theo-tools` alongside `vaultgpt-func-chat`, and (c) **re-targets Tier Export** (deploy home `func-chat` → `func-theo-tools`). Walter-directed 2026-07-17; Walter granted `az` to provision the app. **Plan amendment only** — no code, no provisioning here. **Eleven** verbatim edits for the Pass-4 inline executor after APPROVAL — the deploy-authority extension is swept through **every** func-chat-scoped statement (Orchestration §1A/§1B/§1C/**§1E**, the **Governor** authorization-boundary, and Golden Handler **§5.5**) so nothing lands contradictory (Codex T20).
+Establishes a dedicated **`vaultgpt-func-theo-tools`** Function App (existing EP1 Premium plan) as the home for Theo's model-callable **tools** — the differentiator surface expected to grow to hundreds of tools. Segregating tools from the chat gateway / CRUD / feature apps isolates blast radius, keeps each app small (cold-start), and makes the whole tool library **Claude-deployable end-to-end** (no monolith touch). This amendment: (a) adds **DR-T10** (tools-app segregation), (b) **extends the DR-T7 deploy exception** to name `vaultgpt-func-theo-tools` alongside `vaultgpt-func-chat`, and (c) **re-targets Tier Export** (deploy home `func-chat` → `func-theo-tools`). Walter-directed 2026-07-17; Walter granted `az` to provision the app. **Plan amendment only** — no code, no provisioning here. **Fourteen** verbatim edits for the Pass-4 inline executor after APPROVAL. **Every** `func-chat` mention across all five docs was enumerated and classified: voice/native-chat statements correctly **stay** func-chat; **all** deploy-authority + Export/tool statements now name `vaultgpt-func-theo-tools` — Orchestration §1A/§1B/§1C/§1E, the Governor authorization-boundary, Golden Handler §5.5 + HF-T7, Phase 1B §7 authority row + Tier Export deploy-target/deliverable/completion-gate, and API Spec §2.12 row + paragraph — so nothing lands contradictory (Codex T20/T13).
 
 ## Grounding Conformance Receipt
 
@@ -25,6 +25,9 @@ Currency-anchor form: git blob SHA at HEAD (Conformance §8 fallback). Absolute 
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1E | "The only designated app is **`vaultgpt-func-chat`**" | Edit 9 — §1E body names both designated apps (this IS the "further Walter-granted, Role-C-recorded amendment" §1E requires) |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md | Authorization boundary | "the designated dedicated Theo Function App (`vaultgpt-func-chat` only) after a Codex-APPROVED VEP" | Edit 10 — Governor authorization-boundary names both apps |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_GOLDEN_HANDLER_STANDARD.md | §5.5 | "**Claude Code deploys** these via Kudu VFS after a Codex-APPROVED VEP" | Edit 11 — §5.5 deploy split adds func-theo-tools (classic v4, per-fn) |
+| c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_PHASE_1B_BACKEND_PLAN.md | §7 authority row | "the designated dedicated Theo Function App (`vaultgpt-func-chat` only) after a Codex-APPROVED VEP; the monolith + streaming sidecar remain READ-ONLY." | Edit 12 — plan deploy-exception summary row names both apps |
+| c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_PHASE_1B_BACKEND_PLAN.md | Tier Export gate | "Claude Code deploys the handler to func-chat → golden-curl-verified → Role-C updates the API Spec §2.12 row" | Edit 13 — Tier Export completion gate → func-theo-tools |
+| c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/spec/THEO_API_SPEC.md | §2.12 para | "The Export route executes as the signed-in user on `vaultgpt-func-chat`" | Edit 14 — §2.12 closing paragraph → func-theo-tools |
 
 ### Currency anchors (blob SHAs @ HEAD `b4252ca`)
 - THEO_EXECUTION_ORCHESTRATION_STANDARD.md `97329131489b8661281ff98b987a745d59a6e3e1`; THEO_PHASE_1B_BACKEND_PLAN.md `1a7404366d8ced59a5e8f4984e7c939ece78185b`; THEO_GOLDEN_HANDLER_STANDARD.md `fcea72696eb6c5d80b1e64ee7171add5a8f4e18d`; THEO_API_SPEC.md `d26994012ca7a387b5aafcfd7644780e007d30f0`; CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md `ddfb4ae112ac204b28fdc64c200538cb0bc15658`.
@@ -149,6 +152,36 @@ under which Claude Code MAY deploy handler/function code to the designated dedic
 **After:**
 ```
   - **Deploy split.** `vaultgpt-func-chat` (classic v4; per-fn `/site/wwwroot/<fn>/{index.js,function.json}`), `vaultgpt-func-theo-tools` (classic v4; per-fn `/site/wwwroot/<fn>/{index.js,function.json}`, same layout as func-chat), and `vaultgpt-func-stream` (v4 programming model; `/site/wwwroot/src/functions/<fn>.js`) — **Claude Code deploys** these via Kudu VFS after a Codex-APPROVED VEP.
+```
+
+## Edit 12 — `governance/THEO_PHASE_1B_BACKEND_PLAN.md` §7 (authority summary row — DB writes / migrations / deploys)
+**Before:**
+```
+**Deploy exception (Orchestration §1E / DR-T7, 2026-07-04):** Claude Code MAY deploy handler/function code to the designated dedicated Theo Function App (`vaultgpt-func-chat` only) after a Codex-APPROVED VEP; the monolith + streaming sidecar remain READ-ONLY. |
+```
+**After:**
+```
+**Deploy exception (Orchestration §1E / DR-T7, 2026-07-04; extended to `vaultgpt-func-theo-tools` 2026-07-17 / DR-T10):** Claude Code MAY deploy handler/function code to the designated dedicated Theo Function Apps (`vaultgpt-func-chat` and `vaultgpt-func-theo-tools`) after a Codex-APPROVED VEP; the monolith + streaming sidecar remain READ-ONLY. |
+```
+
+## Edit 13 — `governance/THEO_PHASE_1B_BACKEND_PLAN.md` Tier Export (Completion gate line)
+**Before:**
+```
+- **Completion gate (per microstep).** VEP Codex-APPROVED → Claude Code deploys the handler to func-chat → golden-curl-verified → Role-C updates the API Spec §2.12 row + Golden Handler §6 HF-T7 status to DEPLOYED. No `theo_*` schema change in this tier.
+```
+**After:**
+```
+- **Completion gate (per microstep).** VEP Codex-APPROVED → Claude Code deploys the handler to `vaultgpt-func-theo-tools` → golden-curl-verified → Role-C updates the API Spec §2.12 row + Golden Handler §6 HF-T7 status to DEPLOYED. No `theo_*` schema change in this tier.
+```
+
+## Edit 14 — `spec/THEO_API_SPEC.md` §2.12 (closing paragraph)
+**Before:**
+```
+The Export route executes as the signed-in user on `vaultgpt-func-chat`; the workbook is generated server-side (in-tenant SheetJS) and delivered via a short-TTL owner-scoped read SAS (bytes never persisted beyond the TTL blob). PROPOSED until the Export-MS1 VEP lands DEPLOYED. No `theo_*` schema is added.
+```
+**After:**
+```
+The Export route executes as the signed-in user on `vaultgpt-func-theo-tools`; the workbook is generated server-side (in-tenant SheetJS) and delivered via a short-TTL owner-scoped read SAS (bytes never persisted beyond the TTL blob). PROPOSED until the Export-MS1 VEP lands DEPLOYED. No `theo_*` schema is added.
 ```
 
 ## Mechanical lint

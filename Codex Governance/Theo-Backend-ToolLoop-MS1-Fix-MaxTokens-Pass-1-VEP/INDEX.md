@@ -9,7 +9,7 @@ Turn Type: Verified Evidence Pack (backend plan)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5
-Turn issued against HEAD: vault-theo `__PKG_COMMIT__`.
+Turn issued against HEAD: vault-theo `7d155f6aad76e5bbc4e43466410ef53962230398`.
 Currency-anchor form: git blob SHA at HEAD.
 
 ## Rule Anchor Table

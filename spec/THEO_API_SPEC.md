@@ -108,6 +108,14 @@ All `theo_chat_*` endpoints execute as the signed-in user (Entra OID from EasyAu
 
 Both Voice I/O routes execute as the signed-in user on `vaultgpt-func-chat`; the cognitive credential is held server-side by the Function's managed identity (keyless), never reaching the browser. `theo_transcribe_audio` is **DEPLOYED** (Voice-MS1, 2026-07-17; golden-verified); `theo_synthesize_speech` is **DEPLOYED** (Voice-MS2, 2026-07-17; golden-verified). The entire Tier Voice backend (dictation + read-aloud) is DEPLOYED. No `theo_*` schema is added for either route.
 
+### §2.12 Export (Tier Export) — backs Theo → downloadable Excel
+
+| Capability | Contract | Status | Backing |
+|---|---|---|---|
+| export structured data → downloadable `.xlsx` | `PROPOSED` (Export-MS1): `POST /api/theo_export_spreadsheet` on `vaultgpt-func-chat`; body `{ filename?, sheets: [{ name, columns: [{ key, header, type?:'text'\|'number'\|'date' }], rows: [ { <key>: value } ] }] (1..N sheets), meta? }` → **200** `{ downloadUrl, filename, expiresAt }` (standard `{data,meta}` envelope) — the handler builds a typed/formatted workbook server-side with SheetJS (numbers/dates as real cell types; bold headers; a fund/partner/year header block; K-1-organized ordering when supplied), uploads it owner-scoped to `theo-content` (`exports/<oid>/<uuid>.xlsx`) via the HF-T5 managed-identity user-delegation write SAS, and returns a short-TTL **read** SAS download URL. Errors `{error:{code,message,status,timestamp}}`: 401 `UNAUTHORIZED`, 400 `INVALID_REQUEST`/`PAYLOAD_TOO_LARGE` (row/cell caps), 502 `UPSTREAM_ERROR`, 500. Executes as the signed-in user (EasyAuth OID). **Stateless** — no `theo_*` table, no persistence. Invoked as a Theo tool (model-facing tool-manifest wiring in `theo_message` on `vaultgpt-func-premium`, Walter-deployed). Final request/response shape is locked at the Export-MS1 VEP. | `1B-proposed` | HF-T7 spreadsheet export broker (SheetJS + Blob `theo-content`) |
+
+The Export route executes as the signed-in user on `vaultgpt-func-chat`; the workbook is generated server-side (in-tenant SheetJS) and delivered via a short-TTL owner-scoped read SAS (bytes never persisted beyond the TTL blob). PROPOSED until the Export-MS1 VEP lands DEPLOYED. No `theo_*` schema is added.
+
 ## §3 Boundary
 
 No Theo endpoint reads/writes `reporting_*` tables. Corporate Reporting data is obtained only by calling the published Reporting API as the signed-in user, per `spec/THEO_TOOL_MANIFEST.md` (architecture §0a/§1.3/§4.3).

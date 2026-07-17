@@ -11,7 +11,7 @@ Turn Type: Role-C Verbatim-Edit Handoff (governance amendment)
 Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 4
 Sub-phase Track: E3
-Turn issued against HEAD: vault-theo `f02c2b7207932e6e9f67451dad74fd9dbab4a75f`.
+Turn issued against HEAD: vault-theo `__PKG_COMMIT__`.
 Currency-anchor form: git blob SHA at HEAD.
 
 ## Rule Anchor Table
@@ -22,9 +22,10 @@ Currency-anchor form: git blob SHA at HEAD.
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1E | "the streaming sidecar **`vaultgpt-func-stream`** are **READ-ONLY**" | Edits 4–5 remove func-stream from the READ-ONLY exclusion |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1B DR-T7 | "the monolith (`vaultgpt-func-premium`) and streaming sidecar (`vaultgpt-func-stream`) remain READ-ONLY" | Edit 2 extends DR-T7 to func-stream |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_GOLDEN_HANDLER_STANDARD.md | §5.5 | "**Claude Code deploys** these via Kudu VFS after a Codex-APPROVED VEP" | Alignment basis — func-stream deploy already recorded here (no edit; cited as the truth this amendment aligns to) |
+| c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_PHASE_1B_BACKEND_PLAN.md | regime row | "the monolith + streaming sidecar remain READ-ONLY" | Edit 9 — the binding deploy-authority regime row (adds func-stream) |
 
 ### Currency anchors (blob SHAs @ HEAD)
-- THEO_EXECUTION_ORCHESTRATION_STANDARD.md `123b09507b4fdebad25f5bad7e83364a93518f95`; CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md `bf2314f6eee3c947177712482c6e59dce6a796f5`; THEO_GOLDEN_HANDLER_STANDARD.md `49aa225aa6145adced121846de990725da5fe0f0`.
+- THEO_EXECUTION_ORCHESTRATION_STANDARD.md `123b09507b4fdebad25f5bad7e83364a93518f95`; CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md `bf2314f6eee3c947177712482c6e59dce6a796f5`; THEO_GOLDEN_HANDLER_STANDARD.md `49aa225aa6145adced121846de990725da5fe0f0`; THEO_PHASE_1B_BACKEND_PLAN.md `d202ff644986754a389570d98c9f633d41812adb`.
 
 ## Architecture & boundary reconciliation
 - **Capability (DR-T11a):** general Theo chat gains a **streaming agentic tool-loop** in `theo_message_stream` (`vaultgpt-func-stream`). Today that handler verbatim-relays the upstream Anthropic SSE; the loop converts it to a parsed relay (the Sigma `sigma_review_agent_stream` pattern, reusing `engine/tool-loop.js` already deployed on func-stream) that: exposes registered **`vaultgpt-func-theo-tools`** tools to the model, dispatches `tool_use` to the tool endpoint **as the signed-in user** (forwarding the caller's bearer — func-stream and func-theo-tools share the `api://4e1a1e31-…` audience), feeds `tool_result` back, and emits a new **`event: vault_export`** SSE frame for a downloadable result `{downloadUrl,filename,contentType,byteSize,expiresAt}`. First tool: `theo_export_spreadsheet` (DR-T9). **Stateless w.r.t. new schema** — no `theo_*` table (persistence of turns is unchanged).
@@ -82,8 +83,14 @@ BEFORE:
 AFTER:
 `under which Claude Code MAY deploy handler/function code to the designated dedicated Theo Function Apps (\`vaultgpt-func-chat\`, \`vaultgpt-func-theo-tools\`, and the streaming sidecar \`vaultgpt-func-stream\`) after a Codex-APPROVED VEP; only the monolith \`vaultgpt-func-premium\` remains READ-ONLY / never written by Claude Code (extended 2026-07-17 by DR-T10/DR-T11).`
 
+### Edit 9 — Phase Plan regime row (binding deploy-authority row, add func-stream)
+BEFORE:
+`| DB writes / migrations / deploys | **Walter only** for DB writes, migrations, and merges. Claude Code plans + hands off Walter-executable SQL; never writes the DB. **Deploy exception (Orchestration §1E / DR-T7, 2026-07-04; extended to \`vaultgpt-func-theo-tools\` 2026-07-17 / DR-T10):** Claude Code MAY deploy handler/function code to the designated dedicated Theo Function Apps (\`vaultgpt-func-chat\` and \`vaultgpt-func-theo-tools\`) after a Codex-APPROVED VEP; the monolith + streaming sidecar remain READ-ONLY. |`
+AFTER:
+`| DB writes / migrations / deploys | **Walter only** for DB writes, migrations, and merges. Claude Code plans + hands off Walter-executable SQL; never writes the DB. **Deploy exception (Orchestration §1E / DR-T7, 2026-07-04; extended to \`vaultgpt-func-theo-tools\` 2026-07-17 / DR-T10; extended to \`vaultgpt-func-stream\` 2026-07-17 / DR-T11):** Claude Code MAY deploy handler/function code to the designated dedicated Theo Function Apps (\`vaultgpt-func-chat\`, \`vaultgpt-func-theo-tools\`, and the streaming sidecar \`vaultgpt-func-stream\`) after a Codex-APPROVED VEP; only the monolith \`vaultgpt-func-premium\` remains READ-ONLY. |`
+
 ## No other changes
-Golden Handler §5.5 already records the func-stream deploy split — **no edit** (cited as the alignment basis). The Phase Plan Tier "untouched func-stream" notes (Voice/Export tiers) are **per-tier historical facts** — they correctly describe what those tiers touched and are **not** amended. API Spec §2.10 line 101 ("monolith … and streaming sidecar … are unchanged") is a per-family note about the `theo_chat_*` endpoints — **not** amended.
+Golden Handler §5.5 already records the func-stream deploy split — **no edit** (cited as the alignment basis). The Phase Plan **binding regime row** (line 32) IS amended (Edit 9). The Phase Plan **per-tier** "untouched func-stream" notes (Voice tier ~L196; Export tier ~L206) are **per-tier historical facts** — they correctly describe what those specific tiers touched and are **not** amended (verified: neither asserts a global READ-ONLY regime). API Spec §2.10 line 101 ("monolith … and streaming sidecar … are unchanged") is a per-family note about the `theo_chat_*` endpoints — **not** amended.
 
 ## Requested action
 Codex: verify each before/after is byte-faithful at HEAD, confirm the func-stream sweep is exhaustive (no remaining doc calls func-stream globally READ-ONLY), and APPROVE the amendment. On APPROVED, Claude Code commits the verified edits, then authors the MS1 backend VEP.

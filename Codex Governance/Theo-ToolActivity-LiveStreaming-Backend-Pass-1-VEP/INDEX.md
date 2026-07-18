@@ -14,7 +14,7 @@ Turn Type: Verified Evidence Pack (backend plan)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5
-Turn issued against HEAD: vault-theo `be29a1217bd3009d1cf67f3265e317f64a60b444` (the commit that contains this package).
+Turn issued against HEAD: vault-theo `585dfec797c170cc2346bc2d11cffbe3956c8772` (the commit that contains this package, incl. the Pass-2 T13 clamp fix).
 Currency-anchor form: git blob SHA at HEAD.
 
 ## Rule Anchor Table
@@ -27,7 +27,7 @@ Currency-anchor form: git blob SHA at HEAD.
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/spec/THEO_API_SPEC.md | §2.1 | "Each dispatched general-chat tool also streams" | §6 API-Spec Role-C — the clause re-timed (block-start, `{name}` only) + extended (`event: vault_tokens`) |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/Codex Governance/Theo-ToolActivity-LiveStreaming-Backend-Pass-1-VEP/functions/theo_message_stream.js | delta | "Surface the tool the instant its block opens" | The two changed regions (relayTurnRaw + the dispatch loop) |
 
-### Currency anchors (blob SHAs @ HEAD `be29a12`)
+### Currency anchors (blob SHAs @ HEAD `585dfec`)
 - THEO_GOLDEN_HANDLER_STANDARD.md `49aa225aa6145adced121846de990725da5fe0f0`; THEO_API_SPEC.md `44a7d209f1097b54825bca2730ddf6d911bf9a6f`; artifacts/theo-agent-activity-reference.jsx (VA-T7) `e31215a3067e8c96d0287ffcaaf24554027c482a`.
 - Deployed handler = the source of truth (the ToolLoop-ToolActivity state, Codex-APPROVED + deployed 2026-07-17). Copied verbatim in `primary-reference/`; Pass-3 Kudu-GETs the live file to confirm the rollback baseline before PUT.
 

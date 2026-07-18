@@ -9,7 +9,7 @@ Turn Type: Role-C Verbatim-Edit Handoff
 Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 4
 Sub-phase Track: E3
-Turn issued against HEAD: vault-theo `__PKG_COMMIT__`.
+Turn issued against HEAD: vault-theo `d5bdd4ca0fc6668bcffef08f8f619276ee11e8d2`.
 Currency-anchor form: git blob SHA at HEAD.
 
 ## Rule Anchor Table

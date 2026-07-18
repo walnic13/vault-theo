@@ -6,7 +6,7 @@ Final piece of the "watch it work" experience. The backend now streams a **visib
 
 Role: Claude Code
 Turn Type: Pass 1 — Frontend Verified Evidence Pack
-Turn issued against HEAD: `__PKGSHA__` (vault-theo, `development` — the commit that contains this package + the VA-T7/§4B correction)
+Turn issued against HEAD: `32905fa51423bdf8c2a36276d2a34ae21c7676f1` (vault-theo, `development` — the commit that contains this package + the VA-T7/§4B correction)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A
@@ -15,12 +15,12 @@ Sub-phase Track: N/A
 
 | # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
 | - | ------------------------------- | ------------------------------ | --------------------------------- |
-| 1 | Theo Frontend Grounding Conformance Standard — `governance/THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md` (§3 GCR; §4A F-P; §4B VA-T7; §5; §6 T20/T21) | `Read`/`Grep` §4B (VA-T7 row) this turn | `__CONFSHA__` |
+| 1 | Theo Frontend Grounding Conformance Standard — `governance/THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md` (§3 GCR; §4A F-P; §4B VA-T7; §5; §6 T20/T21) | `Read`/`Grep` §4B (VA-T7 row) this turn | `335fb431ce7b7c9b69493f690ffb01ae94bcd8a6` |
 | 2 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 `event: vault_tokens`) | `Grep(§2.1)` this turn | `ce1ad227ca4f66a5c9c74ccdb185f3d2c3974cd3` |
 | 3 | Theo Golden Component Pack Standard — `governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` (§3 CCT; §5 deltas) | `Grep(§3/§5)` this turn | `0035a1d9fed103d07bf420b957c3727ec47fcc6b` |
 | 4 | Claude Code Theo Frontend Governor Standard — `governance/CLAUDE_CODE_THEO_FRONTEND_GOVERNOR_STANDARD.md` (§3 CCT; §6 build guardrails) | `Grep(§3/§6)` this turn | `b9c0e11d6e52aace2f97caec845a70e66372b713` |
 | 5 | Codex Theo Frontend Review Standard — `governance/CODEX_THEO_FRONTEND_REVIEW_STANDARD.md` (§1A hard gates) | `Grep("Component Contract Table completeness")` this turn | `e2b7e0ba91486371414da688ae3697f02a11e252` |
-| 6 | VA-T7 reference surface — `artifacts/theo-agent-activity-reference.jsx` (corrected: count SHOWN through thinking + build, HIDDEN only while the answer streams; new state C0 = thinking phase) | `Read(artifacts/theo-agent-activity-reference.jsx)` this turn | `__VAT7SHA__` |
+| 6 | VA-T7 reference surface — `artifacts/theo-agent-activity-reference.jsx` (corrected: count SHOWN through thinking + build, HIDDEN only while the answer streams; new state C0 = thinking phase) | `Read(artifacts/theo-agent-activity-reference.jsx)` this turn | `a1011273f9ec4733c81820f22d069b880f677def` |
 | 7 | ACTIVE state (mirror target) — `src/theo/useTheoState.ts` (general-chat `send()` handlers) | `Read`/`Grep(useTheoState.ts §send)` this turn | `0635dc92cf0368e40369da6bd5afef8cf31ca227` |
 | 8 | ACTIVE surface — `src/theo/components/ChatView.tsx` (AgentActivity render condition; ThinkingPanel guard) | `Grep(ChatView.tsx)` this turn | `62f22461093b16e4c5012ad517a7e8d5a36601f6` |
 | 9 | ACTIVE component — `src/theo/components/AgentActivity.tsx` (token span gate `!(running && streaming)`) | Read earlier this session; unchanged this VEP | `f54fbbcb617ffb27c2bef40c305399dff7244941` |

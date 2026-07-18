@@ -494,21 +494,23 @@ export function useTheoState() {
         }, { signal: ac.signal });
       } else {
         await theoClient.sendMessageStream(req, {
-          // VA-T7 two-mode toggle (Claude-Code-style): visible text/thinking flowing ⇒ "streaming"
-          // (the text is the signal, so the live token count hides); a stretch with only token
-          // updates and no fresh text ⇒ "processing" (the climbing count is the signal). This cycles
-          // per tool turn: brief think → silent tool_use build (count climbs) → answer (count hides).
+          // VA-T7 two-mode toggle (Claude-Code-style). "processing" = the model is working and the
+          // climbing token count IS the signal (thinking phase, or the silent tool_use build) ⇒ show
+          // the count. "streaming" = the ANSWER text is flowing ⇒ the text is the signal ⇒ hide the
+          // count. Thinking is PROCESSING (not streaming): the model streams its reasoning into the
+          // activity panel's reasoning line while the count climbs — the "Thinking… Nk tokens" phase.
+          // Only the answer (onText) flips to streaming. Cycles per turn: think (count) → build (count)
+          // → answer (text). onThinking feeds `reasoning` so the activity panel renders from the first
+          // thinking token (ChatView shows AgentActivity when reasoning|tools present).
           onText: (d) => { acc += d; lastTextAt = Date.now(); patchLastAssistant({ content: acc, streaming: true }); },
-          onThinking: (d) => { think += d; lastTextAt = Date.now(); patchLastAssistant({ thinking: think, streaming: true }); },
+          onThinking: (d) => { reasoning += d; patchLastAssistant({ reasoning, streaming: false }); },
           onCitation: (c) => { cites.push({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text }); },
           onExport: (d) => { exportPayload = d; patchLastAssistant({ download: d }); },
           // DR-T11 tool-loop activity (VA-T7): surface the tool call live. The backend emits it at the
           // tool_use BLOCK START (name only, no input), so this fires while the payload is still
-          // streaming. On the FIRST tool, copy the reasoning-so-far into `reasoning` so the activity
-          // panel shows it (general chat streams thinking into `think`); the ThinkingPanel is suppressed
-          // for tool turns in ChatView.
+          // streaming. Thinking already streamed into `reasoning` (onThinking above), so the activity
+          // panel is already showing; just append the tool row (its verb becomes tool-aware).
           onTool: (tc) => {
-            if (toolCalls.length === 0 && think) reasoning = think;
             toolCalls.push({ name: tc.name, input: tc.input, status: "running" });
             patchLastAssistant({ tools: toolCalls.slice(), ...(reasoning ? { reasoning } : {}) });
           },

@@ -451,6 +451,8 @@ export function useTheoState() {
     const toolCalls: AgentToolCall[] = [];            // VA-T7: the review agent's live tool calls
     const cites: Citation[] = [];                     // web-grounding citations (citations_delta)
     let exportPayload: FileDownload | null = null;    // DR-T11: a tool-produced download (vault_export)
+    let tokensOut = 0;                                // DR-T11: running CUMULATIVE output-token count (activity panel)
+    let lastTextAt = 0;                               // VA-T7 two-mode toggle: ms of the last visible text/thinking delta
     let convId: string | null = null;
     // Fail-closed routing: a COMPLETE review payload (app_key='sigma' + review_id + files) → the K-1
     // review agent (sigma_review_agent_stream); anything else → the general chat path. Decided per-send.
@@ -492,10 +494,39 @@ export function useTheoState() {
         }, { signal: ac.signal });
       } else {
         await theoClient.sendMessageStream(req, {
-          onText: (d) => { acc += d; patchLastAssistant({ content: acc }); },
-          onThinking: (d) => { think += d; patchLastAssistant({ thinking: think }); },
+          // VA-T7 two-mode toggle (Claude-Code-style). "processing" = the model is working and the
+          // climbing token count IS the signal (thinking phase, or the silent tool_use build) ⇒ show
+          // the count. "streaming" = the ANSWER text is flowing ⇒ the text is the signal ⇒ hide the
+          // count. Thinking is PROCESSING (not streaming): the model streams its reasoning into the
+          // activity panel's reasoning line while the count climbs — the "Thinking… Nk tokens" phase.
+          // Only the answer (onText) flips to streaming. Cycles per turn: think (count) → build (count)
+          // → answer (text). onThinking feeds `reasoning` so the activity panel renders from the first
+          // thinking token (ChatView shows AgentActivity when reasoning|tools present).
+          onText: (d) => { acc += d; lastTextAt = Date.now(); patchLastAssistant({ content: acc, streaming: true }); },
+          onThinking: (d) => { reasoning += d; patchLastAssistant({ reasoning, streaming: false }); },
           onCitation: (c) => { cites.push({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text }); },
           onExport: (d) => { exportPayload = d; patchLastAssistant({ download: d }); },
+          // DR-T11 tool-loop activity (VA-T7): surface the tool call live. The backend emits it at the
+          // tool_use BLOCK START (name only, no input), so this fires while the payload is still
+          // streaming. Thinking already streamed into `reasoning` (onThinking above), so the activity
+          // panel is already showing; just append the tool row (its verb becomes tool-aware).
+          onTool: (tc) => {
+            toolCalls.push({ name: tc.name, input: tc.input, status: "running" });
+            patchLastAssistant({ tools: toolCalls.slice(), ...(reasoning ? { reasoning } : {}) });
+          },
+          onToolResult: (tr) => {
+            for (let k = toolCalls.length - 1; k >= 0; k--) {
+              if (toolCalls[k].name === tr.name && toolCalls[k].status === "running") { toolCalls[k] = { ...toolCalls[k], status: tr.ok ? "done" : "fail" }; break; }
+            }
+            patchLastAssistant({ tools: toolCalls.slice() });
+          },
+          // Live cumulative token count (absolute — set, not sum). If no visible text has flowed for
+          // ~500ms we are in the silent build ⇒ flip to "processing" so the climbing count shows.
+          onTokens: (t) => {
+            tokensOut = t.tokens;
+            const processing = Date.now() - lastTextAt > 500;
+            patchLastAssistant({ tokens: tokensOut, ...(processing ? { streaming: false } : {}) });
+          },
           onMeta: (mt) => { if (mt.conversation_id) convId = mt.conversation_id; },
         }, { signal: ac.signal });
       }
@@ -503,7 +534,7 @@ export function useTheoState() {
       // the model cited sources, attach a single CitedRun so the existing CitedText path renders them.
       const { display, openId, blocks } = theoClient.ingestReply(acc);
       setArtifacts(theoClient.listArtifacts());
-      patchLastAssistant({ content: display, ...(cites.length ? { runs: [{ text: display, citations: cites }] } : {}), ...(think ? { thinking: think } : {}), ...(reasoning ? { reasoning } : {}), ...(toolCalls.length ? { tools: toolCalls.slice() } : {}), ...(exportPayload ? { download: exportPayload } : {}) });
+      patchLastAssistant({ content: display, streaming: false, ...(cites.length ? { runs: [{ text: display, citations: cites }] } : {}), ...(think ? { thinking: think } : {}), ...(reasoning ? { reasoning } : {}), ...(toolCalls.length ? { tools: toolCalls.slice() } : {}), ...(exportPayload ? { download: exportPayload } : {}), ...(tokensOut ? { tokens: tokensOut } : {}) });
       if (openId) setOpenArt({ id: openId, v: -1 });
       if (convId) setConversationId(convId);
       // B4h: persist each artifact block server-side (theo_upsert_artifact — create-or-add-version by

@@ -864,6 +864,11 @@ export interface StreamHandlers {
   // DR-T11 tool-loop: a downloadable tool result (theo_export_spreadsheet et al.) arrived as the
   // additive `event: vault_export` SSE frame. General chat only; additive — absent = no download card.
   onExport?: (d: FileDownload) => void;
+  // DR-T11 tool-loop live activity (VA-T7 "live token count"): the running CUMULATIVE output-token
+  // count for the activity-panel header, streamed by the backend as `event: vault_tokens` — a char/4
+  // estimate between turns that SNAPS to the authoritative usage total at each turn boundary. An
+  // absolute value (set it, do not sum). Best-effort; general chat.
+  onTokens?: (t: { tokens: number }) => void;
 }
 
 export async function sendMessageStream(req: GatewayRequest, handlers: StreamHandlers, opts?: { signal?: AbortSignal }): Promise<void> {
@@ -951,6 +956,23 @@ export async function sendMessageStream(req: GatewayRequest, handlers: StreamHan
             expiresAt: j.expiresAt as string | undefined,
           });
         }
+        continue;
+      }
+      // DR-T11 tool-loop live activity (VA-T7). Order matters: `event: tool_result` MUST be matched
+      // before `event: tool` (the latter is a substring of the former).
+      if (evt.includes("event: tool_result")) {
+        handlers.onToolResult?.({ name: typeof j.name === "string" ? j.name : "", ok: Boolean(j.ok) });
+        continue;
+      }
+      if (evt.includes("event: tool")) {
+        handlers.onTool?.({ name: typeof j.name === "string" ? j.name : "", input: j.input });
+        continue;
+      }
+      // DR-T11 tool-loop live activity (VA-T7): the backend streams a running CUMULATIVE output-token
+      // count as `event: vault_tokens` so the header climbs live during the otherwise-silent tool_use
+      // build (the payload arrives as invisible input_json_delta). Absolute value — set, don't sum.
+      if (evt.includes("event: vault_tokens")) {
+        if (typeof j.tokens === "number") handlers.onTokens?.({ tokens: j.tokens as number });
         continue;
       }
       if (j.type === "content_block_delta" && j.delta && typeof j.delta === "object") {

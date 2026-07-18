@@ -10,12 +10,16 @@
 //   2. the general-chat tool-loop (`theo_message_stream`, DR-T11) — states C/D below. First tool:
 //      `theo_export_spreadsheet`; the download card (VA-T9) renders after the answer.
 //
-// Event mapping (SSE → this surface; identical events on both streams):
+// Event mapping (SSE → this surface):
 //   event: delta {kind:'thinking'} / native thinking_delta → the streaming reasoning line (live cursor)
 //   event: delta {kind:'text'} / native text_delta          → the answer body (below the panel)
-//   event: tool {name,input}       → append a tool row (status 'running') + a persistent chip
+//   event: tool {name}             → append a tool row (status 'running') + a persistent chip. General
+//                                     chat emits this at the tool_use block OPEN (name only, no input),
+//                                     so the tool-aware verb shows during the build; Sigma sends {name,input}.
 //   event: tool_result {name,ok}   → mark that tool row done (ok ✓ / fail ✕)
-//   message_delta.usage.output_tokens → the live token count in the header (tabular-nums)
+//   event: vault_tokens {tokens}   → the live token count in the header (tabular-nums). A running
+//                                     CUMULATIVE output-token count (general chat); monotonic
+//                                     non-decreasing (never ticks backward). See the two-mode rule below.
 //   event: done / event: vault_meta → collapse the panel to its summary; freeze the chips
 //
 // HEADER VERB (running):
@@ -23,6 +27,13 @@
 //     switching to a context-aware verb once a tool fires ("Building your spreadsheet…").
 //   - the Sigma agent uses its review-context verb ("Reviewing <fund>…").
 //   Done state uses a factual summary ("Used the spreadsheet export tool" / "Checked <fund> · N tools").
+//
+// LIVE TOKEN COUNT — TWO-MODE TOGGLE (Claude-Code-style; general chat, via `streaming`):
+//   - PROCESSING (silent — brief thinking, then the tool_use payload building with no visible text):
+//     the climbing token count IS the progress signal → SHOW it in the header.
+//   - STREAMING (reasoning or answer text actively flowing): the text is the signal → HIDE the count.
+//   Cycles per tool turn (think → silent build → answer). The count shows only when NOT
+//   (running && streaming); at DONE the final total shows. (Sigma: no toggle; count always shown.)
 //
 // Palette (theo-*, inline): bg #FAF9F5, surface #F0EEE6, card #FFFFFF, ink #28261F, ink2 #6B6A63,
 // ink3 #94928A, line #E4E1D6, coral #D97757, green #4f7a4a, red #B23A2E.
@@ -66,7 +77,8 @@ function TokenCount({ tokens }) {
 
 // The activity panel. Collapsible; header = spinner|✓ + verb/summary + token count + chevron.
 // `title` = the running verb (blend-driven for general chat); `doneLabel` = the collapsed summary.
-function ActivityPanel({ title, doneLabel, tokens, running, reasoning, tools, open, onToggle }) {
+// `streaming` = text is actively flowing → the live token count hides (the two-mode toggle above).
+function ActivityPanel({ title, doneLabel, tokens, streaming, running, reasoning, tools, open, onToggle }) {
   return (
     <div style={{ border: `1px solid ${C.line}`, borderRadius: 10, background: C.surface, marginBottom: 10, overflow: 'hidden' }}>
       <button
@@ -78,7 +90,7 @@ function ActivityPanel({ title, doneLabel, tokens, running, reasoning, tools, op
           ? <span aria-hidden style={{ width: 12, height: 12, border: `2px solid ${C.line}`, borderTopColor: C.coral, borderRadius: '50%', animation: 'vaSpin .8s linear infinite', flexShrink: 0 }} />
           : <span aria-hidden style={{ color: C.green, fontSize: 13 }}>✓</span>}
         <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: C.ink2 }}>{running ? title : doneLabel}</span>
-        <TokenCount tokens={tokens} />
+        {!(running && streaming) && <TokenCount tokens={tokens} />}
         <span aria-hidden style={{ color: C.ink3, fontSize: 12 }}>{open ? '▾' : '▸'}</span>
       </button>
       {open && (
@@ -111,10 +123,10 @@ function ToolChips({ tools }) {
 }
 
 // One assistant message = [activity panel] + [answer] + [persistent chips].
-function AgentMessage({ title, doneLabel, tokens, running, reasoning, tools, answer, panelOpen, onToggle }) {
+function AgentMessage({ title, doneLabel, tokens, streaming, running, reasoning, tools, answer, panelOpen, onToggle }) {
   return (
     <div style={{ maxWidth: 720, fontFamily: SANS, color: C.ink }}>
-      <ActivityPanel title={title} doneLabel={doneLabel} tokens={tokens} running={running} reasoning={reasoning} tools={tools} open={panelOpen} onToggle={onToggle} />
+      <ActivityPanel title={title} doneLabel={doneLabel} tokens={tokens} streaming={streaming} running={running} reasoning={reasoning} tools={tools} open={panelOpen} onToggle={onToggle} />
       {answer && <div style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{answer}</div>}
       {!running && tools.length > 0 && <ToolChips tools={tools} />}
     </div>
@@ -127,6 +139,7 @@ export default function TheoAgentActivityReference() {
   const [openA, setOpenA] = useOpen(true);
   const [openB, setOpenB] = useOpen(false);
   const [openC, setOpenC] = useOpen(true);
+  const [openC2, setOpenC2] = useOpen(true);
   const [openD, setOpenD] = useOpen(false);
   const style = `
     @keyframes vaSpin { to { transform: rotate(360deg); } }
@@ -169,26 +182,38 @@ export default function TheoAgentActivityReference() {
         />
       </section>
 
-      {/* ============ CONSUMER 2 — general-chat tool-loop (blend verb + download card) ============ */}
+      {/* ============ CONSUMER 2 — general-chat tool-loop (blend verb + two-mode token toggle) ============ */}
       <section>
-        {heading('GENERAL CHAT — C · running (live): blend verb (tool-aware once a tool fires)')}
+        {heading('GENERAL CHAT — C · running (PROCESSING): silent tool_use build → token count CLIMBS; verb tool-aware; tool row is {name}-only')}
         <AgentMessage
-          title="Building your spreadsheet…" doneLabel="Used the spreadsheet export tool" tokens={1240} running
+          title="Building your spreadsheet…" doneLabel="Used the spreadsheet export tool" tokens={1240} streaming={false} running
           reasoning="The user wants the 2023 K-1 laid out as Excel. I'll pull each reported box, the capital-account roll, and the K-3 Part II sourcing into typed columns so the amounts come through as real numbers"
           panelOpen={openC} onToggle={() => setOpenC(!openC)}
           tools={[
-            { name: 'theo_export_spreadsheet', input: { filename: '2023 K-1 Export', sheets: 'Schedule K-1, Capital Account, K-3 Part II' }, status: 'running' },
+            { name: 'theo_export_spreadsheet', status: 'running' },
           ]}
           answer=""
         />
       </section>
       <section>
-        {heading('GENERAL CHAT — D · done (answer + VA-T9 download card renders below)')}
+        {heading('GENERAL CHAT — C2 · running (STREAMING): answer text flowing → token count HIDDEN (the text is the signal)')}
         <AgentMessage
-          title="Building your spreadsheet…" doneLabel="Used the spreadsheet export tool" tokens={1847} running={false}
+          title="Building your spreadsheet…" doneLabel="Used the spreadsheet export tool" tokens={1660} streaming={true} running
+          reasoning="The user wants the 2023 K-1 laid out as Excel. I'll pull each reported box, the capital-account roll, and the K-3 Part II sourcing into typed columns so the amounts come through as real numbers"
+          panelOpen={openC2} onToggle={() => setOpenC2(!openC2)}
+          tools={[
+            { name: 'theo_export_spreadsheet', status: 'done' },
+          ]}
+          answer={'Done — I pulled the 2023 K-1 into a workbook: a sheet per section (Schedule K-1, Capital'}
+        />
+      </section>
+      <section>
+        {heading('GENERAL CHAT — D · done (final total shows; answer + VA-T9 download card render below)')}
+        <AgentMessage
+          title="Building your spreadsheet…" doneLabel="Used the spreadsheet export tool" tokens={1847} streaming={false} running={false}
           reasoning="The user wants the 2023 K-1 laid out as Excel. I'll pull each reported box, the capital-account roll, and the K-3 Part II sourcing into typed columns so the amounts come through as real numbers"
           panelOpen={openD} onToggle={() => setOpenD(!openD)}
-          tools={[{ name: 'theo_export_spreadsheet', input: { filename: '2023 K-1 Export' }, status: 'done' }]}
+          tools={[{ name: 'theo_export_spreadsheet', status: 'done' }]}
           answer={'Done — I pulled the 2023 K-1 into a workbook: a sheet per section (Schedule K-1, Capital Account, K-3 Part II) with each box as a typed row. Your Excel file is ready:\n\n[ VA-T9 download card renders here ]'}
         />
       </section>

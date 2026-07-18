@@ -864,6 +864,9 @@ export interface StreamHandlers {
   // DR-T11 tool-loop: a downloadable tool result (theo_export_spreadsheet et al.) arrived as the
   // additive `event: vault_export` SSE frame. General chat only; additive — absent = no download card.
   onExport?: (d: FileDownload) => void;
+  // DR-T11 tool-loop live activity: a turn's output-token count (from the native `message_delta.usage`),
+  // surfaced for the VA-T7 activity-panel token counter. Best-effort; general chat.
+  onUsage?: (u: { output_tokens: number }) => void;
 }
 
 export async function sendMessageStream(req: GatewayRequest, handlers: StreamHandlers, opts?: { signal?: AbortSignal }): Promise<void> {
@@ -952,6 +955,21 @@ export async function sendMessageStream(req: GatewayRequest, handlers: StreamHan
           });
         }
         continue;
+      }
+      // DR-T11 tool-loop live activity (VA-T7). Order matters: `event: tool_result` MUST be matched
+      // before `event: tool` (the latter is a substring of the former).
+      if (evt.includes("event: tool_result")) {
+        handlers.onToolResult?.({ name: typeof j.name === "string" ? j.name : "", ok: Boolean(j.ok) });
+        continue;
+      }
+      if (evt.includes("event: tool")) {
+        handlers.onTool?.({ name: typeof j.name === "string" ? j.name : "", input: j.input });
+        continue;
+      }
+      // Live token count: the native message_delta carries this turn's cumulative output_tokens.
+      if (j.type === "message_delta" && j.usage && typeof j.usage === "object") {
+        const out = (j.usage as Record<string, unknown>).output_tokens;
+        if (typeof out === "number") handlers.onUsage?.({ output_tokens: out });
       }
       if (j.type === "content_block_delta" && j.delta && typeof j.delta === "object") {
         const delta = j.delta as Record<string, unknown>;

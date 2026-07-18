@@ -451,6 +451,7 @@ export function useTheoState() {
     const toolCalls: AgentToolCall[] = [];            // VA-T7: the review agent's live tool calls
     const cites: Citation[] = [];                     // web-grounding citations (citations_delta)
     let exportPayload: FileDownload | null = null;    // DR-T11: a tool-produced download (vault_export)
+    let tokensOut = 0;                                // DR-T11: running output-token count (activity panel)
     let convId: string | null = null;
     // Fail-closed routing: a COMPLETE review payload (app_key='sigma' + review_id + files) → the K-1
     // review agent (sigma_review_agent_stream); anything else → the general chat path. Decided per-send.
@@ -496,6 +497,21 @@ export function useTheoState() {
           onThinking: (d) => { think += d; patchLastAssistant({ thinking: think }); },
           onCitation: (c) => { cites.push({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text }); },
           onExport: (d) => { exportPayload = d; patchLastAssistant({ download: d }); },
+          // DR-T11 tool-loop activity (VA-T7): surface the tool call live. On the FIRST tool, copy the
+          // reasoning-so-far into `reasoning` so the activity panel shows it (general chat streams
+          // thinking into `think`); the ThinkingPanel is suppressed for tool turns in ChatView.
+          onTool: (tc) => {
+            if (toolCalls.length === 0 && think) reasoning = think;
+            toolCalls.push({ name: tc.name, input: tc.input, status: "running" });
+            patchLastAssistant({ tools: toolCalls.slice(), ...(reasoning ? { reasoning } : {}) });
+          },
+          onToolResult: (tr) => {
+            for (let k = toolCalls.length - 1; k >= 0; k--) {
+              if (toolCalls[k].name === tr.name && toolCalls[k].status === "running") { toolCalls[k] = { ...toolCalls[k], status: tr.ok ? "done" : "fail" }; break; }
+            }
+            patchLastAssistant({ tools: toolCalls.slice() });
+          },
+          onUsage: (u) => { tokensOut += u.output_tokens; patchLastAssistant({ tokens: tokensOut }); },
           onMeta: (mt) => { if (mt.conversation_id) convId = mt.conversation_id; },
         }, { signal: ac.signal });
       }
@@ -503,7 +519,7 @@ export function useTheoState() {
       // the model cited sources, attach a single CitedRun so the existing CitedText path renders them.
       const { display, openId, blocks } = theoClient.ingestReply(acc);
       setArtifacts(theoClient.listArtifacts());
-      patchLastAssistant({ content: display, ...(cites.length ? { runs: [{ text: display, citations: cites }] } : {}), ...(think ? { thinking: think } : {}), ...(reasoning ? { reasoning } : {}), ...(toolCalls.length ? { tools: toolCalls.slice() } : {}), ...(exportPayload ? { download: exportPayload } : {}) });
+      patchLastAssistant({ content: display, ...(cites.length ? { runs: [{ text: display, citations: cites }] } : {}), ...(think ? { thinking: think } : {}), ...(reasoning ? { reasoning } : {}), ...(toolCalls.length ? { tools: toolCalls.slice() } : {}), ...(exportPayload ? { download: exportPayload } : {}), ...(tokensOut ? { tokens: tokensOut } : {}) });
       if (openId) setOpenArt({ id: openId, v: -1 });
       if (convId) setConversationId(convId);
       // B4h: persist each artifact block server-side (theo_upsert_artifact — create-or-add-version by

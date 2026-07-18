@@ -14,14 +14,9 @@ import type { AgentToolCall } from "../types";
 const GREEN = "#4f7a4a";
 const RED = "#B23A2E";
 
-// General-chat blend verb: playful while only thinking (rotates), tool-aware once a tool fires.
-const PLAYFUL_VERBS = ["Noodling", "Number-wrangling", "Crunching the numbers", "Thinking it through", "Untangling this"];
-const TOOL_VERBS: Record<string, string> = { theo_export_spreadsheet: "Building your spreadsheet" };
-function toolAwareVerb(tools: AgentToolCall[]): string {
-  const t = tools.find((x) => x.status === "running") || tools[tools.length - 1];
-  if (!t) return "Working";
-  return TOOL_VERBS[t.name] || `Using ${t.name}`;
-}
+// General-chat header verb: a plain "Thinking…" while running (the specific tool shows in its own
+// row below; the playful animated status lives in the host's StatusLine beneath the panel). The
+// DONE state uses a factual summary.
 function chatDoneLabel(tools: AgentToolCall[]): string {
   if (!tools.length) return "Done";
   const names = [...new Set(tools.map((t) => t.name))];
@@ -78,21 +73,10 @@ export function AgentActivity({ running, reasoning, tools, fund, mode, tokens, s
   const [open, setOpen] = useState(defaultOpen ?? running);
   const kind: "review" | "chat" = mode ?? (fund && fund.trim() ? "review" : "chat");
 
-  // Blend verb: rotate a playful verb only while running + general chat + no tool yet.
-  const [verbIdx, setVerbIdx] = useState(0);
-  const rotating = running && kind === "chat" && tools.length === 0;
-  const rotatingRef = useRef(rotating);
-  rotatingRef.current = rotating;
-  useEffect(() => {
-    if (!rotating) return;
-    const id = setInterval(() => { if (rotatingRef.current) setVerbIdx((i) => (i + 1) % PLAYFUL_VERBS.length); }, 2000);
-    return () => clearInterval(id);
-  }, [rotating]);
-
   const fundLabel = fund && fund.trim() ? fund.trim() : "the workbook set";
   const label =
     kind === "chat"
-      ? (running ? `${tools.length ? toolAwareVerb(tools) : PLAYFUL_VERBS[verbIdx]}…` : chatDoneLabel(tools))
+      ? (running ? "Thinking…" : chatDoneLabel(tools))
       : (running ? `Reviewing ${fundLabel}…` : `Checked ${fundLabel} · ${tools.length} tool${tools.length === 1 ? "" : "s"}`);
 
   // Stream the thinking in a FIXED-HEIGHT region that auto-scrolls to the newest text while running,

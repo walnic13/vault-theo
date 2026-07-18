@@ -6,7 +6,7 @@ Plan-only Frontend VEP (no component code lands this turn; implementation is Pas
 
 Role: Claude Code
 Turn Type: Pass 1 — Frontend Verified Evidence Pack
-Turn issued against HEAD: `3c7ac853e3330668abbba5be26210c39a9dfba53` (vault-theo, `development` — the commit that contains this package)
+Turn issued against HEAD: `__PKG_COMMIT__` (vault-theo, `development` — the commit that contains this package)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A
@@ -16,7 +16,7 @@ Sub-phase Track: N/A
 | # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
 | - | ------------------------------- | ------------------------------ | --------------------------------- |
 | 1 | Theo Frontend Grounding Conformance Standard — `governance/THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md` (§3 GCR; §4A F-P; §4B VA-T7; §5; §6 T20) | `Read`/`Grep` §4B (VA-T7 row) + §3/§5/§6 this turn | `f0ac903276e40584b9f5f9bd4b3e29228ef73cec` |
-| 2 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 tool-loop + `event: tool`/`tool_result`) | `Read(spec/THEO_API_SPEC.md §2.1)` this turn | `015431576fb8e7f634025b785c97ea4022b93f0c` |
+| 2 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 tool-loop + `event: tool`/`tool_result`) | `Read(spec/THEO_API_SPEC.md §2.1)` this turn | `44a7d209f1097b54825bca2730ddf6d911bf9a6f` |
 | 3 | Theo Golden Component Pack Standard — `governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` (§2 primary reference; §3 CCT; §4 props; §5 deltas) | `Grep(§2/§3/§4/§5)` this turn | `0035a1d9fed103d07bf420b957c3727ec47fcc6b` |
 | 4 | Claude Code Theo Frontend Governor Standard — `governance/CLAUDE_CODE_THEO_FRONTEND_GOVERNOR_STANDARD.md` (§3 CCT; §6 build guardrails) | `Grep(§3/§6)` this turn | `b9c0e11d6e52aace2f97caec845a70e66372b713` |
 | 5 | Codex Theo Frontend Review Standard — `governance/CODEX_THEO_FRONTEND_REVIEW_STANDARD.md` (§1A hard gates) | `Grep("Component Contract Table completeness")` this turn | `e2b7e0ba91486371414da688ae3697f02a11e252` |
@@ -42,7 +42,7 @@ Sub-phase Track: N/A
 | governance/CLAUDE_CODE_THEO_FRONTEND_GOVERNOR_STANDARD.md | §3 | "MUST contain a **Component Contract Table**" |
 | governance/CLAUDE_CODE_THEO_FRONTEND_GOVERNOR_STANDARD.md | §6 | "No `localStorage` / `sessionStorage`" |
 | governance/CLAUDE_CODE_THEO_FRONTEND_GOVERNOR_STANDARD.md | §6 | "Keep the reference surface's inline-style approach" |
-| spec/THEO_API_SPEC.md | §2.1 | "each deterministic tool the instant it fires" |
+| spec/THEO_API_SPEC.md | §2.1 | "Each dispatched general-chat tool also streams `event: tool`" |
 | governance/CODEX_THEO_FRONTEND_REVIEW_STANDARD.md | §1A | "Component Contract Table completeness" |
 
 ---

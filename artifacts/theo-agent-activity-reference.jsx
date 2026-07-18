@@ -29,11 +29,13 @@
 //   Done state uses a factual summary ("Used the spreadsheet export tool" / "Checked <fund> · N tools").
 //
 // LIVE TOKEN COUNT — TWO-MODE TOGGLE (Claude-Code-style; general chat, via `streaming`):
-//   - PROCESSING (silent — brief thinking, then the tool_use payload building with no visible text):
-//     the climbing token count IS the progress signal → SHOW it in the header.
-//   - STREAMING (reasoning or answer text actively flowing): the text is the signal → HIDE the count.
-//   Cycles per tool turn (think → silent build → answer). The count shows only when NOT
-//   (running && streaming); at DONE the final total shows. (Sigma: no toggle; count always shown.)
+//   - PROCESSING (the model is WORKING — the thinking/planning phase where it streams its reasoning
+//     into the panel, AND the silent tool_use build): the climbing token count IS the progress
+//     signal → SHOW it in the header. The reasoning text streams here too; the count still shows.
+//   - STREAMING (the final ANSWER text is flowing): the answer is the signal → HIDE the count.
+//   So the count shows THROUGHOUT thinking + building and hides ONLY while the answer streams; it
+//   returns at DONE (final total). Cycles per turn (think[count] → build[count] → answer[hidden]).
+//   The count shows when NOT (running && streaming). (Sigma: no toggle; count always shown.)
 //
 // Palette (theo-*, inline): bg #FAF9F5, surface #F0EEE6, card #FFFFFF, ink #28261F, ink2 #6B6A63,
 // ink3 #94928A, line #E4E1D6, coral #D97757, green #4f7a4a, red #B23A2E.
@@ -138,6 +140,7 @@ export default function TheoAgentActivityReference() {
   const useOpen = (init) => ((typeof React !== 'undefined' && React.useState) ? React.useState(init) : [init, () => {}]);
   const [openA, setOpenA] = useOpen(true);
   const [openB, setOpenB] = useOpen(false);
+  const [openC0, setOpenC0] = useOpen(true);
   const [openC, setOpenC] = useOpen(true);
   const [openC2, setOpenC2] = useOpen(true);
   const [openD, setOpenD] = useOpen(false);
@@ -183,6 +186,16 @@ export default function TheoAgentActivityReference() {
       </section>
 
       {/* ============ CONSUMER 2 — general-chat tool-loop (blend verb + two-mode token toggle) ============ */}
+      <section>
+        {heading('GENERAL CHAT — C0 · running (PROCESSING / thinking phase): reasoning streams + token count CLIMBS; playful verb; no tool yet')}
+        <AgentMessage
+          title="Number-wrangling…" doneLabel="Done" tokens={480} streaming={false} running
+          reasoning="The user wants the 2023 K-1 as Excel. Planning the workbook: a Schedule K-1 sheet (each reported box → a typed row), a Capital Account rollforward, and a K-3 Part II sheet for the sourcing. Columns: line, description, amount (number), notes"
+          panelOpen={openC0} onToggle={() => setOpenC0(!openC0)}
+          tools={[]}
+          answer=""
+        />
+      </section>
       <section>
         {heading('GENERAL CHAT — C · running (PROCESSING): silent tool_use build → token count CLIMBS; verb tool-aware; tool row is {name}-only')}
         <AgentMessage

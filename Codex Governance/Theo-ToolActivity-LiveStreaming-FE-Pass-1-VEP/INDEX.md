@@ -6,7 +6,7 @@ Refinement to the shipped general-chat activity view (`AgentActivity`, VA-T7). B
 
 Role: Claude Code
 Turn Type: Pass 1 — Frontend Verified Evidence Pack
-Turn issued against HEAD: `__PKGSHA__` (vault-theo, `development` — the commit that contains this package + the VA-T7 update)
+Turn issued against HEAD: `87851f0690f8eb309e49326788d66711d37b929f` (vault-theo, `development` — the commit that contains this package + the VA-T7 update)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A
@@ -20,7 +20,7 @@ Sub-phase Track: N/A
 | 3 | Theo Golden Component Pack Standard — `governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` (§2 primary reference; §3 CCT; §4 props; §5 deltas) | `Grep(§2/§3/§4/§5)` this turn | `0035a1d9fed103d07bf420b957c3727ec47fcc6b` |
 | 4 | Claude Code Theo Frontend Governor Standard — `governance/CLAUDE_CODE_THEO_FRONTEND_GOVERNOR_STANDARD.md` (§3 CCT; §6 build guardrails) | `Grep(§3/§6)` this turn | `b9c0e11d6e52aace2f97caec845a70e66372b713` |
 | 5 | Codex Theo Frontend Review Standard — `governance/CODEX_THEO_FRONTEND_REVIEW_STANDARD.md` (§1A hard gates) | `Grep("Component Contract Table completeness")` this turn | `e2b7e0ba91486371414da688ae3697f02a11e252` |
-| 6 | VA-T7 reference surface — `artifacts/theo-agent-activity-reference.jsx` (updated: `event: vault_tokens` source + the two-mode token toggle; states C/C2/D) | `Read(artifacts/theo-agent-activity-reference.jsx)` this turn | `__VAT7SHA__` |
+| 6 | VA-T7 reference surface — `artifacts/theo-agent-activity-reference.jsx` (updated: `event: vault_tokens` source + the two-mode token toggle; states C/C2/D) | `Read(artifacts/theo-agent-activity-reference.jsx)` this turn | `a8f5535785e2cf3c129a5fe751c48aa6d38633ab` |
 | 7 | ACTIVE component (mirror target) — `src/theo/components/AgentActivity.tsx` | `Read(src/theo/components/AgentActivity.tsx)` this turn | `a889190126a2bdae1a9b0287fb7ed83dad1dad5f` |
 | 8 | ACTIVE service seam — `src/theo/services/gateway.live.ts` (`StreamHandlers` + `sendMessageStream` parse loop) | `Read`/`Grep(gateway.live.ts)` this turn | `283a15a5ff5fa93a9cfcfb80a594602c6aff26c5` |
 | 9 | ACTIVE state — `src/theo/useTheoState.ts` (general-chat `send()` handlers) | `Read`/`Grep(useTheoState.ts §send)` this turn | `410409dd81fb82f94db9424ac486441de6367879` |

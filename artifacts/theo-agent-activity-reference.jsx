@@ -80,6 +80,11 @@ function TokenCount({ tokens }) {
 // The activity panel. Collapsible; header = spinner|✓ + verb/summary + token count + chevron.
 // `title` = the running verb (blend-driven for general chat); `doneLabel` = the collapsed summary.
 // `streaming` = text is actively flowing → the live token count hides (the two-mode toggle above).
+// The reasoning streams in a FIXED-HEIGHT, auto-scrolling region (maxHeight + overflow-y:auto; the
+// live consumer scrolls it to the bottom on each delta) so the header (verb + token count) stays
+// PINNED/visible however long the thinking runs, and the newest thinking is always in view — the
+// reasoning "advances" rather than growing unbounded and pushing the count off-screen. `pre-wrap`
+// preserves the summary's paragraph/list breaks.
 function ActivityPanel({ title, doneLabel, tokens, streaming, running, reasoning, tools, open, onToggle }) {
   return (
     <div style={{ border: `1px solid ${C.line}`, borderRadius: 10, background: C.surface, marginBottom: 10, overflow: 'hidden' }}>
@@ -98,7 +103,7 @@ function ActivityPanel({ title, doneLabel, tokens, streaming, running, reasoning
       {open && (
         <div style={{ padding: '2px 12px 10px 12px' }}>
           {reasoning && (
-            <div style={{ fontFamily: SANS, fontSize: 12.5, fontStyle: 'italic', color: C.ink3, marginBottom: 8, lineHeight: 1.5 }}>
+            <div style={{ fontFamily: SANS, fontSize: 12.5, fontStyle: 'italic', color: C.ink3, marginBottom: 8, lineHeight: 1.5, whiteSpace: 'pre-wrap', maxHeight: 180, overflowY: 'auto' }}>
               {reasoning}{running && <span aria-hidden style={{ borderRight: `2px solid ${C.coral}`, marginLeft: 1, animation: 'vaBlink 1s step-end infinite' }}>&nbsp;</span>}
             </div>
           )}

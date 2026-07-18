@@ -347,7 +347,7 @@ export function ChatView(props: ChatViewProps) {
                   {/* VA-T7: review-agent activity (live reasoning + tool calls) above the answer. Only
                       sigma review turns carry reasoning/tools; general chat turns render neither. */}
                   {(m.reasoning || (m.tools && m.tools.length)) ? (
-                    <AgentActivity running={loading && i === messages.length - 1} reasoning={m.reasoning ?? ""} tools={m.tools ?? []} fund={reviewFund} mode={reviewFund ? "review" : "chat"} tokens={m.tokens} />
+                    <AgentActivity running={loading && i === messages.length - 1} reasoning={m.reasoning ?? ""} tools={m.tools ?? []} fund={reviewFund} mode={reviewFund ? "review" : "chat"} tokens={m.tokens} streaming={m.streaming} />
                   ) : null}
                   {/* Thinking panel: suppressed on a tool turn (the activity panel above already shows
                       the reasoning); shown for ordinary extended-thinking turns as before. */}

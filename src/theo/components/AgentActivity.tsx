@@ -36,6 +36,9 @@ export interface AgentActivityProps {
   fund?: string;                       // review context (Sigma); absent ⇒ general chat
   mode?: "review" | "chat";            // selects the label family (default: "review" when fund set, else "chat")
   tokens?: number;                     // live output-token count for the header (hidden when falsy)
+  streaming?: boolean;                 // VA-T7 two-mode toggle: text is actively streaming ⇒ hide the
+                                       // live token count while running (the text is the signal). The
+                                       // count shows during silent "processing" stretches and at DONE.
   defaultOpen?: boolean;
 }
 
@@ -71,7 +74,7 @@ function ToolChips({ tools }: { tools: AgentToolCall[] }) {
   );
 }
 
-export function AgentActivity({ running, reasoning, tools, fund, mode, tokens, defaultOpen }: AgentActivityProps) {
+export function AgentActivity({ running, reasoning, tools, fund, mode, tokens, streaming, defaultOpen }: AgentActivityProps) {
   const [open, setOpen] = useState(defaultOpen ?? running);
   const kind: "review" | "chat" = mode ?? (fund && fund.trim() ? "review" : "chat");
 
@@ -104,7 +107,7 @@ export function AgentActivity({ running, reasoning, tools, fund, mode, tokens, d
             ? <span aria-hidden style={{ width: 12, height: 12, border: `2px solid ${C.line}`, borderTopColor: C.coral, borderRadius: "50%", animation: "vaSpin .8s linear infinite", flexShrink: 0 }} />
             : <span aria-hidden style={{ color: GREEN, fontSize: 13 }}>✓</span>}
           <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: C.ink2 }}>{label}</span>
-          {typeof tokens === "number" && tokens > 0 && (
+          {typeof tokens === "number" && tokens > 0 && !(running && streaming) && (
             <span style={{ fontFamily: MONO, fontSize: 12, color: C.ink3, fontVariantNumeric: "tabular-nums" }}>{tokens.toLocaleString()} tokens</span>
           )}
           <span aria-hidden style={{ color: C.ink3, fontSize: 12 }}>{open ? "▾" : "▸"}</span>

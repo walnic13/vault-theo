@@ -32,7 +32,7 @@ export interface FileDownload {
   byteSize?: number;
   expiresAt?: string;
 }
-export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string; reasoning?: string; tools?: AgentToolCall[]; download?: FileDownload; tokens?: number }
+export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string; reasoning?: string; tools?: AgentToolCall[]; download?: FileDownload; tokens?: number; streaming?: boolean }
 
 export interface Knowledge { id: string; title: string; content: string }
 export type ProjectVisibility = "private" | "group";

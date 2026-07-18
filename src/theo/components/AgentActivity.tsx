@@ -95,6 +95,12 @@ export function AgentActivity({ running, reasoning, tools, fund, mode, tokens, s
       ? (running ? `${tools.length ? toolAwareVerb(tools) : PLAYFUL_VERBS[verbIdx]}…` : chatDoneLabel(tools))
       : (running ? `Reviewing ${fundLabel}…` : `Checked ${fundLabel} · ${tools.length} tool${tools.length === 1 ? "" : "s"}`);
 
+  // Stream the thinking in a FIXED-HEIGHT region that auto-scrolls to the newest text while running,
+  // so the header (verb + live token count) stays pinned/visible and the reasoning "advances" (newest
+  // in view) instead of growing unbounded and pushing the count off-screen.
+  const reasoningRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => { const el = reasoningRef.current; if (el && running) el.scrollTop = el.scrollHeight; }, [reasoning, running]);
+
   return (
     <div>
       <style>{"@keyframes vaSpin{to{transform:rotate(360deg)}}@keyframes vaBlink{50%{opacity:0}}@keyframes vaPulse{50%{opacity:.35}}"}</style>
@@ -115,7 +121,7 @@ export function AgentActivity({ running, reasoning, tools, fund, mode, tokens, s
         {open && (
           <div style={{ padding: "2px 12px 10px 12px" }}>
             {reasoning && (
-              <div style={{ fontFamily: SANS, fontSize: 12.5, fontStyle: "italic", color: C.ink3, marginBottom: 8, lineHeight: 1.5 }}>
+              <div ref={reasoningRef} style={{ fontFamily: SANS, fontSize: 12.5, fontStyle: "italic", color: C.ink3, marginBottom: 8, lineHeight: 1.5, whiteSpace: "pre-wrap", maxHeight: 180, overflowY: "auto" }}>
                 {reasoning}{running && <span aria-hidden style={{ borderRight: `2px solid ${C.coral}`, marginLeft: 1, animation: "vaBlink 1s step-end infinite" }}>&nbsp;</span>}
               </div>
             )}

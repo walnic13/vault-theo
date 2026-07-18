@@ -15,7 +15,7 @@ Sub-phase Track: N/A
 
 | # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
 | - | ------------------------------- | ------------------------------ | --------------------------------- |
-| 1 | Theo Frontend Grounding Conformance Standard — `governance/THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md` (§3 GCR; §4A F-P; §4B VA-T7; §5; §6 T20) | `Read`/`Grep` §4B + §3/§5/§6 this turn | `f0ac903276e40584b9f5f9bd4b3e29228ef73cec` |
+| 1 | Theo Frontend Grounding Conformance Standard — `governance/THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md` (§3 GCR; §4A F-P; §4B VA-T7; §5; §6 T20) | `Read`/`Grep` §4B + §3/§5/§6 this turn | `cb4345647b39294f0234b79d62123edaaff23d43` |
 | 2 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 tool-loop; block-start `event: tool` + `event: vault_tokens`) | `Read(spec/THEO_API_SPEC.md §2.1)` + `Grep` this turn | `ce1ad227ca4f66a5c9c74ccdb185f3d2c3974cd3` |
 | 3 | Theo Golden Component Pack Standard — `governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` (§2 primary reference; §3 CCT; §4 props; §5 deltas) | `Grep(§2/§3/§4/§5)` this turn | `0035a1d9fed103d07bf420b957c3727ec47fcc6b` |
 | 4 | Claude Code Theo Frontend Governor Standard — `governance/CLAUDE_CODE_THEO_FRONTEND_GOVERNOR_STANDARD.md` (§3 CCT; §6 build guardrails) | `Grep(§3/§6)` this turn | `b9c0e11d6e52aace2f97caec845a70e66372b713` |
@@ -51,7 +51,7 @@ Sub-phase Track: N/A
 The shipped activity view (VA-T7, general chat) renders reasoning + tool rows + a token count, but: (a) the count only updated from `message_delta.usage` at each turn's END (no live climb), and (b) `event: tool` arrived only after the whole `tool_use` payload streamed (verb late; the arg-dump rendered as a raw "code" row). Backend is now fixed + deployed (block-start `event: tool {name}`; live cumulative `event: vault_tokens`). This FE consumes them so the count climbs live during the silent build and the verb shows from the start — and adds the **two-mode toggle**: the count shows during silent "processing," hides while text streams. Cycles per tool turn. First producer: `theo_export_spreadsheet`.
 
 ## F-P2 — UI authority reconciliation
-- **VA-T7** (Frontend Conformance §4B, CURRENT — updated + landed with this package): the activity panel now sources the header count from `event: vault_tokens` (cumulative, monotonic) and demonstrates the **two-mode toggle** — states **C** (PROCESSING: count climbs), **C2** (STREAMING: count hidden, answer flowing), **D** (DONE: final total). Tool rows for general chat are `{name}`-only. Sigma states A/B unchanged (no toggle; count always shown).
+- **VA-T7** (Frontend Conformance §4B, CURRENT). Both the artifact AND its **§4B registry row land in this same commit** — the row's `sha256` is updated to `b52ee86189c4ce6a0f6092e008ca0305a3f453afd9f66bc9beaf6408d331a34f` (= the current artifact) and its description is updated (token source → `event: vault_tokens` cumulative/monotonic; the two-mode processing/streaming toggle; block-start `{name}`-only general-chat tool rows), so the authority this VEP cites is registered at HEAD, not ahead of it. The panel now sources the header count from `event: vault_tokens` (cumulative, monotonic) and demonstrates the **two-mode toggle** — states **C** (PROCESSING: count climbs), **C2** (STREAMING: count hidden, answer flowing), **D** (DONE: final total). Sigma states A/B unchanged (no toggle; count always shown).
 - **VA-T1** governs the rest — unchanged.
 
 ## F-P3 — Contract grounding

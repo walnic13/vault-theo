@@ -663,7 +663,16 @@ function relayTurnRaw(upstreamRes, stream, tok) {
     let estChars = 0, lastEmitChars = 0, turnOutputTokens = 0;
     const citations = [];
     const realBefore = tok && Number.isInteger(tok.realBefore) ? tok.realBefore : 0;
-    const emitTokens = (tokens) => { try { stream.write(`event: vault_tokens\ndata: ${JSON.stringify({ tokens })}\n\n`); } catch {} };
+    // Monotonic non-decreasing guarantee (the VA-T7 live counter must never tick backward): the char/4
+    // estimate can overshoot the authoritative usage.output_tokens snap, so clamp every emit to a
+    // running floor (tok.lastEmitted) carried across ALL turns. An overshoot plateaus the count until
+    // the true cumulative catches up; it never decreases. This is what §5's golden curl asserts.
+    const emitTokens = (tokens) => {
+      const floor = tok && Number.isInteger(tok.lastEmitted) ? tok.lastEmitted : 0;
+      const clamped = Math.max(floor, tokens);
+      if (tok) tok.lastEmitted = clamped;
+      try { stream.write(`event: vault_tokens\ndata: ${JSON.stringify({ tokens: clamped })}\n\n`); } catch {}
+    };
     upstreamRes.setEncoding("utf8");
     upstreamRes.on("data", (chunk) => {
       stream.write(chunk); // verbatim relay — FE reads native frames
@@ -1032,8 +1041,9 @@ app.http("theo_message_stream", {
       let model = FOUNDRY_DEPLOYMENT;
       const citationsAll = [];
       // Cumulative authoritative output tokens across all loop turns; carried into relayTurnRaw so the
-      // live `event: vault_tokens` estimate builds on the exact prior-turn totals (monotonic, accurate).
-      const tok = { realBefore: 0 };
+      // live `event: vault_tokens` estimate builds on the exact prior-turn totals. `lastEmitted` is the
+      // monotonic floor for the emitted count (an overshoot never decreases at the message_delta snap).
+      const tok = { realBefore: 0, lastEmitted: 0 };
       try {
         for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
           const { assistantContent, stopReason, text, citations, model: tm, turnOutputTokens } = await relayTurnRaw(upstreamRes, stream, tok);

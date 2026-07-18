@@ -6,7 +6,7 @@ Small polish (Walter, dev SWA). The activity-panel header currently cycles a pla
 
 Role: Claude Code
 Turn Type: Pass 1 — Frontend Verified Evidence Pack
-Turn issued against HEAD: `__PKGSHA__` (vault-theo, `development` — the commit that contains this package + the VA-T7/§4B update)
+Turn issued against HEAD: `0d76ad57e7add2db41aa7188012bbb6a62b88bb8` (vault-theo, `development` — the commit that contains this package + the VA-T7/§4B update)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A
@@ -15,11 +15,11 @@ Sub-phase Track: N/A
 
 | # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
 | - | ------------------------------- | ------------------------------ | --------------------------------- |
-| 1 | Theo Frontend Grounding Conformance Standard — `governance/THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md` (§3 GCR; §4B VA-T7; §5; §6 T20/T21) | `Read`/`Grep` §4B (VA-T7 row) this turn | `__CONFSHA__` |
+| 1 | Theo Frontend Grounding Conformance Standard — `governance/THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md` (§3 GCR; §4B VA-T7; §5; §6 T20/T21) | `Read`/`Grep` §4B (VA-T7 row) this turn | `552575e3cd9024a5a9ff944b154e6615eee20123` |
 | 2 | Theo Golden Component Pack Standard — `governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` (§2 primary reference; §3 CCT; §5 deltas) | `Grep(§2/§3/§5)` this turn | `0035a1d9fed103d07bf420b957c3727ec47fcc6b` |
 | 3 | Claude Code Theo Frontend Governor Standard — `governance/CLAUDE_CODE_THEO_FRONTEND_GOVERNOR_STANDARD.md` (§3 CCT; §6 build guardrails) | `Grep(§3/§6)` this turn | `b9c0e11d6e52aace2f97caec845a70e66372b713` |
 | 4 | Codex Theo Frontend Review Standard — `governance/CODEX_THEO_FRONTEND_REVIEW_STANDARD.md` (§1A hard gates) | `Grep("Component Contract Table completeness")` this turn | `e2b7e0ba91486371414da688ae3697f02a11e252` |
-| 5 | VA-T7 reference surface — `artifacts/theo-agent-activity-reference.jsx` (updated: general-chat header = plain "Thinking…"; playful word in the host StatusLine) | `Read(artifacts/theo-agent-activity-reference.jsx)` this turn | `__VAT7SHA__` |
+| 5 | VA-T7 reference surface — `artifacts/theo-agent-activity-reference.jsx` (updated: general-chat header = plain "Thinking…"; playful word in the host StatusLine) | `Read(artifacts/theo-agent-activity-reference.jsx)` this turn | `db5bee88f76e45efa859b3873604940933f6060f` |
 | 6 | ACTIVE component (mirror target) — `src/theo/components/AgentActivity.tsx` (label + verb machinery) | `Read(src/theo/components/AgentActivity.tsx)` this turn | `9f4e61d6c56d955acfd9c378b999d795a6ec4346` |
 | 7 | ACTIVE surface — `src/theo/components/ChatView.tsx` (the host `StatusLine` — playful word, unchanged) | `Grep(ChatView.tsx StatusLine)` this turn | `62f22461093b16e4c5012ad517a7e8d5a36601f6` |
 

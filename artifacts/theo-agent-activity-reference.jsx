@@ -23,8 +23,9 @@
 //   event: done / event: vault_meta → collapse the panel to its summary; freeze the chips
 //
 // HEADER VERB (running):
-//   - general chat uses a BLEND: a playful verb while only thinking ("Noodling…", "Number-wrangling…"),
-//     switching to a context-aware verb once a tool fires ("Building your spreadsheet…").
+//   - general chat uses a plain "Thinking…" (the specific tool shows in its own row below; the playful
+//     animated status word — "Ruminating…", "Percolating…" — lives in the HOST's StatusLine beneath
+//     the panel, not in this header).
 //   - the Sigma agent uses its review-context verb ("Reviewing <fund>…").
 //   Done state uses a factual summary ("Used the spreadsheet export tool" / "Checked <fund> · N tools").
 //
@@ -190,11 +191,11 @@ export default function TheoAgentActivityReference() {
         />
       </section>
 
-      {/* ============ CONSUMER 2 — general-chat tool-loop (blend verb + two-mode token toggle) ============ */}
+      {/* ============ CONSUMER 2 — general-chat tool-loop ("Thinking…" header + two-mode token toggle) ============ */}
       <section>
-        {heading('GENERAL CHAT — C0 · running (PROCESSING / thinking phase): reasoning streams + token count CLIMBS; playful verb; no tool yet')}
+        {heading('GENERAL CHAT — C0 · running (PROCESSING / thinking phase): reasoning streams + token count CLIMBS; header "Thinking…"; no tool yet')}
         <AgentMessage
-          title="Number-wrangling…" doneLabel="Done" tokens={480} streaming={false} running
+          title="Thinking…" doneLabel="Done" tokens={480} streaming={false} running
           reasoning="The user wants the 2023 K-1 as Excel. Planning the workbook: a Schedule K-1 sheet (each reported box → a typed row), a Capital Account rollforward, and a K-3 Part II sheet for the sourcing. Columns: line, description, amount (number), notes"
           panelOpen={openC0} onToggle={() => setOpenC0(!openC0)}
           tools={[]}
@@ -202,9 +203,9 @@ export default function TheoAgentActivityReference() {
         />
       </section>
       <section>
-        {heading('GENERAL CHAT — C · running (PROCESSING): silent tool_use build → token count CLIMBS; verb tool-aware; tool row is {name}-only')}
+        {heading('GENERAL CHAT — C · running (PROCESSING): silent tool_use build → token count CLIMBS; header "Thinking…"; tool row is {name}-only')}
         <AgentMessage
-          title="Building your spreadsheet…" doneLabel="Used the spreadsheet export tool" tokens={1240} streaming={false} running
+          title="Thinking…" doneLabel="Used the spreadsheet export tool" tokens={1240} streaming={false} running
           reasoning="The user wants the 2023 K-1 laid out as Excel. I'll pull each reported box, the capital-account roll, and the K-3 Part II sourcing into typed columns so the amounts come through as real numbers"
           panelOpen={openC} onToggle={() => setOpenC(!openC)}
           tools={[
@@ -216,7 +217,7 @@ export default function TheoAgentActivityReference() {
       <section>
         {heading('GENERAL CHAT — C2 · running (STREAMING): answer text flowing → token count HIDDEN (the text is the signal)')}
         <AgentMessage
-          title="Building your spreadsheet…" doneLabel="Used the spreadsheet export tool" tokens={1660} streaming={true} running
+          title="Thinking…" doneLabel="Used the spreadsheet export tool" tokens={1660} streaming={true} running
           reasoning="The user wants the 2023 K-1 laid out as Excel. I'll pull each reported box, the capital-account roll, and the K-3 Part II sourcing into typed columns so the amounts come through as real numbers"
           panelOpen={openC2} onToggle={() => setOpenC2(!openC2)}
           tools={[
@@ -228,7 +229,7 @@ export default function TheoAgentActivityReference() {
       <section>
         {heading('GENERAL CHAT — D · done (final total shows; answer + VA-T9 download card render below)')}
         <AgentMessage
-          title="Building your spreadsheet…" doneLabel="Used the spreadsheet export tool" tokens={1847} streaming={false} running={false}
+          title="Thinking…" doneLabel="Used the spreadsheet export tool" tokens={1847} streaming={false} running={false}
           reasoning="The user wants the 2023 K-1 laid out as Excel. I'll pull each reported box, the capital-account roll, and the K-3 Part II sourcing into typed columns so the amounts come through as real numbers"
           panelOpen={openD} onToggle={() => setOpenD(!openD)}
           tools={[{ name: 'theo_export_spreadsheet', status: 'done' }]}

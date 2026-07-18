@@ -9,7 +9,7 @@ Turn Type: Verified Evidence Pack (backend plan)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5
-Turn issued against HEAD: vault-theo `__PKGSHA__` (the commit that contains this package).
+Turn issued against HEAD: vault-theo `891ec277ea19a64cc43576eaffbeec7939d1de49` (the commit that contains this package).
 Currency-anchor form: git blob SHA at HEAD.
 
 ## Rule Anchor Table
@@ -22,7 +22,7 @@ Currency-anchor form: git blob SHA at HEAD.
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/spec/THEO_API_SPEC.md | §2.1 | "streams `event: vault_tokens`" | §1 — the live counter this change makes climb during the thinking phase (contract already documented; no wire change) |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/Codex Governance/Theo-Backend-AdaptiveThinking-Pass-1-VEP/functions/theo_message_stream.js | delta | "adaptive can spend thousands of tokens on the" | The changed regions (thinking config + max_tokens floor) |
 
-### Currency anchors (blob SHAs @ HEAD `__PKGSHORT__`)
+### Currency anchors (blob SHAs @ HEAD `891ec27`)
 - THEO_GOLDEN_HANDLER_STANDARD.md `49aa225aa6145adced121846de990725da5fe0f0`; THEO_API_SPEC.md `ce1ad227ca4f66a5c9c74ccdb185f3d2c3974cd3`.
 - Deployed handler = the source of truth (the ToolActivity-LiveStreaming state, Codex-APPROVED + deployed 2026-07-18). Copied verbatim in `primary-reference/`; Pass-3 Kudu-GETs the live file to confirm the rollback baseline before PUT.
 

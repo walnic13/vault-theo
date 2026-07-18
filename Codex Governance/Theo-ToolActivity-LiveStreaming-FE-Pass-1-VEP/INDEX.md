@@ -6,7 +6,7 @@ Refinement to the shipped general-chat activity view (`AgentActivity`, VA-T7). B
 
 Role: Claude Code
 Turn Type: Pass 1 — Frontend Verified Evidence Pack
-Turn issued against HEAD: `87851f0690f8eb309e49326788d66711d37b929f` (vault-theo, `development` — the commit that contains this package + the VA-T7 update)
+Turn issued against HEAD: `d0e107ae4dfa19b4965a793a770ddbc2a96b763c` (vault-theo, `development` — the commit that contains this package + the VA-T7 update)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A

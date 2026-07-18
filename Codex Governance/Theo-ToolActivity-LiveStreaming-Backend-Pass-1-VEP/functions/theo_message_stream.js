@@ -651,9 +651,10 @@ const TOKEN_EMIT_CHAR_STEP = 400;
 //     shows a clean tool row + verb.
 //   - `event: vault_tokens { tokens }` streams a running output-token count so the header climbs LIVE
 //     during that otherwise-silent build (the tool_use payload arrives as input_json_delta, which is
-//     invisible progress). The count is a char/4 estimate between turn boundaries and SNAPS to the
-//     authoritative usage.output_tokens at each message_delta. `tok.realBefore` carries the exact
-//     cumulative from prior turns so the number is monotonic and accurate across the whole loop.
+//     invisible progress). The count is a char/4 estimate between turn boundaries, RECONCILED toward
+//     the authoritative usage.output_tokens at each message_delta but CLAMPED to a monotonic floor
+//     (tok.lastEmitted) — so it never decreases and may briefly OVERSTATE (it is an upper bound) until
+//     the true cumulative catches up. `tok.realBefore` carries the exact prior-turn totals as the base.
 // Resolves { assistantContent, stopReason, text, citations, model, turnOutputTokens }.
 function relayTurnRaw(upstreamRes, stream, tok) {
   return new Promise((resolve) => {
@@ -664,9 +665,9 @@ function relayTurnRaw(upstreamRes, stream, tok) {
     const citations = [];
     const realBefore = tok && Number.isInteger(tok.realBefore) ? tok.realBefore : 0;
     // Monotonic non-decreasing guarantee (the VA-T7 live counter must never tick backward): the char/4
-    // estimate can overshoot the authoritative usage.output_tokens snap, so clamp every emit to a
-    // running floor (tok.lastEmitted) carried across ALL turns. An overshoot plateaus the count until
-    // the true cumulative catches up; it never decreases. This is what §5's golden curl asserts.
+    // estimate can overshoot the authoritative usage.output_tokens value at message_delta, so clamp
+    // every emit to a running floor (tok.lastEmitted) carried across ALL turns. An overshoot plateaus
+    // the count until the true cumulative catches up; it never decreases. This is what §5's curl asserts.
     const emitTokens = (tokens) => {
       const floor = tok && Number.isInteger(tok.lastEmitted) ? tok.lastEmitted : 0;
       const clamped = Math.max(floor, tokens);
@@ -1042,7 +1043,7 @@ app.http("theo_message_stream", {
       const citationsAll = [];
       // Cumulative authoritative output tokens across all loop turns; carried into relayTurnRaw so the
       // live `event: vault_tokens` estimate builds on the exact prior-turn totals. `lastEmitted` is the
-      // monotonic floor for the emitted count (an overshoot never decreases at the message_delta snap).
+      // monotonic floor for the emitted count (an overshoot never decreases at message_delta reconcile).
       const tok = { realBefore: 0, lastEmitted: 0 };
       try {
         for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {

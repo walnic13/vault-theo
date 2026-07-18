@@ -6,7 +6,7 @@ Plan-only Frontend VEP (no component code lands this turn; implementation is Pas
 
 Role: Claude Code
 Turn Type: Pass 1 — Frontend Verified Evidence Pack
-Turn issued against HEAD: `__PKG_COMMIT__` (vault-theo, `development` — the commit that contains this package)
+Turn issued against HEAD: `3c7ac853e3330668abbba5be26210c39a9dfba53` (vault-theo, `development` — the commit that contains this package)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A

@@ -51,6 +51,7 @@ Pass-4 operational grant (applied this turn under Walter's explicit "yes, run th
 1. Removed `getAppGraphToken()` (client_credentials + `AAD_*` + `login.microsoftonline.com` POST) and the top-level `require("https")`.
 2. Added `getManagedIdentityAccessToken(resource)` and the http/https-aware `requestUrl` — both **verbatim** from the deployed `theo_transcribe_audio` Primary Reference. (The http/https branch is required: the MI token endpoint `IDENTITY_ENDPOINT` is http on localhost; the MS1 https-only `requestUrl` could not have reached it.)
 3. Added `const GRAPH_RESOURCE = "https://graph.microsoft.com";` and changed the call site to `await getManagedIdentityAccessToken(GRAPH_RESOURCE)`.
+4. **(Pass-4 review round 2, T13 fix)** Corrected the `getPool()` source comment that still named `theo_distill_memory` as a deployed exact-match reference — it now cites only the verified-deployed `theo_chat_send_message` (Kudu-confirmed this turn to read `POSTGRES_CONNECTION_STRING` + `ssl.rejectUnauthorized:false`). No stale deployed-handler citation remains in the shipped source.
 
 No change to `dms_notifications`, the migration, `dms_subscribe/function.json`, the strict `{siteId, driveId}` input contract, the idempotent-ensure logic, the Graph create body, or the `dms_sub_upsert` persistence.
 

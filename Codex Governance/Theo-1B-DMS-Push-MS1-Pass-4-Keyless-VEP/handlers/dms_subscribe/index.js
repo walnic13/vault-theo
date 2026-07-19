@@ -28,7 +28,7 @@ const GRAPH_RESOURCE = "https://graph.microsoft.com";
 
 let pool = null;
 function getPool() {
-  // EXACT match to the deployed func-chat handlers (theo_chat_send_message / theo_distill_memory):
+  // EXACT match to the deployed func-chat handler theo_chat_send_message (verified via Kudu this turn):
   // POSTGRES_CONNECTION_STRING + ssl.rejectUnauthorized:false. A different env/ssl would fail to connect.
   if (!pool) pool = new Pool({ connectionString: process.env.POSTGRES_CONNECTION_STRING, ssl: { rejectUnauthorized: false }, max: 2 });
   return pool;

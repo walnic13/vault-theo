@@ -7,7 +7,7 @@ Pass-4 Role-C documentation-update. Adds a new **Tier DMS-Push** to the Theo Pha
 ```
 Role: Claude Code
 Turn Type: Pass 4 — Documentation-update package (Role-C authoring/landing)
-Grounding Mode: Full Baseline Grounding (documentation-update; plan tier authored to the existing §7 tier template)
+Grounding Mode: Full Baseline Grounding
 Pass: Pass 4
 Sub-phase Track: N/A
 Turn issued against HEAD: vault-theo `b539b0a966a607f23eec611f88b1ecaf94bfd394` (the commit that lands this amendment + package; grounding reads were against parent `3b4b7cd`)
@@ -24,8 +24,8 @@ Currency-anchor form: git blob SHA at parent HEAD (Conformance §2/§8 fallback;
 
 | Source doc | Clause id | Verbatim clause text | Applied in output at |
 |------------|-----------|----------------------|----------------------|
-| THEO_PHASE_1B_BACKEND_PLAN.md | §1 living-plan | "It is a *living* plan: each backend microstep updates the three Theo backend authority docs" | Tier DMS-Push follows the living-plan tier idiom (Contracts + Completion gate rows) |
-| THEO_GOLDEN_HANDLER_STANDARD.md | §4 | "A **new external-system interaction**" | The Graph `/v1.0/subscriptions` endpoints declared as an allowed delta under the verbatim Walter authorization (recorded in the tier) |
+| governance/THEO_PHASE_1B_BACKEND_PLAN.md | §1 living-plan | "It is a *living* plan: each backend microstep updates the three Theo backend authority docs" | Tier DMS-Push follows the living-plan tier idiom (Contracts + Completion gate rows) |
+| governance/THEO_GOLDEN_HANDLER_STANDARD.md | §4 | "A **new-domain or new-external-system helper**" | The Graph `/v1.0/subscriptions` endpoints declared as an allowed delta under the verbatim Walter authorization (recorded in the tier) |
 
 ## The edit (additive; applied this turn)
 

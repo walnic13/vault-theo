@@ -10,7 +10,7 @@ Turn Type: Verified Evidence Pack (backend plan)
 Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 1
 Sub-phase Track: P5
-Turn issued against HEAD: 8227d054f7bd0a6b7262280c5b0d1fdb08d31791 (the commit that first adds this package — T29 presence probe resolves here and at every later commit)
+Turn issued against HEAD: 219f66740807955b1a47613a00499c5b3d12a5e9 (Pass-1 review round 2 — the commit containing the T25-corrected pack + the landed API Spec §2.13 dms_negotiate row; package present here and at every later commit)
 ```
 
 | # | Document / artifact (path) | Read this turn |

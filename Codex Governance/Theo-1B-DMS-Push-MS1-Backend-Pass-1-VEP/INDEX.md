@@ -26,8 +26,9 @@ Currency anchors are the git blob SHA of each cited file at parent HEAD (verifia
 | 7 | Theo Phase 1B Backend Plan — `governance/THEO_PHASE_1B_BACKEND_PLAN.md` (§7 **Tier DMS-Push** — the P1 anchor) | Read §7 Tier DMS-Push this turn | `28183604ddfcfe80fa3f3dda6f78e437b88d32d6` |
 | 8 | Theo Architecture and Structure — `governance/THEO_ARCHITECTURE_AND_STRUCTURE.md` (repo boundary; schema/RLS baseline) | referenced via Schema §1/§2 this turn | `07451ce9d912830b3c15fedf74761d00c59f97b2` |
 | 9 | Codex Theo Backend Review Standard — `governance/CODEX_THEO_BACKEND_REVIEW_STANDARD.md` (review gates) | Grep this turn | `d2e1b9881b6e2ed7d77921a055feffb0852257fd` |
-| 10 | Primary Reference — deployed `theo_chat_send_message.index.js` (Web PubSub send idiom) `Codex Governance/Theo-1B-VC1-Chat-Backend-Spine-Pass-1-VEP/theo_chat_send_message.index.js` | Read this turn | `483a0b4dfbeeff882b5d73055914f76e8024601a` |
-| 11 | Primary Reference — deployed `theo_distill_memory.index.js` (app-level `client_credentials` token idiom) `Codex Governance/Theo-1B-B7-Distillation-Engine-Pass-1-VEP/theo_distill_memory.index.js` | Read this turn | `cc47b6bab5931b2dc519448a5e89c27e90c6390a` |
+| 10 | **CANONICAL Primary Reference** — deployed `theo_chat_send_message.index.js` (the func-chat pg + Web PubSub handler) — inlined FULL VERBATIM in-pack at `primary-reference/theo_chat_send_message.index.js.md` (copied from `Codex Governance/Theo-1B-VC1-Chat-Backend-Spine-Pass-1-VEP/theo_chat_send_message.index.js`) | Read this turn | `483a0b4dfbeeff882b5d73055914f76e8024601a` |
+| 11 | CANONICAL Primary Reference — its `theo_chat_send_message.function.json` — inlined FULL VERBATIM in-pack at `primary-reference/theo_chat_send_message.function.json.md` | Read this turn | (paired with row 10) |
+| 12 | Deployed **helper mirror (§4, NOT a co-primary)** — `theo_distill_memory.index.js` (the app-level `client_credentials` token-exchange idiom `dms_subscribe.getAppGraphToken` mirrors, scope→Graph) `Codex Governance/Theo-1B-B7-Distillation-Engine-Pass-1-VEP/theo_distill_memory.index.js` | Read this turn | `cc47b6bab5931b2dc519448a5e89c27e90c6390a` |
 
 ## Rule Anchor Table
 
@@ -62,10 +63,10 @@ Tier DMS-Push, microstep **MS1 — subscription + notification spine** (Theo Pha
 PROPOSED: table `public.dms_change_subscriptions` + 6 SECURITY DEFINER functions (`dms_sub_upsert`/`_get_by_drive`/`_get`/`_list_expiring`/`_touch_expiration`/`_delete`). App-infra deviation from the §5 per-user `created_by`/RLS idiom is deliberate + justified (P2); the service-access DEFINER pattern is the §8 idiom. Full DDL: `migration_dms_change_subscriptions.sql` (P6). No existing table altered.
 
 ## P4 — Contract grounding
-PROPOSED func-chat routes: `POST /api/dms_subscribe` (body `{siteId, driveId}` → `{ data: { dms_subscribe: { drive_id, ensured, refreshed, expiration? } } }`); `GET|POST /api/dms_notifications` (Graph webhook: `?validationToken` echo; notification batch → 202). API Spec rows land Role-C on approval (Gap Register). Route naming `dms_<operation>` per API Spec §1.
+PROPOSED func-chat routes: `POST /api/dms_subscribe` (body accepts EXACTLY `{siteId, driveId}` — any unknown/extra field is rejected 400 `INVALID_REQUEST` before any Graph/DB work, Golden Handler §3 strict input; → `{ data: { dms_subscribe: { drive_id, ensured, refreshed, expiration? } } }`); `GET|POST /api/dms_notifications` (Graph webhook: `?validationToken` echo; notification batch → 202). API Spec rows land Role-C on approval (Gap Register). Route naming `dms_<operation>` per API Spec §1.
 
 ## P5 — Handler grounding (Structural Mirror)
-Handlers in-pack under `handlers/`. Primary references: deployed `theo_chat_send_message` (Web PubSub send) + `theo_distill_memory` (app `client_credentials` token).
+Handlers in-pack under `handlers/`. **Canonical Primary Reference (exactly one, Golden Handler §2): the deployed `theo_chat_send_message` handler** (`func-chat`, `pg` Pool + `WebPubSubServiceClient` — the closest structural match to both MS1 handlers), inlined FULL VERBATIM in-pack at `primary-reference/theo_chat_send_message.index.js.md` + `.function.json.md`. The app-level `client_credentials` Graph-token exchange in `dms_subscribe.getAppGraphToken()` is a **§4 helper mirror** of the deployed `theo_distill_memory` token-exchange (same idiom; scope changed Foundry→Graph) — a helper-reuse citation, NOT a co-primary reference.
 
 | Handler region | Primary reference region | Classification | Basis |
 |---|---|---|---|
@@ -107,7 +108,8 @@ Token never printed. Assertion: (1) exact echo; (2) 202 + no fan-out on failed a
 This document + the in-pack handlers + migration.
 
 ## Parity checklist (Golden Handler §5.4)
-- [x] Primary references named + in-repo (theo_chat_send_message, theo_distill_memory).
+- [x] EXACTLY ONE canonical Primary Reference (theo_chat_send_message) inlined FULL VERBATIM in-pack (handler + function.json); theo_distill_memory cited as a §4 helper mirror, not a co-primary.
+- [x] Strict input contract (Golden Handler §3): dms_subscribe accepts EXACTLY {siteId, driveId} + rejects unknown/extra fields with 400 before any Graph/DB work.
 - [x] Family-B helper block mirrored EXACT.
 - [x] New Graph interaction (`/subscriptions`) authorized verbatim by Walter, predating the VEP (§4/T12).
 - [x] Web PubSub fan-out trigger-only (drive_id, no data); constant-time clientState auth; validation handshake.
@@ -122,6 +124,8 @@ This document + the in-pack handlers + migration.
 - `…/migration_dms_change_subscriptions.sql`
 - `…/handlers/dms_subscribe/index.js` + `function.json`
 - `…/handlers/dms_notifications/index.js` + `function.json`
+- `…/primary-reference/theo_chat_send_message.index.js.md` (canonical Primary Reference, FULL VERBATIM)
+- `…/primary-reference/theo_chat_send_message.function.json.md` (its function.json, FULL VERBATIM)
 
 ## Mechanical lint
 `node tools/lint_microstep_submission.mjs "Codex Governance/Theo-1B-DMS-Push-MS1-Backend-Pass-1-VEP/INDEX.md" --repo-root .` — expect PASS.

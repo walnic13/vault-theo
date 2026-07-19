@@ -105,6 +105,13 @@ module.exports = async function (context, req) {
   if (!oid) return send(context, 401, errorBody("UNAUTHORIZED", "Missing or invalid EasyAuth identity.", 401));
 
   const body = parseJsonSafe(req.rawBody || (typeof req.body === "string" ? req.body : JSON.stringify(req.body || {}))) || {};
+  // Strict input contract (Golden Handler §3): the body accepts EXACTLY { siteId, driveId }. Reject
+  // any unknown/extra field deterministically before any Graph/DB work.
+  const allowed = new Set(["siteId", "driveId"]);
+  const extraKeys = Object.keys(body).filter((k) => !allowed.has(k));
+  if (extraKeys.length > 0) {
+    return send(context, 400, errorBody("INVALID_REQUEST", `Unexpected field(s): ${extraKeys.join(", ")}.`, 400));
+  }
   const siteId = typeof body.siteId === "string" ? body.siteId.trim() : "";
   const driveId = typeof body.driveId === "string" ? body.driveId.trim() : "";
   if (siteId.length < SITE_ID_MIN || siteId.length > SITE_ID_MAX || siteId.includes("%") || siteId.includes("_")) {

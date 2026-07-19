@@ -10,7 +10,7 @@ Turn Type: Pass 4 — Documentation-update package (Role-C authoring/landing)
 Grounding Mode: Full Baseline Grounding (documentation-update; plan tier authored to the existing §7 tier template)
 Pass: Pass 4
 Sub-phase Track: N/A
-Turn issued against HEAD: vault-theo `<<PKG_COMMIT>>` (the commit that lands this amendment + package; grounding reads were against parent `3b4b7cd`)
+Turn issued against HEAD: vault-theo `b539b0a966a607f23eec611f88b1ecaf94bfd394` (the commit that lands this amendment + package; grounding reads were against parent `3b4b7cd`)
 Currency-anchor form: git blob SHA at parent HEAD (Conformance §2/§8 fallback; the cited region is a structural table/tier block).
 ```
 

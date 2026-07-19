@@ -10,7 +10,7 @@ Turn Type: Verified Evidence Pack (backend plan)
 Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 1
 Sub-phase Track: P5
-Turn issued against HEAD: 99e93f70ea508687bc2ae84dedeb3146901e02c7
+Turn issued against HEAD: 12b44dde2316f06cc6d10c5c7c5a3f8c4907a561 (the commit that first adds this package — T29 presence probe resolves here and at every later commit)
 ```
 
 | # | Document / artifact (path) | Read this turn |

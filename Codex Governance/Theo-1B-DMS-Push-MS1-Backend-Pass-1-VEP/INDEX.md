@@ -10,7 +10,7 @@ Turn Type: Verified Evidence Pack (backend plan)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P8
-Turn issued against HEAD: ab116da2d7488fee118da43d61115dfbacfe84ec (the commit that first adds this package — T29 presence probe resolves here + at every later commit; grounding reads against parent 6e0d50d)
+Turn issued against HEAD: d3070699919e6aeffa45809ee06c9dee002488dc (the commit that first adds this package — T29 presence probe resolves here + at every later commit; grounding reads against parent 6e0d50d)
 ```
 
 Currency anchors are the git blob SHA of each cited file at parent HEAD (verifiable via `git cat-file -p <sha>`); the §8 mechanical check is satisfied by literal-substring Rule Anchors at HEAD.

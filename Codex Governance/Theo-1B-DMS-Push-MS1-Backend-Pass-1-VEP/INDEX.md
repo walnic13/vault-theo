@@ -34,9 +34,12 @@ Currency anchors are the git blob SHA of each cited file at parent HEAD (verifia
 | Source doc (path) | Clause id | Verbatim clause text | Applied in output at |
 |-------------------|-----------|----------------------|----------------------|
 | governance/THEO_GOLDEN_HANDLER_STANDARD.md | §4 | "A **new-domain or new-external-system helper**" | The Graph `/v1.0/subscriptions` create/renew/delete — authorized verbatim by Walter (below); Web PubSub send + client_credentials mirror deployed handlers |
-| governance/THEO_PHASE_1B_BACKEND_PLAN.md | Tier DMS-Push | "func-chat hosts the *stateful infrastructure*" | P1 feature identification — MS1 is the Tier DMS-Push spine microstep |
+| governance/THEO_PHASE_1B_BACKEND_PLAN.md | Tier DMS-Push | "hosts the *stateful infrastructure*" | P1 feature identification — MS1 is the Tier DMS-Push spine microstep |
 | governance/THEO_PHASE_1B_BACKEND_PLAN.md | Tier DMS-Push | "the fan-out signal is **trigger-only**" | P2 — dms_notifications fans only `{ type, drive_id }`; delegated dms_delta does the trimmed pull |
 | spec/THEO_AZURE_POSTGRES_SCHEMA.md | §8 | "SECURITY DEFINER SET search_path = public" | P3/P6 — SECURITY DEFINER service-access functions for the app-infra table |
+| governance/CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md | §8 | "Gap Register vocabulary is closed:" | Gap Register (P8/P2) — PRE-LAND declared per the closed vocabulary |
+| governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md | §3 | "Every substantive Claude Code or Codex turn MUST open with a table of the form:" | P8 — the GCR opens this pack |
+| governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md | §5 | "MUST include, after the GCR, a Rule Anchor Table:" | P8 — this Rule Anchor Table follows the GCR |
 
 ## Walter authorization (verbatim; predates this VEP — Golden Handler §4)
 

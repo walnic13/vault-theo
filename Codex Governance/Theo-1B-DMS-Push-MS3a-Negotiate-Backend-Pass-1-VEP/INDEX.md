@@ -17,7 +17,7 @@ Turn issued against HEAD: 8227d054f7bd0a6b7262280c5b0d1fdb08d31791 (the commit t
 |---|----------------------------|----------------|
 | 1 | Theo Golden Handler Standard — `governance/THEO_GOLDEN_HANDLER_STANDARD.md` (§2 canonical Primary Reference; §4 Allowed Deltas; §5.5 deployed = source of truth) | Read this turn |
 | 2 | Theo Grounding Conformance Standard — `governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md` (§3 GCR; §4A.1 P5; §5 Rule Anchor) | Read §3/§4A/§5 this turn |
-| 3 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.13 DMS-Push — the FE subscriber follow-on is named there) | Read §2.13 this turn |
+| 3 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.13 DMS-Push — the `dms_negotiate` contract row is landed here in this pack, T25 fix) | Read + edited §2.13 this turn |
 | 4 | **CANONICAL Primary Reference** — deployed `theo_chat_negotiate.index.js` (func-chat; `WebPubSubServiceClient.getClientAccessToken` receive-only token issuer, hub `vaultchat`) — inlined FULL VERBATIM at `primary-reference/theo_chat_negotiate.index.js.md` | Kudu-GET this turn (HTTP 200) |
 | 5 | CANONICAL Primary Reference — its `theo_chat_negotiate.function.json` — inlined FULL VERBATIM at `primary-reference/theo_chat_negotiate.function.json.md` | Kudu-GET this turn (HTTP 200) |
 | 6 | Deployed `dms_notifications` fan-out target (hub `vaultchat`, group `dms-changes`) — the group `dms_negotiate` must auto-join to match | Grounded via MS1 pack + Golden Handler §6 HF-T8 this turn |
@@ -29,7 +29,7 @@ Turn issued against HEAD: 8227d054f7bd0a6b7262280c5b0d1fdb08d31791 (the commit t
 | governance/THEO_GOLDEN_HANDLER_STANDARD.md | §2 | "selects **exactly one** deployed handler file" | P5 — single canonical Primary Reference is the deployed `theo_chat_negotiate` |
 | governance/THEO_GOLDEN_HANDLER_STANDARD.md | §4 | "an EXACT mirror against a deployed handler containing that helper" | P5 — the `getClientAccessToken` receive-only token idiom is an EXACT mirror of the deployed `theo_chat_negotiate` |
 | governance/THEO_GOLDEN_HANDLER_STANDARD.md | §5.5 | "The deployed handler is the source of truth." | Primary Reference is the live deployed `theo_chat_negotiate` |
-| spec/THEO_API_SPEC.md | §2.13 | "join `dms-changes` → delegated `dms_delta` on a ping" | P1/P4 — MS3a issues the token that lets the FE join `dms-changes` |
+| spec/THEO_API_SPEC.md | §2.13 | "negotiate a DMS realtime connection (receive-only)" | P4 — the `dms_negotiate` route contract (route, request/response shape, status codes, backing) is DEFINED in the API Spec, landed in this pack (T25 fix) |
 | governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md | §3 | "Every substantive Claude Code or Codex turn MUST open with a table of the form:" | The GCR opens this pack |
 | governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md | §5 | "MUST include, after the GCR, a Rule Anchor Table:" | This Rule Anchor Table follows the GCR |
 
@@ -44,13 +44,13 @@ Tier DMS-Push, microstep **MS3a — DMS realtime negotiate** (the backend half o
 - **Boundary.** Deploy target `vaultgpt-func-chat` only. No `reporting_*`, no `theo_` table, no schema, no monolith/sidecar/func-dms change. No new external system (Web PubSub is already the deployed chat transport).
 
 ## Gap Register
-**NO-GAPS.** No schema/contract/secret/external-interaction change; the token idiom is the deployed chat pattern; hub/group are pinned to the deployed fan-out. The MS3b FE subscriber (vault-dms) consumes this token and is the named follow-on (not a gap — a planned separate microstep). No API Spec row change is required for MS3a beyond the §2.13 note already landed (the negotiate is an internal realtime-transport endpoint); MS3b's FE VEP will reference it.
+**NO-GAPS.** The `dms_negotiate` route contract row is landed in API Spec §2.13 as part of this pack's Role-C, so P4 contract grounding is complete for the new route (T25 fix). No schema/secret/external-interaction change; the token idiom is the deployed chat pattern; hub/group are pinned to the deployed `dms_notifications` fan-out. The MS3b FE subscriber (vault-dms) that consumes this token is the named follow-on (a planned separate microstep, not a gap).
 
 ## P3 — Schema grounding
 None. `dms_negotiate` touches no database (the reference's `pg` Pool + `set_config` + `theo_chat_threads` query are removed).
 
 ## P4 — Contract grounding
-PROPOSED func-chat route: `GET /api/dms_negotiate` (no body) → **200** `{ data: { url, hub, groups: ["dms-changes"] } }` — a receive-only Web PubSub client-access URL for hub `vaultchat`. `OPTIONS` → 204. Missing EasyAuth identity → **401 `UNAUTHORIZED`**; realtime unconfigured → **500**. Same response envelope as `theo_chat_negotiate`. Route naming `dms_<operation>` per API Spec §1. (API Spec §2.13 already names the FE subscriber; the negotiate row lands with the MS3b FE VEP so the FE-consumed contract is recorded alongside its consumer.)
+The `dms_negotiate` route contract is **DEFINED in the API Spec now** (landed in this pack — the §2.13 "negotiate a DMS realtime connection (receive-only)" row): `GET /api/dms_negotiate` (no body) → **200** `{ data: { url, hub:"vaultchat", groups:["dms-changes"] } }` (receive-only client-access URL); `OPTIONS` → 204; missing EasyAuth identity → **401 `UNAUTHORIZED`**; realtime unconfigured → **500 `INTERNAL_SERVER_ERROR`**. Same response envelope as `theo_chat_negotiate`. Route naming `dms_<operation>` per API Spec §1. (T25 fix: the earlier draft deferred this row to MS3b, leaving P4 grounding incomplete for a new in-scope route — corrected; the row is landed and status flips to DEPLOYED + golden-verified on deploy.)
 
 ## P5 — Handler grounding (Structural Mirror)
 Handler in-pack at `handlers/dms_negotiate/`. **Canonical Primary Reference (exactly one, Golden Handler §2): the deployed `theo_chat_negotiate`**, inlined FULL VERBATIM at `primary-reference/theo_chat_negotiate.index.js.md` + `.function.json.md`.
@@ -107,4 +107,4 @@ This document + the in-pack handler (`index.js` + `function.json`) + the inlined
 `node tools/lint_microstep_submission.mjs "Codex Governance/Theo-1B-DMS-Push-MS3a-Negotiate-Backend-Pass-1-VEP/INDEX.md" --repo-root .` — expect PASS.
 
 ## Requested verdict
-**APPROVED** — on approval: Claude Code deploys `dms_negotiate` (index.js + function.json) to `vaultgpt-func-chat` (Kudu, DR-T7), runs the golden curls (200 shape + 401 unauth), then proceeds to MS3b (the vault-dms FE subscriber that consumes this token, joins `dms-changes`, and fires `revalidateSiteViaDelta` on a `dms_changed` ping) — with the API Spec `dms_negotiate` row landed alongside MS3b.
+**APPROVED** — on approval: Claude Code deploys `dms_negotiate` (index.js + function.json) to `vaultgpt-func-chat` (Kudu, DR-T7), runs the golden curls (200 shape + 401 unauth), then flips the API Spec §2.13 `dms_negotiate` row (landed in this pack) to **DEPLOYED + golden-verified**. Then MS3b (the vault-dms FE subscriber that consumes this token, joins `dms-changes`, and fires `revalidateSiteViaDelta` on a `dms_changed` ping) completes the OneDrive-grade DMS.

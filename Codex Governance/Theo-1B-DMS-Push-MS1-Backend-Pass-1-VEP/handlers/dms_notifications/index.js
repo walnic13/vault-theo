@@ -18,7 +18,9 @@ const DMS_GROUP = "dms-changes";
 
 let pool = null;
 function getPool() {
-  if (!pool) pool = new Pool({ connectionString: process.env.PG_CONNECTION_STRING, max: 2 });
+  // EXACT match to the deployed func-chat handlers (theo_chat_send_message / theo_distill_memory):
+  // POSTGRES_CONNECTION_STRING + ssl.rejectUnauthorized:false. A different env/ssl would fail to connect.
+  if (!pool) pool = new Pool({ connectionString: process.env.POSTGRES_CONNECTION_STRING, ssl: { rejectUnauthorized: false }, max: 2 });
   return pool;
 }
 

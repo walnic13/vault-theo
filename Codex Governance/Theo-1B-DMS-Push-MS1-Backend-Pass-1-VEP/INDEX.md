@@ -70,7 +70,8 @@ Handlers in-pack under `handlers/`. **Canonical Primary Reference (exactly one, 
 
 | Handler region | Primary reference region | Classification | Basis |
 |---|---|---|---|
-| `dms_subscribe`/`dms_notifications`: `require("pg")` Pool, `parseJsonSafe`, `getPrincipal`/`getClaimValue`, `requestUrl` | same helpers in the deployed handlers | EXACT | frozen Family-B helper block |
+| `require("pg")` Pool connection: `connectionString: process.env.POSTGRES_CONNECTION_STRING`, `ssl: { rejectUnauthorized: false }` | theo_chat_send_message (canonical primary) lines 4–6 | EXACT | byte-identical connection idiom — the deployed func-chat env/ssl (a different env/ssl would fail to connect) |
+| Shared helper idiom: `getPrincipal`/`getClaimValue`/`send`/`errorBody`/`successBody` (from the canonical primary) + `parseJsonSafe`/`requestUrl` (from the §4 helper theo_distill_memory — the canonical primary lacks these) | theo_chat_send_message + theo_distill_memory | ALLOWED DELTA (structural mirror of the deployed Family-B helper idiom; NOT asserted byte-identical) | same shapes as the deployed handlers; `dms_notifications` additionally extends `send` with a `text/plain` mode for the Graph validation-token handshake |
 | `dms_subscribe` `getAppGraphToken()` (`client_credentials`, `scope=https://graph.microsoft.com/.default`) | `theo_distill_memory` client_credentials token exchange (`scope=https://ai.azure.com/.default`) | ALLOWED DELTA | same idiom, Graph scope instead of Foundry |
 | `dms_subscribe` `POST https://graph.microsoft.com/v1.0/subscriptions` (+ idempotent ensure via `dms_sub_get_by_drive`/`dms_sub_upsert`) | (none) | ALLOWED DELTA (Walter-authorized new interaction) | Golden Handler §4 / T12 — verbatim authorization above |
 | `dms_notifications` `WebPubSubServiceClient(process.env.WebPubSubConnectionString, HUB).group("dms-changes").sendToAll({...})` | `theo_chat_send_message` `serviceClient.group(threadId).sendToAll(...)` | ALLOWED DELTA | same Web PubSub send idiom; a fixed DMS group instead of a thread group |
@@ -110,7 +111,7 @@ This document + the in-pack handlers + migration.
 ## Parity checklist (Golden Handler §5.4)
 - [x] EXACTLY ONE canonical Primary Reference (theo_chat_send_message) inlined FULL VERBATIM in-pack (handler + function.json); theo_distill_memory cited as a §4 helper mirror, not a co-primary.
 - [x] Strict input contract (Golden Handler §3): dms_subscribe accepts EXACTLY {siteId, driveId} + rejects unknown/extra fields with 400 before any Graph/DB work.
-- [x] Family-B helper block mirrored EXACT.
+- [x] pg Pool connection byte-EXACT to the deployed idiom (POSTGRES_CONNECTION_STRING + ssl); shared envelope/identity/JSON helpers structurally mirror the deployed Family-B idiom (from theo_chat_send_message + theo_distill_memory), with `dms_notifications` extending `send` for the text/plain handshake.
 - [x] New Graph interaction (`/subscriptions`) authorized verbatim by Walter, predating the VEP (§4/T12).
 - [x] Web PubSub fan-out trigger-only (drive_id, no data); constant-time clientState auth; validation handshake.
 - [x] App-infra table via SECURITY DEFINER (Schema §8); RLS enabled, no authenticated policies; REVOKE/GRANT/search_path.

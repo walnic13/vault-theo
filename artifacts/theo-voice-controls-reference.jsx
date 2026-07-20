@@ -51,6 +51,10 @@ function MicGlyph({ size = 18 }) {
 function StopGlyph({ size = 15 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden><rect x="6" y="6" width="12" height="12" rx="2" /></svg>;
 }
+// Prominent up-arrow for the send button (Claude-match: bold stroke, centered).
+function ArrowUpGlyph({ size = 20 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" /></svg>;
+}
 function SpeakerGlyph({ size = 16 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -124,20 +128,21 @@ export function ComposerWithMic({ recording: initial = false }) {
             : null}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          {/* NEW — dictation mic: idle=mic, recording=stop (coral-tinted). Same 34x34 slot as attach/send. */}
+          {/* Dictation mic (Claude-match): a 40x40 CIRCLE immediately left of send. IDLE = subtle grey
+              circle (bubble) with the mic glyph; RECORDING = coral-tinted stop. */}
           <button
             onClick={() => setRecording((r) => !r)}
             aria-label={recording ? "Stop and transcribe" : "Dictate a message"}
             title={recording ? "Stop & transcribe" : "Dictate a message"}
             style={{
-              width: 34, height: 34, borderRadius: 10, border: "none", cursor: "pointer",
+              width: 40, height: 40, borderRadius: "50%", border: "none", cursor: "pointer",
               display: "flex", alignItems: "center", justifyContent: "center",
-              background: recording ? C.coralSoft : "transparent",
+              background: recording ? C.coralSoft : C.bubble,
               color: recording ? C.coralDk : C.ink2,
             }}
           >{recording ? <StopGlyph /> : <MicGlyph />}</button>
-          {/* Existing send button — unchanged. */}
-          <button aria-label="Send" style={{ width: 34, height: 34, borderRadius: 10, border: "none", background: C.line2, color: "#fff", cursor: "default", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>↑</button>
+          {/* Send button (Claude-match): a 40x40 CIRCLE, solid coral, bold up-arrow. */}
+          <button aria-label="Send" style={{ width: 40, height: 40, borderRadius: "50%", border: "none", background: C.coral, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><ArrowUpGlyph /></button>
         </div>
       </div>
     </div>

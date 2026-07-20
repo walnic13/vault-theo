@@ -110,7 +110,7 @@ function EqBars() {
 function MicButton({ recording, transcribing, disabled, onStart, onStop }: { recording: boolean; transcribing: boolean; disabled: boolean; onStart: () => void; onStop: () => void }) {
   if (transcribing) {
     return (
-      <span title="Transcribing…" aria-label="Transcribing" style={{ width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", color: C.ink3 }}>
+      <span title="Transcribing…" aria-label="Transcribing" style={{ width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: C.ink3 }}>
         <span style={{ display: "inline-flex", gap: 3 }}>{[0, 1, 2].map((d) => <span key={d} style={{ width: 5, height: 5, borderRadius: "50%", background: C.ink3, display: "inline-block", animation: `vo-bounce 1.2s ${d * 0.16}s infinite ease-in-out` }} />)}</span>
       </span>
     );
@@ -120,7 +120,7 @@ function MicButton({ recording, transcribing, disabled, onStart, onStop }: { rec
     <button
       className="vo-mic" onClick={() => (recording ? onStop() : onStart())} disabled={blocked}
       aria-label={recording ? "Stop and transcribe" : "Dictate a message"} title={recording ? "Stop & transcribe" : "Dictate a message"}
-      style={{ width: 34, height: 34, borderRadius: 10, border: "none", cursor: blocked ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: recording ? C.coralSoft : "transparent", color: recording ? C.coralDk : (blocked ? C.line2 : C.ink2) }}
+      style={{ width: 40, height: 40, borderRadius: "50%", border: "none", cursor: blocked ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: recording ? C.coralSoft : C.bubble, color: recording ? C.coralDk : (blocked ? C.line2 : C.ink2) }}
     >{recording ? <StopSquare /> : <IcMic s={18} />}</button>
   );
 }
@@ -403,7 +403,7 @@ export function ChatView(props: ChatViewProps) {
             {recording ? (
               <RecordingTray seconds={recordingSeconds} onCancel={onCancelDictation} />
             ) : (
-              <textarea ref={taRef} value={draft} onChange={(e) => onDraftChange(e.target.value)} onPaste={onPaste} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (canSubmit) onSend(); } }} rows={1} placeholder={`Message ${assistantName}…`} style={{ width: "100%", border: "none", resize: "none", fontFamily: SANS, fontSize: 15, color: C.ink, background: "transparent", lineHeight: 1.5, maxHeight: 200 }} />
+              <textarea ref={taRef} value={draft} onChange={(e) => onDraftChange(e.target.value)} onPaste={onPaste} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !(typeof window !== "undefined" && window.matchMedia("(max-width: 767.98px)").matches)) { e.preventDefault(); if (canSubmit) onSend(); } }} rows={1} placeholder={`Message ${assistantName}…`} style={{ width: "100%", border: "none", resize: "none", fontFamily: SANS, fontSize: 15, color: C.ink, background: "transparent", lineHeight: 1.5, maxHeight: 200 }} />
             )}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -414,23 +414,27 @@ export function ChatView(props: ChatViewProps) {
                   aria-label="Attach files"
                   style={{ width: 34, height: 34, borderRadius: 10, border: "none", background: "transparent", color: attachmentsAvailable ? C.ink2 : C.line2, cursor: attachmentsAvailable ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center" }}
                 ><Paperclip size={18} /></button>
-                {/* VA-T8: dictation mic — only when a live backend is wired. */}
+              </div>
+              {/* VA-T8 (evolved 2026-07-20, Claude-match): mic + send are a right-cluster pair of 40px
+                  CIRCLES — the grey dictation mic immediately left of the coral send (bold up-arrow). */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 {voiceAvailable && (
                   <MicButton recording={recording} transcribing={transcribing} disabled={loading} onStart={onStartDictation} onStop={onStopDictation} />
                 )}
+                {loading ? (
+                  // Stop-generating: the primary action becomes a Stop button in the circular send slot;
+                  // always enabled; a filled square glyph; coral. Aborts the stream, keeps the partial reply.
+                  <button
+                    className="vo-send" onClick={() => onStop()}
+                    aria-label="Stop generating" title="Stop"
+                    style={{ width: 40, height: 40, borderRadius: "50%", border: "none", background: C.coral, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, transition: "background .15s" }}
+                  >◼</button>
+                ) : (
+                  <button className="vo-send" disabled={!canSend} onClick={() => onSend()} aria-label="Send" style={{ width: 40, height: 40, borderRadius: "50%", border: "none", background: canSend ? C.coral : C.line2, color: "#fff", cursor: canSend ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", transition: "background .15s" }}>
+                    <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" /></svg>
+                  </button>
+                )}
               </div>
-              {loading ? (
-                // Stop-generating: while streaming, the primary action becomes a Stop button in the same
-                // .vo-send slot/size. Always enabled; a filled square glyph; coral (never the disabled
-                // grey). Clicking aborts the stream and keeps the partial reply (useTheoState.stop()).
-                <button
-                  className="vo-send" onClick={() => onStop()}
-                  aria-label="Stop generating" title="Stop"
-                  style={{ width: 34, height: 34, borderRadius: 10, border: "none", background: C.coral, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, transition: "background .15s" }}
-                >◼</button>
-              ) : (
-                <button className="vo-send" disabled={!canSend} onClick={() => onSend()} style={{ width: 34, height: 34, borderRadius: 10, border: "none", background: canSend ? C.coral : C.line2, color: "#fff", cursor: canSend ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, transition: "background .15s" }}>↑</button>
-              )}
             </div>
           </div>
           <div style={{ textAlign: "center", fontSize: 11.5, color: C.ink3, marginTop: 9 }}>{assistantName} can make mistakes. Verify tax conclusions before relying on them.</div>

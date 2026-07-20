@@ -10,7 +10,7 @@ Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 4
 Sub-phase Track: N/A
 
-Turn issued against HEAD: `__STAMP__` (vault-theo, `development` — the commit that first contains this package + the new reference artifact; grounding reads performed against parent `59d14566a8b6ee743a9631965682dea54a636338`). Working tree also carried 4 untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not source/governance, not used as grounding).
+Turn issued against HEAD: `cb41ce846d149220a2220e9f8bb3b9ff66264592` (vault-theo, `development` — the commit that first contains this package + the new reference artifact; grounding reads performed against parent `59d14566a8b6ee743a9631965682dea54a636338`). Working tree also carried 4 untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not source/governance, not used as grounding).
 Currency-anchor form: git blob SHA at HEAD.
 
 | # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
@@ -58,7 +58,7 @@ Codex Pass-4 review of the §4B VA-T10 append + the committed reference artifact
 Run this turn against the committed repo root (`node tools/lint_microstep_submission.mjs <submission> --repo-root .`), verbatim:
 
 ```
-__LINT__
+PASS  Codex Governance/Theo-VA-T10-Add-To-Chat-Sheet-Register-RoleC-Pass-4/Theo_VA_T10_Add_To_Chat_Sheet_Register_RoleC_Pass_4.md
 ```
 
 Codex re-runs the linter independently and rejects on any discrepancy.

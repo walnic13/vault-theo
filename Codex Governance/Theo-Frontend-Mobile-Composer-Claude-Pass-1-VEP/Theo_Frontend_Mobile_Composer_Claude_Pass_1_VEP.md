@@ -6,7 +6,7 @@ Plan-only Frontend VEP (implementation is Pass 3 against the approved Component 
 
 Role: Claude Code
 Turn Type: Pass 1 — Frontend Verified Evidence Pack
-Turn issued against HEAD: `__STAMP_HEAD__` (vault-theo, `development` — the commit that contains this package; grounding reads performed against parent `306e5bd83c92a1f1efd6948e0c3698bf5482ce6b`)
+Turn issued against HEAD: `e24dad38e4cbfd7ec2ccbf706223cf74404b304d` (vault-theo, `development` — the commit that contains this package; grounding reads performed against parent `306e5bd83c92a1f1efd6948e0c3698bf5482ce6b`)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A

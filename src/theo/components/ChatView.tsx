@@ -274,6 +274,11 @@ export function ChatView(props: ChatViewProps) {
   const canSubmit = (!!draft.trim() || hasReady) && !uploading;
 
   function onPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    // IMG-1: a clipboard image (e.g. a pasted screenshot) → route into the SAME upload+vision pipeline
+    // as the paperclip/drag-drop (onAddFiles → useTheoState.addFiles), so Claude receives it as an image
+    // block. Files present → attach and don't insert; otherwise fall through to text-paste behaviour.
+    const imgs = Array.from(e.clipboardData.files ?? []).filter((f) => f.type.startsWith("image/"));
+    if (imgs.length && attachmentsAvailable) { e.preventDefault(); onAddFiles(imgs); return; }
     const text = e.clipboardData.getData("text/plain");
     if (text && onAddPastedText(text)) e.preventDefault();   // captured as an attachment → don't insert
   }

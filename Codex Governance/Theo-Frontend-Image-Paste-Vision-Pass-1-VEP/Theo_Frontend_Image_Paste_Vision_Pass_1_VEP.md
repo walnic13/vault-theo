@@ -12,7 +12,7 @@ Sub-phase Track: N/A
 
 (Frontend sub-phase track = F-P1–F-P7 per Frontend Conformance §4A.1, walked below; the lint's P/I/E enumeration is the backend track, hence `N/A`.)
 
-Turn issued against HEAD: `__STAMP__` (vault-theo, `development` — the commit that first contains this package; grounding reads performed against parent `bf3627baef8a91ad1f521327f3d86b6f10073bda`). Working tree carried 4 untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not source/governance, not used as grounding for this turn).
+Turn issued against HEAD: `ee9d8b8e00ff025acc6f92e43811597e6ff6a314` (vault-theo, `development` — the commit that first contains this package; grounding reads performed against parent `bf3627baef8a91ad1f521327f3d86b6f10073bda`). Working tree carried 4 untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not source/governance, not used as grounding for this turn).
 Currency-anchor form: git blob SHA at HEAD.
 
 | # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
@@ -168,7 +168,7 @@ No `any`; inline-style/handler idiom preserved; no new import (reuses `Clipboard
 Run this turn against the committed repo root (`node tools/lint_microstep_submission.mjs <submission> --repo-root .`), verbatim:
 
 ```
-__LINT__
+PASS  Codex Governance/Theo-Frontend-Image-Paste-Vision-Pass-1-VEP/Theo_Frontend_Image_Paste_Vision_Pass_1_VEP.md
 ```
 
 Codex re-runs the linter independently and rejects on any discrepancy.

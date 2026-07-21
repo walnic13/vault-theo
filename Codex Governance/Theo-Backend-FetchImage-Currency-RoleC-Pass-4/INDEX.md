@@ -9,7 +9,7 @@ Turn Type: Pass 4 — Documentation-update package (Role-C authoring)
 Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 4
 Sub-phase Track: N/A
-Turn issued against HEAD: vault-theo `__STAMP__` (the commit that first contains this package; grounding reads against parent `efcd9dd9e763f605806dbaeaea2cb4b06d6d2a98`). Working tree carried 4 untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not grounding).
+Turn issued against HEAD: vault-theo `5fe7c94b4110dc5ca05dcbc5479c9eacf4d78e9b` (the commit that first contains this package; grounding reads against parent `efcd9dd9e763f605806dbaeaea2cb4b06d6d2a98`). Working tree carried 4 untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not grounding).
 Currency-anchor form: git blob SHA at HEAD.
 
 | # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |

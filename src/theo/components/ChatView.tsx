@@ -420,7 +420,7 @@ export function ChatView(props: ChatViewProps) {
             {messages.map((m, i) => m.role === "user" ? (
               <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", margin: "0 0 22px" }}>
                 {m.attachments && m.attachments.length > 0 && <SentAttachments items={m.attachments} />}
-                <div style={{ background: C.bubble, borderRadius: 16, padding: "11px 16px", maxWidth: "82%", fontSize: 15, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{m.content}</div>
+                <div style={{ background: C.bubble, borderRadius: 16, padding: "11px 16px", maxWidth: "82%", fontSize: 15, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.content}</div>
               </div>
             ) : (
               <div key={i} style={{ display: "flex", gap: 13, margin: "0 0 26px" }}>

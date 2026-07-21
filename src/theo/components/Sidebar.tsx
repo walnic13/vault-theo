@@ -32,6 +32,7 @@ export function Sidebar(props: SidebarProps) {
   const { collapsed, onToggleCollapse, view, onNavigate, nav, search, onSearch, recents, onSelectRecent, onRenameRecent, onDeleteRecent, onNewChat, workspaceName, productName, fluid } = props;
   const railW = collapsed ? 58 : 270;
   const [editingId, setEditingId] = useState<string | null>(null);   // B4f: recents row being renamed in place
+  const [recentsExpanded, setRecentsExpanded] = useState(true);       // collapsible Recents (default open)
 
   const navBtn = (item: NavItem) => {
     const active = view === item.key;
@@ -66,8 +67,11 @@ export function Sidebar(props: SidebarProps) {
       </div>)}
       <nav style={{ padding: collapsed ? "2px 9px" : "2px 12px", display: "flex", flexDirection: "column", gap: 2 }}>{nav.map((item) => <div key={item.key}>{navBtn(item)}</div>)}</nav>
       {!collapsed && (<>
-        <div style={{ padding: "14px 18px 6px", fontSize: 11.5, letterSpacing: 0.4, textTransform: "uppercase", color: C.ink3, fontWeight: 600 }}>Recents</div>
-        <div className="vo-scroll" style={{ flex: 1, overflowY: "auto", padding: "0 8px" }}>
+        <button onClick={() => setRecentsExpanded((v) => !v)} aria-expanded={recentsExpanded} title="Toggle Recents" style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "14px 18px 6px", background: "none", border: "none", cursor: "pointer", fontSize: 11.5, letterSpacing: 0.4, textTransform: "uppercase", color: C.ink3, fontWeight: 600, fontFamily: SANS }}>
+          <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ transform: recentsExpanded ? "rotate(90deg)" : "none", transition: "transform .15s" }}><polyline points="9 18 15 12 9 6" /></svg>
+          <span>Recents</span>
+        </button>
+        {recentsExpanded && (<div className="vo-scroll" style={{ flex: 1, overflowY: "auto", padding: "0 8px" }}>
           {recents.map((ch) => {
             const editing = editingId === ch.id;
             return (
@@ -92,7 +96,7 @@ export function Sidebar(props: SidebarProps) {
             );
           })}
           {recents.length === 0 && <div style={{ padding: "8px 10px", fontSize: 13, color: C.ink3 }}>No matches.</div>}
-        </div>
+        </div>)}
       </>)}
       {collapsed && <div style={{ flex: 1 }} />}
       <div style={{ borderTop: `1px solid ${C.line}`, padding: 10, display: "flex", alignItems: "center", gap: 10, justifyContent: collapsed ? "center" : "flex-start" }}>

@@ -315,6 +315,44 @@ function ThinkingPanel({ text, live }: { text: string; live: boolean }) {
   );
 }
 
+// Ephemeral: Jake's birthday banner (Walter 2026-07-21) — shown in the general-landing starters spot for
+// ONE local day (the caller gates on the local date). Festive confetti + a pop-in/wiggle title; zero-dep,
+// inline-style, component-scoped keyframes; prefers-reduced-motion drops the motion to a static banner.
+const BIRTHDAY_KEYFRAMES = `
+@keyframes vt-bday-pop { 0% { transform: scale(0.7); opacity: 0 } 60% { transform: scale(1.06) } 100% { transform: scale(1); opacity: 1 } }
+@keyframes vt-bday-wiggle { 0%, 100% { transform: rotate(-2.5deg) } 50% { transform: rotate(2.5deg) } }
+@keyframes vt-bday-fall { 0% { transform: translateY(-16px) rotate(0deg); opacity: 0 } 12% { opacity: 1 } 100% { transform: translateY(150px) rotate(340deg); opacity: 0 } }
+@media (prefers-reduced-motion: reduce) { .vt-bday-title { animation: none !important } .vt-confetti { display: none !important } }
+`;
+
+function BirthdayBanner() {
+  const COLORS = [C.coral, C.coralDk, "#E9C46A", "#2A9D8F", "#E9D6B6", "#D98C7A"];
+  const lefts = [5, 14, 23, 32, 41, 50, 59, 68, 77, 86, 95, 19, 46, 73]; // confetti column positions (%)
+  return (
+    <div style={{ position: "relative", width: "100%", maxWidth: 520, minHeight: 130, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <style>{BIRTHDAY_KEYFRAMES}</style>
+      <div aria-hidden style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
+        {lefts.map((left, i) => (
+          <span key={i} className="vt-confetti" style={{
+            position: "absolute", top: -14, left: `${left}%`,
+            width: i % 3 === 0 ? 7 : 9, height: i % 3 === 0 ? 12 : 9,
+            borderRadius: i % 2 === 0 ? 2 : "50%", background: COLORS[i % COLORS.length],
+            animation: `vt-bday-fall ${2.3 + (i % 5) * 0.35}s ${(i % 7) * 0.26}s ease-in infinite`,
+          }} />
+        ))}
+      </div>
+      <div className="vt-bday-title" style={{ position: "relative", animation: "vt-bday-pop .5s ease-out both", textAlign: "center" }}>
+        <div style={{ fontFamily: SERIF, fontWeight: 500, fontSize: 25, color: C.coral, letterSpacing: -0.2, display: "inline-flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 26 }} aria-hidden>🎉</span>
+          <span style={{ display: "inline-block", animation: "vt-bday-wiggle 2.6s ease-in-out infinite" }}>Happy Birthday, Jake!</span>
+          <span style={{ fontSize: 26 }} aria-hidden>🎂</span>
+        </div>
+        <div style={{ color: C.ink3, fontSize: 13, marginTop: 8 }}>from all of us at Vault 🥳</div>
+      </div>
+    </div>
+  );
+}
+
 export function ChatView(props: ChatViewProps) {
   const {
     messages, loading, error, draft, attachments, attachmentsAvailable,
@@ -411,9 +449,19 @@ export function ChatView(props: ChatViewProps) {
             <Burst size={40} />
             <h1 style={{ fontFamily: SERIF, fontWeight: 500, fontSize: 32, margin: "18px 0 6px", letterSpacing: -0.2 }}>{greeting}</h1>
             <p style={{ color: C.ink2, fontSize: 15, margin: "0 0 22px" }}>{reviewMode ? `I've loaded ${reviewFund ?? "this fund"}'s workpapers — pick where to start, or ask me anything about this review.` : sigmaMode ? "I'm your K-1 review assistant. Open a fund from the worklist to start a review — I'll walk you through the exceptions, explain the controls, and help you sign off. Or ask me how reviews work." : chatProject ? `Working in ${chatProject.name}.` : "How can I help with your work today?"}</p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", maxWidth: 520 }}>
-              {starters.map((s) => <button key={s} className="vo-chip" onClick={() => onSend(s)} style={{ background: "#fff", border: `1px solid ${C.line2}`, borderRadius: 999, padding: "8px 15px", fontSize: 13, color: C.ink2, cursor: "pointer", fontFamily: SANS }}>{s}</button>)}
-            </div>
+            {(!reviewMode && !sigmaMode)
+              ? (
+                // General landing: generic starter chips removed (Walter 2026-07-21). Ephemeral — Jake's
+                // birthday banner shows in that spot for one LOCAL day (self-expires at local midnight).
+                (() => { const d = new Date(); return d.getFullYear() === 2026 && d.getMonth() === 6 && d.getDate() === 21; })()
+                  ? <BirthdayBanner />
+                  : null
+              )
+              : (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", maxWidth: 520 }}>
+                  {starters.map((s) => <button key={s} className="vo-chip" onClick={() => onSend(s)} style={{ background: "#fff", border: `1px solid ${C.line2}`, borderRadius: 999, padding: "8px 15px", fontSize: 13, color: C.ink2, cursor: "pointer", fontFamily: SANS }}>{s}</button>)}
+                </div>
+              )}
           </div>
         ) : (
           <div style={{ maxWidth: 740, margin: "0 auto", padding: "28px 24px 8px" }}>

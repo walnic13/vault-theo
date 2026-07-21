@@ -12,7 +12,7 @@ Sub-phase Track: N/A
 
 (Frontend sub-phase track = F-P1–F-P7 per Frontend Conformance §4A.1, walked below; the lint's P/I/E enumeration is the backend track, hence `N/A`.)
 
-Turn issued against HEAD: `__STAMP__` (vault-theo, `development` — the commit that first contains this package; grounding reads performed against parent `857bdce2e93b1667eab63432a271c502f6beabce`). Working tree also carried 4 untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not source/governance, not grounding).
+Turn issued against HEAD: `645a26028f54550e9d72fbb0ef78b051e9d7495f` (vault-theo, `development` — the commit that first contains this package; grounding reads performed against parent `857bdce2e93b1667eab63432a271c502f6beabce`). Working tree also carried 4 untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not source/governance, not grounding).
 Currency-anchor form: git blob SHA at HEAD.
 
 | # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
@@ -144,7 +144,7 @@ No `any`; inline-style preserved (no Tailwind); no new import.
 Run this turn against the committed repo root (`node tools/lint_microstep_submission.mjs <submission> --repo-root .`), verbatim:
 
 ```
-__LINT__
+PASS  Codex Governance/Theo-Frontend-Bubble-URL-Wrap-Pass-1-VEP/Theo_Frontend_Bubble_URL_Wrap_Pass_1_VEP.md
 ```
 
 Codex re-runs the linter independently and rejects on any discrepancy.

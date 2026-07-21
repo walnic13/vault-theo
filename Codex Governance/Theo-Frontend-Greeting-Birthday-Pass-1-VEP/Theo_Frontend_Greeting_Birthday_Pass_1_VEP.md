@@ -12,7 +12,7 @@ Sub-phase Track: N/A
 
 (Frontend sub-phase track = F-P1–F-P7 per Frontend Conformance §4A.1, walked below; the lint's P/I/E enumeration is the backend track, hence `N/A`.)
 
-Turn issued against HEAD: `__STAMP__` (vault-theo, `development` — the commit that first contains this package; grounding reads performed against parent `80ccb616f79ca02ca25a6266789be2b04884091d`). Working tree also carried 4 untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not grounding).
+Turn issued against HEAD: `21919c5926477c79d78a52a7d79519aa7c45b021` (vault-theo, `development` — the commit that first contains this package; grounding reads performed against parent `80ccb616f79ca02ca25a6266789be2b04884091d`). Working tree also carried 4 untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not grounding).
 Currency-anchor form: git blob SHA at HEAD.
 
 | # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
@@ -166,7 +166,7 @@ Renders a centered festive banner: "🎉 Happy Birthday, Jake! 🎂" in the `SER
 Run this turn against the committed repo root (`node tools/lint_microstep_submission.mjs <submission> --repo-root .`), verbatim:
 
 ```
-__LINT__
+PASS  Codex Governance/Theo-Frontend-Greeting-Birthday-Pass-1-VEP/Theo_Frontend_Greeting_Birthday_Pass_1_VEP.md
 ```
 
 Codex re-runs the linter independently and rejects on any discrepancy.

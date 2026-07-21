@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ClipboardEvent, DragEvent, ReactNode } from "react";
 import { C, SANS, SERIF } from "../theme";
-import { Burst, IcMic, IcSpeaker } from "./icons";
+import { Burst, IcMic, IcSpeaker, IcClose } from "./icons";
 import { CitedText } from "./CitedText";
 import { AgentActivity } from "./AgentActivity";
 import { DownloadCard } from "./DownloadCard";
@@ -155,6 +155,69 @@ function ReadAloudButton({ playing, loading, onToggle }: { playing: boolean; loa
   );
 }
 
+// VA-T10: the mobile "Add to chat" bottom sheet — glyphs + the sheet itself. Opened by the composer
+// paperclip on narrow viewports; replaces the raw native OS file chooser. Each card triggers a hidden
+// <input> (camera / photos / files) whose files route through the existing onAddFiles upload pipeline.
+const SHEET_KEYFRAMES = "@keyframes vt-sheet-up { from { transform: translateY(100%) } to { transform: translateY(0) } } @keyframes vt-fade-in { from { opacity: 0 } to { opacity: 1 } }";
+
+function CameraGlyph({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+      <circle cx="12" cy="13" r="4" />
+    </svg>
+  );
+}
+function PhotosGlyph({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <polyline points="21 15 16 10 5 21" />
+    </svg>
+  );
+}
+function FilesGlyph({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="12" y1="18" x2="12" y2="12" />
+      <polyline points="9 15 12 12 15 15" />
+    </svg>
+  );
+}
+
+function AttachOption({ glyph, label, onClick }: { glyph: ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} aria-label={label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${C.line2}`, borderRadius: 16, padding: "18px 8px", cursor: "pointer", fontFamily: SANS }}>
+      <span style={{ width: 52, height: 52, borderRadius: "50%", background: C.bubble, color: C.ink2, display: "flex", alignItems: "center", justifyContent: "center" }}>{glyph}</span>
+      <span style={{ fontSize: 14, color: C.ink, fontWeight: 500 }}>{label}</span>
+    </button>
+  );
+}
+
+function AddToChatSheet({ open, onClose, onCamera, onPhotos, onFiles }: { open: boolean; onClose: () => void; onCamera: () => void; onPhotos: () => void; onFiles: () => void }) {
+  if (!open) return null;
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Add to chat" onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(40,38,31,0.35)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 60, animation: "vt-fade-in .15s ease" }}>
+      <style>{SHEET_KEYFRAMES}</style>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.bg, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: "10px 16px calc(20px + env(safe-area-inset-bottom))", boxShadow: "0 -6px 28px rgba(40,38,31,0.18)", animation: "vt-sheet-up .22s cubic-bezier(.22,.61,.36,1)", fontFamily: SANS }}>
+        <div style={{ width: 36, height: 5, borderRadius: 3, background: C.line2, margin: "0 auto 12px" }} aria-hidden />
+        <div style={{ position: "relative", height: 32, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+          <button onClick={onClose} aria-label="Close" title="Close" style={{ position: "absolute", left: 0, top: 0, width: 32, height: 32, border: "none", background: "transparent", color: C.ink2, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><IcClose s={20} /></button>
+          <span style={{ fontSize: 17, fontWeight: 600, color: C.ink }}>Add to chat</span>
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <AttachOption glyph={<CameraGlyph />} label="Camera" onClick={onCamera} />
+          <AttachOption glyph={<PhotosGlyph />} label="Photos" onClick={onPhotos} />
+          <AttachOption glyph={<FilesGlyph />} label="Files" onClick={onFiles} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // One attachment chip — file or "Pasted text". Pasted/text chips with a preview expand inline.
 // `onRemove` present ⇒ composer chip (removable); absent ⇒ sent-bubble chip (read-only).
 function Chip(props: {
@@ -263,6 +326,12 @@ export function ChatView(props: ChatViewProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // VA-T10: separate hidden inputs for the mobile "Add to chat" sheet's Camera / Photos cards (Files
+  // reuses fileRef). `attachOpen` toggles the sheet; it is opened only on narrow (the composer breakpoint).
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const photosRef = useRef<HTMLInputElement>(null);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const isNarrow = () => typeof window !== "undefined" && window.matchMedia("(max-width: 767.98px)").matches;
 
   useEffect(() => { if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [messages, loading]);
   useEffect(() => { const ta = taRef.current; if (ta) { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 200) + "px"; } }, [draft]);
@@ -274,6 +343,11 @@ export function ChatView(props: ChatViewProps) {
   const canSubmit = (!!draft.trim() || hasReady) && !uploading;
 
   function onPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    // IMG-1: a clipboard image (e.g. a pasted screenshot) → route into the SAME upload+vision pipeline
+    // as the paperclip/drag-drop (onAddFiles → useTheoState.addFiles), so Claude receives it as an image
+    // block. Files present → attach and don't insert; otherwise fall through to text-paste behaviour.
+    const imgs = Array.from(e.clipboardData.files ?? []).filter((f) => f.type.startsWith("image/"));
+    if (imgs.length && attachmentsAvailable) { e.preventDefault(); onAddFiles(imgs); return; }
     const text = e.clipboardData.getData("text/plain");
     if (text && onAddPastedText(text)) e.preventDefault();   // captured as an attachment → don't insert
   }
@@ -323,6 +397,14 @@ export function ChatView(props: ChatViewProps) {
       onDrop={onDrop}
     >
       <style>{VOICE_KEYFRAMES}</style>
+      {/* VA-T10: mobile "Add to chat" sheet — each card routes into the existing onAddFiles pipeline. */}
+      <AddToChatSheet
+        open={attachOpen}
+        onClose={() => setAttachOpen(false)}
+        onCamera={() => { setAttachOpen(false); cameraRef.current?.click(); }}
+        onPhotos={() => { setAttachOpen(false); photosRef.current?.click(); }}
+        onFiles={() => { setAttachOpen(false); fileRef.current?.click(); }}
+      />
       <div ref={scroller} className="vo-scroll" style={{ flex: 1, overflowY: "auto" }}>
         {messages.length === 0 ? (
           <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px", textAlign: "center" }}>
@@ -338,7 +420,7 @@ export function ChatView(props: ChatViewProps) {
             {messages.map((m, i) => m.role === "user" ? (
               <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", margin: "0 0 22px" }}>
                 {m.attachments && m.attachments.length > 0 && <SentAttachments items={m.attachments} />}
-                <div style={{ background: C.bubble, borderRadius: 16, padding: "11px 16px", maxWidth: "82%", fontSize: 15, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{m.content}</div>
+                <div style={{ background: C.bubble, borderRadius: 16, padding: "11px 16px", maxWidth: "82%", fontSize: 15, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.content}</div>
               </div>
             ) : (
               <div key={i} style={{ display: "flex", gap: 13, margin: "0 0 26px" }}>
@@ -408,8 +490,10 @@ export function ChatView(props: ChatViewProps) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <input ref={fileRef} type="file" multiple onChange={onFilePick} style={{ display: "none" }} />
+                <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={onFilePick} style={{ display: "none" }} />
+                <input ref={photosRef} type="file" accept="image/*" multiple onChange={onFilePick} style={{ display: "none" }} />
                 <button
-                  className="vo-attach" disabled={!attachmentsAvailable} onClick={() => fileRef.current?.click()}
+                  className="vo-attach" disabled={!attachmentsAvailable} onClick={() => { if (isNarrow()) setAttachOpen(true); else fileRef.current?.click(); }}
                   title={attachmentsAvailable ? "Attach files" : "Attachments unavailable in this preview"}
                   aria-label="Attach files"
                   style={{ width: 34, height: 34, borderRadius: 10, border: "none", background: "transparent", color: attachmentsAvailable ? C.ink2 : C.line2, cursor: attachmentsAvailable ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center" }}

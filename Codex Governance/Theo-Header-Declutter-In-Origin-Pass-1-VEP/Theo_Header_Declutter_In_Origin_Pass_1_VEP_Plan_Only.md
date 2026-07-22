@@ -7,7 +7,7 @@ Walter-directed (2026-07-22). When Theo is mounted inside Vault Origin's 9/10 (`
 Role: Claude Code
 Turn Type: Pass 1 — Frontend Verified Evidence Pack (Claude Code internal VEP pass; §4C)
 Pass: Pass 1
-Turn issued against HEAD: 3f6ea43010f35298d9ccee28903f1f0339552463
+Turn issued against HEAD: 58058e9d3f686093f17070fdee114343067f1ea7
 Grounding Mode: Targeted Current-Turn Grounding
 Sub-phase Track: N/A
 

@@ -9,7 +9,7 @@ Turn Type: Pass 1 — Frontend Verified Evidence Pack (Claude Code internal VEP 
 Pass: Pass 1
 Grounding Mode: Full Baseline Grounding
 Sub-phase Track: N/A
-Turn issued against HEAD: 4ae08c7905cfc86a5af33d18c0fb2b87d9ee8182
+Turn issued against HEAD: 9a552d6222fc363fd80a180cfa74f933e8f84c21
 
 | # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor |
 | - | ------------------------------- | ------------------------------ | --------------- |

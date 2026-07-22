@@ -1,0 +1,78 @@
+# Theo Conversation Restore-on-Reopen (Frontend) — Pass 1 Verified Evidence Pack (Plan Only)
+
+Walter-directed (2026-07-22). Reopening Theo on mobile (a cold PWA reload) lands on a fresh new chat because the active conversation is in-memory only with no restore. The backend `last_opened_at` flag is now deployed (stamp-on-open + `theo_list_conversations` ordered last-opened-first; API Spec §2.1 at HEAD). This FE pass makes Theo **restore the last-opened conversation on mount**: once Recents load, if the user is not already in a conversation and has no draft, select the list head (`recentsList[0]` — the last-opened) via the existing `selectRecent` path. One `useEffect` in `useTheoState` + one field on `ConversationSummary`. No rendered-surface change.
+
+## Grounding Conformance Receipt
+
+Role: Claude Code
+Turn Type: Pass 1 — Frontend Verified Evidence Pack (Claude Code internal VEP pass; §4C)
+Pass: Pass 1
+Grounding Mode: Full Baseline Grounding
+Sub-phase Track: N/A
+Turn issued against HEAD: 4ae08c7905cfc86a5af33d18c0fb2b87d9ee8182
+
+| # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor |
+| - | ------------------------------- | ------------------------------ | --------------- |
+| 1 | CLAUDE CODE THEO FRONTEND GOVERNOR STANDARD — c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/CLAUDE_CODE_THEO_FRONTEND_GOVERNOR_STANDARD.md | Grounded (§2 Planning Gate; §3 VEP Format + CCT) this turn | blob `b9c0e11d6e52aace2f97caec845a70e66372b713` (structural, §8 fallback) |
+| 2 | THEO PHASE 1A FRONTEND PLAN — c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_PHASE_1A_FRONTEND_PLAN.md | Grounded (F-P1 feature authority) this turn | blob `901271478e8bec29177d379fadbbf3d4701a90fe` (structural, §8 fallback) |
+| 3 | THEO API SPEC — c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/spec/THEO_API_SPEC.md | Read (§2.1 conversations — list ordered last-opened-first + `last_opened_at`; get) this turn | blob `dc0e6e0cc9c8dce9f003bebcb951fd4af30c97f3` (structural, §8 fallback) |
+| 4 | THEO FRONTEND GROUNDING CONFORMANCE STANDARD — c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md | Grounded (§3 GCR; §4/§4A Full Baseline set; §4B VA registry; §5 Rule Anchor) this turn | blob `c614d51c49a0870bb7a4903e63f96ce2dbef314d` (structural, §8 fallback) |
+| 5 | CODEX THEO FRONTEND REVIEW STANDARD — c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/CODEX_THEO_FRONTEND_REVIEW_STANDARD.md | Grounded (Pass-2 reviewer behavior; hard gates) this turn | blob `e2b7e0ba91486371414da688ae3697f02a11e252` (structural, §8 fallback) |
+| 6 | THEO GOLDEN COMPONENT PACK STANDARD — c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md | Read (§3 CCT; §5 Allowed Deltas — EXACT vs VISUAL-AUTHORITY-DEVIATION; §16 state) this turn | blob `0035a1d9fed103d07bf420b957c3727ec47fcc6b` (structural, §8 fallback) |
+| 7 | THEO EXECUTION ORCHESTRATION STANDARD — c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | Grounded (role vocabulary; Decision Register — no in-scope entry) this turn | blob `be066f12147d1eb13b51f025b275f5413ab51f0e` (structural, §8 fallback) |
+| 8 | VA-T2 (architecture) + VA-T4 (§3A mount) — c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_ARCHITECTURE_AND_STRUCTURE.md | Grounded (surface architecture; the hosted mount) this turn | blob `07451ce9d912830b3c15fedf74761d00c59f97b2` (structural, §8 fallback) |
+| 9 | VA-T3 — Theo 1A Frontend Handover — c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_1A_FRONTEND_HANDOVER.md | Grounded (§2.5 no browser storage — restore is backend-driven, not localStorage) this turn | blob `b8155889ebfb44a153192e63796812a94aa87004` (structural, §8 fallback) |
+| 10 | VA-T1 — Theo Frontend Reference Surface (primary reference) — c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/frontend/theo-frontend-reference.jsx | Grounded (Chats surface + Recents behavior) this turn | first-20: "import React, { useState, useRef, useEffect } from "react"; /* ──────────────────────────────────────────────────────────────────────── VAULT ORIGIN — Claude-for-Teams shell (bridge build) Chats (live)" · last-20: "style={{ padding: "22px 24px", fontSize: 14.5, color: C.ink }}><Formatted text={curVer().content} /></div> )} </div> </aside> )} </div> </main> </div> ); }" |
+| 11 | ACTIVE — useTheoState.ts — c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/src/theo/useTheoState.ts | Read (`useTheoState()` propless L55; state `messages` L71 / `conversationId` L91 / `recentsList` L92; `loadRecents` L195; `selectRecent` async L369) this turn | first-20: "// App state + handlers for the Theo shell — ports VaultOriginShell's state/logic (VA-T1 // L155–237) but routes every backend-bound" · last-20: "}), openGalleryArtifact, closeArt: () => setOpenArt(null), greeting: greeting(selfName), loadPeople, // Voice I/O (VA-T8) startDictation, stopDictation, cancelDictation, readAloud, stopReadAloud, }; }" |
+| 12 | ACTIVE — types.ts — c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/src/theo/types.ts | Read (`ConversationSummary` L129–133; `ConversationDetail`) this turn | first-20: "// Shared types — mirror the reference surface's in-memory shapes exactly (CCT §2A). import type { JSX } from "react";" · last-20: "1B → theo_conversations.app_key / app_context. Context-only. export interface AppContext { app_key: string | null; app_context: Record<string, unknown> | null }" |
+
+## Rule Anchor Table
+
+| Source doc | Clause id | Verbatim clause text | Applied in output at |
+| ---------- | --------- | -------------------- | -------------------- |
+| spec/THEO_API_SPEC.md | §2.1 (List conversations) | "ordered last-opened-first" | §1/§3 — the FE restores `recentsList[0]`, which the deployed list orders as the last-opened conversation |
+| governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md | §5 Allowed Deltas | "Any visual change to the rendered surface must be classified VISUAL-AUTHORITY-DEVIATION with a Rule Anchor" | §2/§3 — this change makes NO rendered-surface change (restore reuses the existing `selectRecent` render path); classified EXACT vs VA-T1, no deviation |
+| governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md | §3 | "One row per component in scope" | §3 CCT — one row per changed unit (useTheoState hook; ConversationSummary type) |
+| governance/THEO_1A_FRONTEND_HANDOVER.md | §2.5 | "No browser storage" | §2 — restore is BACKEND-driven (last_opened_at ordering), not localStorage; §2.5 compliant |
+| governance/THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md | §5 rule 2 | "Verbatim Clause Text MUST be a direct substring as read this turn" | This Rule Anchor Table — every quote is a literal this-turn substring |
+
+## §1 Feature Identification (F-P1)
+- **Feature:** on mount, once Recents load, restore the last-opened conversation. In `useTheoState`, add a once-guarded `useEffect`: if `conversationId === null` and `messages.length === 0` (user not already in / composing a chat) and `recentsList.length > 0`, call `selectRecent(recentsList[0].id)`. `recentsList[0]` is the last-opened conversation because the deployed `theo_list_conversations` orders `last_opened_at DESC NULLS LAST, updated_at DESC, id DESC` (API Spec §2.1). Restoring uses the existing `selectRecent` (fetches `theo_get_conversation`, sets `messages` + `conversationId`, restores the chat's project) — no new load path.
+- **Type:** add `last_opened_at: string | null` to `ConversationSummary` (mirrors the list contract field; not otherwise consumed by the FE — the ordering is server-side).
+- **Kept intact:** New chat (`newChatNonce`) — the effect is guarded once-per-mount (a ref), so it never re-fires after a deliberate New chat or a user-opened conversation; the greeting/empty home still shows when the user has NO conversations (`recentsList` empty).
+- **Boundary:** vault-theo FE only — `src/theo/useTheoState.ts` (the restore effect) + `src/theo/types.ts` (`ConversationSummary`). No backend (already deployed), no other component, no rendered-surface change, no browser storage.
+
+## §2 UI Authority Reconciliation (F-P2)
+- **VA-T1 (reference surface):** the restore lands an EXISTING conversation into the Chats view via the existing `selectRecent` render path — the rendered surface is **EXACT** vs VA-T1 (no new/altered UI). Per Golden Component Pack §5, only a rendered-surface change would be a VISUAL-AUTHORITY-DEVIATION; there is none here (a state/data behavior change on mount). The behavior matches the reference intent (Recents drives the open thread) — Theo now lands on your last conversation, as Claude/ChatGPT do.
+- **VA-T3 §2.5 (no browser storage):** the restore is **backend-driven** — the server `last_opened_at` ordering makes `recentsList[0]` the last-opened; the FE holds nothing in localStorage/sessionStorage. §2.5 compliant.
+- **VA-T2/VA-T4 (architecture / hosted mount):** unchanged — this works identically standalone (`mode="full"`) and hosted (`mode="panel"`); no mount/portal change.
+- No conflict with any CURRENT VA authority; no new authority invented.
+
+## §2.5 Gap Disclosure (F-P2.5)
+**PROCEED.**
+1. **No rendered-surface change** → EXACT vs VA-T1 (Golden Pack §5); anchored. **PROCEED.**
+2. **Backend prerequisite is live:** `last_opened_at` ordering + field are DEPLOYED and at HEAD in API Spec §2.1 (dc0e6e0c). **PROCEED.**
+3. **New-chat race (minor):** if the user taps New chat in the ~sub-second before Recents finish loading, the restore effect could then fire once and open the last conversation over the just-started blank chat. Mitigated by the `messages.length === 0 && conversationId === null` guard (a New chat that has received a nonce-driven reset also matches, but the once-guard ref means only the FIRST post-mount settle restores). Acceptable v1; a stricter "user-interacted" gate is a later refinement if observed. **PROCEED.**
+4. **Brief flash:** between mount and Recents-load the empty home shows momentarily, then the last conversation restores. Acceptable (no layout shift beyond the normal Recents load). **PROCEED.**
+
+## §3 Component Contract Table (F-P5)
+
+| Component (proposed/active) | Prop / input interface | Visual authority citation | Data / contract dependency | Impl eligibility |
+|-----------------------------|------------------------|---------------------------|----------------------------|------------------|
+| `useTheoState` — Theo surface state hook; **ACTIVE** (`src/theo/useTheoState.ts`) | `export function useTheoState()` — **propless** (no parameters); returns the surface state/handlers object. **Change is internal + return-shape-unchanged:** add one once-guarded mount `useEffect` (a `didRestoreRef` guard) that, when `conversationId === null && messages.length === 0 && recentsList.length > 0`, calls the existing `selectRecent(recentsList[0].id)`. No new returned member. | VA-T1 Chats surface / Recents — classification **EXACT** (restore reuses the existing `selectRecent` render path; no rendered-surface change; Golden Pack §5) | DEPLOYED — `theo_list_conversations` (ordered last-opened-first; returns `last_opened_at`) + `theo_get_conversation` (via `selectRecent`), API Spec §2.1 at HEAD (dc0e6e0c). No new/changed request; no new call site. | **PROCEED** |
+| `ConversationSummary` — shared type; **ACTIVE** (`src/theo/types.ts`) | Full literal (ADDS `last_opened_at`; no `any`): `export interface ConversationSummary { id: string; title: string; model: string \| null; project_id: string \| null; app_key: string \| null; created_at: string; updated_at: string; last_opened_at: string \| null; }` | VA-T1 (mirrors the `theo_list_conversations` response shape "exactly", types.ts header) | consumes the `last_opened_at` field of `theo_list_conversations` (API Spec §2.1, DEPLOYED) | **PROCEED** |
+
+## §4 Implementation Plan (Pass 3 — NOT BLOCKED)
+1. `src/theo/types.ts`: add `last_opened_at: string | null;` to `ConversationSummary`.
+2. `src/theo/useTheoState.ts`: add `const didRestoreRef = useRef(false);` and a mount `useEffect` keyed on `[recentsList]` (with the guards above) that calls `selectRecent(recentsList[0].id)` once. Place after `selectRecent`/`loadRecents` are defined; the `didRestoreRef` once-guard makes `selectRecent` (a non-memoised fn) safe to call without a dep-loop.
+3. Verify: `npx tsc --noEmit` CLEAN + `npm run build` GREEN. On `development` (salmon-river serves dev+prod Theo); Walter validates: reopen the Origin-hosted Theo → lands on the last-opened conversation; New chat still starts blank; a brand-new user (no conversations) still sees the greeting. Emit the F-I2 Structural Mirror (all EXACT vs VA-T1) + F-I4 parity note at Pass 3.
+
+## §5 Structural Mirror / Visual-Parity note (Pass-3 preview)
+- Structural Mirror (F-I2): every region of the rendered surface is **EXACT** vs VA-T1 — the change is a mount-time state restore, not a surface edit. No inline-style→Tailwind conversion (AD-visual respected).
+- Visual-Parity (F-I4): the restored conversation renders through the unchanged Chats view (same layout/palette `C`/type stacks); the only observable difference is *which* conversation is open on load.
+
+## §6 Out of scope
+The backend (already deployed); the API-Spec Role-C (already landed); a per-user last-active pointer (per-conversation timestamp is the chosen design); a stricter user-interacted restore gate; `mode="full"` vs `mode="panel"` behaves identically (no mount change); any other component/surface; browser-storage persistence (prohibited, VA-T3 §2.5).
+
+## Requested action
+Codex Pass-2 review (Conformance §3–§6; Golden Component Pack §3/§5; VA-T1/T3; API Spec §2.1 at HEAD). On APPROVED, Claude Code implements per §4 on `development`, Walter validates the Origin-hosted Theo reopen, then lands.

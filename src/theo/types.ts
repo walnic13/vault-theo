@@ -130,6 +130,7 @@ export interface ConversationSummary {
   id: string; title: string; model: string | null;
   project_id: string | null; app_key: string | null;
   created_at: string; updated_at: string;
+  last_opened_at: string | null;   // restore-on-reopen: theo_list_conversations orders last-opened-first
 }
 export interface PersistedMessage {
   id: string; seq: number; role: Role; content: string;

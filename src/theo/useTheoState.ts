@@ -196,6 +196,23 @@ export function useTheoState() {
     try { setRecentsList(await theoClient.listConversations(50)); } catch { /* keep current list */ }
   }, []);
 
+  // Restore-on-reopen: on the first settle after Recents load, open the LAST-OPENED conversation
+  // (`recentsList[0]` — theo_list_conversations orders `last_opened_at DESC NULLS LAST, …`, API Spec
+  // §2.1) so a cold PWA reload lands back on the chat the user was in, not a blank new chat. Decides
+  // ONCE (didRestoreRef, set at the first recents-settle) so it never fires again on a later state
+  // change (a New chat, a manual open, a cleared draft). Suppressed if the user is already in a chat
+  // OR composing — `selectRecent`→`clearComposer()` clears attachments, and the typed `draft` would
+  // otherwise be carried into the restored (wrong) conversation. Empty-user (no recents) → stays on
+  // the greeting/new-chat home. No browser storage (VA-T3 §2.5) — the ordering is server-side.
+  const didRestoreRef = useRef(false);
+  useEffect(() => {
+    if (didRestoreRef.current) return;
+    if (recentsList.length === 0) return;                 // wait for Recents to load (or none exist)
+    didRestoreRef.current = true;                         // decide once, at the first recents-settle
+    if (conversationId !== null || messages.length > 0 || draft.trim() !== "" || attachments.length > 0) return; // already in / composing → don't move
+    void selectRecent(recentsList[0].id);
+  }, [recentsList, conversationId, messages.length, draft, attachments.length]);
+
   // B4c: load the signed-in user's projects (live → theo_list_projects; mock fallback). Called by
   // TheoSurface's mount effect right after configureGateway (same reason as loadRecents — so the
   // first call runs against the live gateway once the Origin token is set). Knowledge is loaded

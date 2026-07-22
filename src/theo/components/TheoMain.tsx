@@ -49,12 +49,17 @@ export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
       <header style={{ height: 54, flexShrink: 0, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px" }}>
         {t.view === "chats" ? (<>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 13.5, fontWeight: 600, color: C.ink2 }}>{MODEL_LABEL} <span style={{ color: C.ink3, fontSize: 11 }}>▾</span></span>
+            {/* VEP (Theo Header Declutter): the model label is suppressed in the Origin-hosted panel
+                (mode="panel") — clutter there; shown only standalone (mode="full"). VISUAL-AUTHORITY-
+                DEVIATION from VA-T1, authorized by VA-T4. */}
+            {mode !== "panel" && <span style={{ fontSize: 13.5, fontWeight: 600, color: C.ink2 }}>{MODEL_LABEL} <span style={{ color: C.ink3, fontSize: 11 }}>▾</span></span>}
             {t.styleKey !== "normal" && <span style={{ fontSize: 12, color: C.coralDk, background: C.coralSoft, borderRadius: 999, padding: "3px 10px" }}>{t.activeStyle.label}</span>}
             {appLabel && <span style={{ fontSize: 12, color: C.ink2, background: C.coralTint, borderRadius: 999, padding: "3px 10px" }}>{appLabel}</span>}
             {t.chatProject && <span style={{ fontSize: 12, color: C.ink2, background: C.coralTint, borderRadius: 999, padding: "3px 10px", display: "flex", alignItems: "center", gap: 6 }}>{t.chatProject.name}<span onClick={t.clearChatProject} style={{ cursor: "pointer", display: "flex" }}><IcClose s={12} /></span></span>}
           </div>
-          <div style={{ fontSize: 12.5, color: C.ink3 }}>{ASSISTANT_NAME} in {PRODUCT_NAME}</div>
+          {/* VEP (Theo Header Declutter): the "Theo in Origin" label is suppressed in the Origin-
+              hosted panel (mode="panel") and shown only standalone (mode="full"). */}
+          {mode !== "panel" && <div style={{ fontSize: 12.5, color: C.ink3 }}>{ASSISTANT_NAME} in {PRODUCT_NAME}</div>}
         </>) : (<div style={{ fontSize: 16, fontWeight: 600, display: "flex", alignItems: "center", gap: 9 }}>
           {t.view === "project" && <button onClick={() => t.go("projects")} style={{ background: "none", border: "none", cursor: "pointer", color: C.ink2, display: "flex", padding: 0 }}><IcBack s={20} /></button>}
           {t.view === "projects" && "Projects"}{t.view === "artifacts" && "Artifacts"}{t.view === "customize" && "Customize"}{t.view === "project" && t.detail?.name}

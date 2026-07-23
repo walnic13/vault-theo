@@ -53,8 +53,8 @@ export function ConvMenuItems({ conversation, projects, onToggleStar, onAddToPro
                 style={{ ...item(`p:${p.id}`), opacity: disabled ? 0.5 : 1, cursor: disabled ? "default" : "pointer" }}
                 onMouseEnter={() => setHover(`p:${p.id}`)} onMouseLeave={() => setHover(null)}
                 onClick={() => { if (disabled) return; close(); if (!cur) onAddToProject(conversation.id, p.id); }}>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
-                {cur && <span style={{ marginLeft: "auto", color: C.coralDk, paddingLeft: 12 }}>✓</span>}
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+                {cur && <span style={{ flexShrink: 0, color: C.coralDk, paddingLeft: 12 }}>✓</span>}
               </button>
             );
           })}

@@ -56,7 +56,7 @@ export function ChatMenu({ conversation, projects, onRename, onDelete, onToggleS
   }
 
   const surface: CSSProperties = {
-    position: "absolute", top: "calc(100% + 4px)", left: 0, minWidth: 224,
+    position: "absolute", top: "calc(100% + 4px)", left: 0, width: 264, maxWidth: "calc(100vw - 20px)", boxSizing: "border-box",
     background: C.bg, border: `1px solid ${C.line2}`, borderRadius: 12, boxShadow: "0 10px 30px rgba(0,0,0,0.14)", padding: 6, zIndex: 60,
   };
 

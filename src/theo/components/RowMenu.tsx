@@ -31,7 +31,7 @@ export function RowMenu({ conversation, projects, onStartRename, onDelete, onTog
   }, [open]);
 
   const surface: CSSProperties = {
-    position: "absolute", top: "calc(100% + 4px)", right: 0, minWidth: 220,
+    position: "absolute", top: "calc(100% + 4px)", right: 0, width: 240, maxWidth: "calc(100vw - 20px)", boxSizing: "border-box",
     background: C.bg, border: `1px solid ${C.line2}`, borderRadius: 12, boxShadow: "0 10px 30px rgba(0,0,0,0.14)", padding: 6, zIndex: 60,
   };
 

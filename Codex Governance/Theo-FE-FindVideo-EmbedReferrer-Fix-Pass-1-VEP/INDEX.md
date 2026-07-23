@@ -11,7 +11,7 @@ Pass: Pass 1
 Sub-phase Track: N/A
 (Frontend sub-phase track = F-P1–F-P7 per Frontend Conformance §4A.1; the lint's P/I/E enumeration is the backend track, hence `N/A`.)
 
-Turn issued against HEAD: `<PKG_COMMIT_SHA>` (vault-theo, `development` — the commit that first contains this package; grounding reads against parent `db9de5175187cfff69276c619e5f3519e571633f` — the deployed FindVideo FE render, VEP B2). No contract/API change; the `event: vault_video` frame + `theo_find_video` handler are unchanged and live. Working tree also carried untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not source/governance, not grounding).
+Turn issued against HEAD: `49c78a208deba66b7080f3709bcea7f19275f557` (vault-theo, `development` — the commit that first contains this package; grounding reads against parent `db9de5175187cfff69276c619e5f3519e571633f` — the deployed FindVideo FE render, VEP B2). No contract/API change; the `event: vault_video` frame + `theo_find_video` handler are unchanged and live. Working tree also carried untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not source/governance, not grounding).
 Currency-anchor form: git blob SHA at HEAD.
 
 ### §4 Documents grounded this turn (Full Baseline — Frontend Conformance §4 matrix)

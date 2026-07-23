@@ -11,7 +11,7 @@ Pass: Pass 1
 Sub-phase Track: N/A
 (Frontend sub-phase track = F-P1–F-P7 per Frontend Conformance §4A.1; the lint's P/I/E enumeration is the backend track, hence `N/A`.)
 
-Turn issued against HEAD: `c05c88517fb1f15eb2a40e0ba9da42c5ffeb3085` (vault-theo, `development`; grounding parent `e0bd3ca4fe11f1747a49938081fd2a1fc497f838` — the commit that deployed the header ChatMenu). Backend unchanged + deployed: `theo_set_conversation_starred` + `theo_list_conversations.starred` + set-project/rename/delete (API §2.1). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
+Turn issued against HEAD: `51f62b22bd24831d30e4c028839deeb36da83663` (vault-theo, `development`; grounding parent `e0bd3ca4fe11f1747a49938081fd2a1fc497f838` — the commit that deployed the header ChatMenu). Backend unchanged + deployed: `theo_set_conversation_starred` + `theo_list_conversations.starred` + set-project/rename/delete (API §2.1). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
 Currency-anchor form: git blob SHA at HEAD.
 
 ### §4 Documents grounded this turn (Full Baseline — Frontend Conformance §4 matrix)

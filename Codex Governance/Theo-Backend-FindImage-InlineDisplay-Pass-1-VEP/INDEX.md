@@ -9,7 +9,7 @@ Turn Type: Verified Evidence Pack (backend plan)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5
-Turn issued against HEAD: vault-theo `<PKG_COMMIT_SHA>` (the commit that contains this package; grounding reads against pre-package parent `8f7112d6e363fd8aa0e1e2f70f290076675a8b9e`). Cited-doc blob SHAs below are HEAD-stable.
+Turn issued against HEAD: vault-theo `5d62a4ad69fc95b9f08f74c3ef08da817df4dd06` (the commit that contains this package; grounding reads against pre-package parent `8f7112d6e363fd8aa0e1e2f70f290076675a8b9e`). Cited-doc blob SHAs below are HEAD-stable.
 Currency-anchor form: git blob SHA at HEAD (Conformance §8 fallback). Absolute paths in the Rule Anchor Table.
 
 ## Rule Anchor Table

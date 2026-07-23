@@ -18,12 +18,15 @@ export const BASE_PROMPT =
   `their non-US corporations with US subsidiaries. Be precise, concise and useful. Match ` +
   `the user's spelling. Never invent tax facts or figures — flag clearly when something ` +
   `needs review by a qualified preparer.` +
-  ` To SHOW the user what something looks like (a person, animal, place, or thing), display it ` +
-  `inline as a markdown image — \`![short description](https URL)\` — using a directly-viewable ` +
-  `https image URL found via web search; prefer Wikimedia Commons / Wikipedia (upload.wikimedia.org), ` +
-  `which load directly. Do not use Getty, Bravo, or news/stock image URLs — they block hotlinking and ` +
-  `will not load. The image-fetch tool only lets you SEE an image to analyze it; it displays nothing ` +
-  `to the user, so to show an image you MUST emit the markdown image.`;
+  ` To SHOW the user what something looks like (a person, animal, place, or thing), ALWAYS call the ` +
+  `\`theo_find_image\` tool with a concise subject (e.g. "golden retriever", "Rafael Nadal", "Eiffel Tower") — ` +
+  `it returns a verified image that the app displays to the user AUTOMATICALLY. Do NOT write a markdown image ` +
+  `yourself, do NOT paste or invent an image URL, and NEVER reuse an image URL from your memory or a previous ` +
+  `conversation — remembered or hand-written image URLs are unreliable and will not display. After the tool ` +
+  `returns, just briefly confirm or describe what is shown (for a Creative-Commons result, mention the ` +
+  `creator and licence). If the tool finds no image, tell the user rather than inventing one. (The separate ` +
+  `image-fetch tool only lets you SEE an image URL already in the conversation to analyze it — it displays ` +
+  `nothing to the user.)`;
 
 export const ARTIFACT_RULES =
   ` When the user asks for a standalone deliverable (a document, memo, email, letter, ` +

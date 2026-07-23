@@ -9,7 +9,7 @@ Turn Type: Verified Evidence Pack (backend plan)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5
-Turn issued against HEAD: vault-theo `a6634b9aefaaf9aece215a6194ab1c164a58ac22` (the commit that first contains this package; grounding reads against pre-package parent `7df97f49c44b099a8d215499e102b70e558c464b`). The edited file's LIVE snapshot was GET-verified from Kudu this turn; Foundry acceptance of the target tool types was empirically probed this turn (see §5). Cited-doc blob SHAs resolved at the grounding parent.
+Turn issued against HEAD: vault-theo `f8e1ddd8bf415c1c1ca4a27bfbacc5e7ef20228c` (the commit that first contains this package; grounding reads against pre-package parent `7df97f49c44b099a8d215499e102b70e558c464b`). The edited file's LIVE snapshot was GET-verified from Kudu this turn; Foundry acceptance of the target tool types was empirically probed this turn (see §5). Cited-doc blob SHAs resolved at the grounding parent.
 Currency-anchor form: git blob SHA at HEAD (Conformance §8 fallback). Absolute paths in the Rule Anchor Table.
 
 ## Rule Anchor Table

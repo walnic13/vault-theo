@@ -9,7 +9,7 @@ Turn Type: Verified Evidence Pack (backend plan)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5
-Turn issued against HEAD: vault-theo `<PKG_COMMIT_SHA>` (the commit that first contains this package; grounding reads against pre-package parent `e2fbabf8be2bce6fbd2797e20599aae23ed6f705` — the commit that lands the DEPLOYED `theo_find_video` handler's Role-C, API §2.16 + Golden Handler HF-T11). The paired handler is APPROVED + deployed + golden-verified on `vaultgpt-func-theo-tools` (2026-07-23). Both edited files' LIVE snapshots were GET-verified from Kudu this turn; cited-doc blob SHAs are resolved at the grounding parent.
+Turn issued against HEAD: vault-theo `696b375e90c468971d398d780049f8f4a2a15f37` (the commit that first contains this package; grounding reads against pre-package parent `e2fbabf8be2bce6fbd2797e20599aae23ed6f705` — the commit that lands the DEPLOYED `theo_find_video` handler's Role-C, API §2.16 + Golden Handler HF-T11). The paired handler is APPROVED + deployed + golden-verified on `vaultgpt-func-theo-tools` (2026-07-23). Both edited files' LIVE snapshots were GET-verified from Kudu this turn; cited-doc blob SHAs are resolved at the grounding parent.
 Currency-anchor form: git blob SHA at HEAD (Conformance §8 fallback). Absolute paths in the Rule Anchor Table.
 
 ## Rule Anchor Table

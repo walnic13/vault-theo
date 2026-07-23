@@ -10,7 +10,7 @@
 // Until a live backend is configured (no `VITE_FUNCTIONS_URL` and no `configureGateway` token/base),
 // this delegates to the in-repo 1A mock so the standalone vault-theo dev harness keeps working.
 import type {
-  Artifact, ArtifactSummary, AttachmentUpload, ConversationAttachment, ConversationDetail, ConversationSummary, FileDownload, InlineImage, GatewayRequest, GatewayResponse,
+  Artifact, ArtifactSummary, AttachmentUpload, ConversationAttachment, ConversationDetail, ConversationSummary, FileDownload, InlineImage, InlineImageItem, GatewayRequest, GatewayResponse,
   KDraft, Knowledge, NpDraft, Person, Project, ProjectMember,
 } from "../types";
 import {
@@ -972,6 +972,7 @@ export async function sendMessageStream(req: GatewayRequest, handlers: StreamHan
             pageUrl: j.pageUrl as string | undefined,
             license: j.license as string | undefined,
             creator: j.creator as string | undefined,
+            images: Array.isArray(j.images) ? (j.images as InlineImageItem[]) : undefined,
           });
         }
         continue;

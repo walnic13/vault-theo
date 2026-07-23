@@ -490,9 +490,32 @@ export function ChatView(props: ChatViewProps) {
                   {m.download && <DownloadCard download={m.download} />}
                   {/* FindImage: a tool-found image → rendered inline directly from the tool result
                       (event: vault_image), reusing the VA-T1 image treatment; no model URL transcription. */}
-                  {m.image && m.image.url && (
-                    <img src={m.image.url} alt={m.image.title || ""} style={{ maxWidth: "100%", height: "auto", borderRadius: 8, margin: "4px 0 14px", display: "block" }} />
-                  )}
+                  {m.image && (() => {
+                    const items = (m.image.images && m.image.images.length)
+                      ? m.image.images
+                      : (m.image.url ? [{ imageUrl: m.image.url, title: m.image.title, source: m.image.source, pageUrl: m.image.pageUrl, license: m.image.license, creator: m.image.creator }] : []);
+                    if (!items.length) return null;
+                    const multi = items.length > 1;
+                    return (
+                      <div style={{ display: "grid", gridTemplateColumns: multi ? "repeat(auto-fill, minmax(200px, 1fr))" : "1fr", gap: 12, margin: "4px 0 14px" }}>
+                        {items.map((im, k) => (
+                          <figure key={k} style={{ margin: 0, minWidth: 0 }}>
+                            <a href={im.pageUrl || im.imageUrl} target="_blank" rel="noopener noreferrer" style={{ display: "block" }}>
+                              <img src={im.imageUrl} alt={im.title || ""} style={multi
+                                ? { width: "100%", height: 150, objectFit: "cover", borderRadius: 8, display: "block", border: `1px solid ${C.line2}` }
+                                : { maxWidth: "100%", height: "auto", borderRadius: 8, display: "block", border: `1px solid ${C.line2}` }} />
+                            </a>
+                            <figcaption style={{ fontSize: 12, color: C.ink3, marginTop: 4, lineHeight: 1.4, overflowWrap: "anywhere" }}>
+                              {im.title ? <span style={{ color: C.ink2 }}>{im.title}</span> : null}
+                              {im.source ? <span>{im.title ? " · " : ""}{im.source}</span> : null}
+                              {im.creator ? <span> · {im.creator}</span> : null}
+                              {im.license ? <span> · {im.license}</span> : null}
+                            </figcaption>
+                          </figure>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   {/* VA-T8: read-aloud control on a finished reply (not the still-streaming turn). */}
                   {voiceAvailable && m.content && !(loading && i === messages.length - 1) && (
                     <div style={{ marginTop: 4 }}>

@@ -11,7 +11,7 @@ Pass: Pass 1
 Sub-phase Track: N/A
 (Frontend sub-phase track = F-P1–F-P7 per Frontend Conformance §4A.1; the lint's P/I/E enumeration is the backend track, hence `N/A`.)
 
-Turn issued against HEAD: `<PKG_COMMIT_SHA>` (vault-theo, `development` — the commit that first contains this package; grounding parent `26c9d7718f3e67ecdcbb014e7afba6adc6e21cf5` — the commit that landed the Conversation-Star backend Role-C). The paired backend is DEPLOYED + golden-verified on premium (`theo_set_conversation_starred`; `theo_list_conversations` returns `starred`; API §2.1). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance, not grounding).
+Turn issued against HEAD: `87a8ad1026a7f4ce8660feda92a01ef77353429c` (vault-theo, `development` — the commit that first contains this package; grounding parent `26c9d7718f3e67ecdcbb014e7afba6adc6e21cf5` — the commit that landed the Conversation-Star backend Role-C). The paired backend is DEPLOYED + golden-verified on premium (`theo_set_conversation_starred`; `theo_list_conversations` returns `starred`; API §2.1). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance, not grounding).
 Currency-anchor form: git blob SHA at HEAD.
 
 ### §4 Documents grounded this turn (Full Baseline — Frontend Conformance §4 matrix)

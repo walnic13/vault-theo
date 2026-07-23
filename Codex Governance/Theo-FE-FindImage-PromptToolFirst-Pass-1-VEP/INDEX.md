@@ -11,7 +11,7 @@ Pass: Pass 1
 Sub-phase Track: N/A
 (Frontend sub-phase track = F-P1–F-P7 per Frontend Conformance §4A.1; the lint's P/I/E enumeration is the backend track, hence `N/A`.)
 
-Turn issued against HEAD: `5a1e256f0091df1f6a5b0c1654908cbe35ac5651` (vault-theo, `development` — the commit that first contains this package; grounding reads performed against parent `3f4806e170fded4ee0c0cfe8bd999933d65a50d5`). Working tree also carried untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not source/governance, not grounding).
+Turn issued against HEAD: `<PKG_COMMIT_SHA>` (vault-theo, `development` — the commit that first contains this package; grounding reads performed against parent `3f4806e170fded4ee0c0cfe8bd999933d65a50d5`). Working tree also carried untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not source/governance, not grounding).
 Currency-anchor form: git blob SHA at HEAD.
 
 ### §4 Documents grounded this turn (Full Baseline — Frontend Conformance §4 matrix)
@@ -23,9 +23,9 @@ Currency-anchor form: git blob SHA at HEAD.
 | 4 | Codex Theo Frontend Review — `governance/CODEX_THEO_FRONTEND_REVIEW_STANDARD.md` (§1A hard gates) | `Grep("Component Contract Table completeness")` this turn | `e2b7e0ba91486371414da688ae3697f02a11e252` |
 | 5 | Theo Phase 1A Frontend Plan — `governance/THEO_PHASE_1A_FRONTEND_PLAN.md` | `git rev-parse` this turn | `901271478e8bec29177d379fadbbf3d4701a90fe` |
 | 6 | Theo 1A Frontend Handover — `governance/THEO_1A_FRONTEND_HANDOVER.md` | `git rev-parse` this turn | `b8155889ebfb44a153192e63796812a94aa87004` |
-| 7 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.15 theo_find_image; §2.1 vault_image display) | `Grep("theo_find_image")` this turn | `39aac571f29f94ebfb468902b41a0bb8d2c80329` |
+| 7 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.15 theo_find_image; §2.1 vault_image display) | `Grep("theo_find_image")` this turn | `9668a7d2f3773a4555f2a7f0d6a893ac9f5e1fd6` |
 | 8 | ACTIVE (edited) — `src/theo/swapBlock.ts` (`BASE_PROMPT`, L15–26) | `Read` this turn | `7366255fe24e5337ef66a9d8f7f91dbfecb26490` |
-| 9 | Consumer — `src/theo/lib/prompt.ts` (`buildSystemPrompt` composes `BASE_PROMPT` into the sent system prompt, both chat paths) | `Grep("BASE_PROMPT")` this turn | (in-repo @ HEAD) |
+| 9 | Consumer — `src/theo/lib/prompt.ts` (`buildSystemPrompt` composes `BASE_PROMPT` into the sent system prompt, both chat paths) | `Grep("BASE_PROMPT")` this turn | `24414e370cbb07d30aa0064457ead4a4458b53ef` |
 
 VA registry (§4B): **VA-T1** (Theo surface) — unchanged; this VEP makes **no visual change** (a prompt-string edit), so there is **no VISUAL-AUTHORITY-DEVIATION** and no new VA-id.
 

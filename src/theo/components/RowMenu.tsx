@@ -3,8 +3,8 @@
 // menu (Star / Rename / Add to project / Delete — ConvMenuItems). Lives inside a `.vo-actions` span
 // (hover-revealed like the old RowActions) but is forced visible while open. Rename delegates to the
 // caller (the row's existing edit-in-place). Click-outside closes; every click stops propagation so
-// the row's own select-on-click never fires. The project submenu opens RIGHT — into the main content
-// area; the ⋮ popover sits at the sidebar's right edge, so there is no room to open it leftward.
+// the row's own select-on-click never fires. "Add to project" drills in within the popover (no side
+// flyout) — there is no horizontal room in the narrow sidebar/drawer on desktop or mobile.
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { C } from "../theme";
@@ -45,7 +45,7 @@ export function RowMenu({ conversation, projects, onStartRename, onDelete, onTog
       {open && (
         <div style={surface}>
           <ConvMenuItems
-            conversation={conversation} projects={projects} submenuSide="right"
+            conversation={conversation} projects={projects}
             onToggleStar={onToggleStar} onAddToProject={onAddToProject} onDelete={onDelete}
             onStartRename={onStartRename} close={() => setOpen(false)}
           />

@@ -74,7 +74,7 @@ export function ChatMenu({ conversation, projects, onRename, onDelete, onToggleS
       {open && (
         <div style={surface}>
           <ConvMenuItems
-            conversation={conversation} projects={projects} submenuSide="right"
+            conversation={conversation} projects={projects}
             onToggleStar={onToggleStar} onAddToProject={onAddToProject} onDelete={onDelete}
             onStartRename={() => setEditing(true)} close={() => setOpen(false)}
           />

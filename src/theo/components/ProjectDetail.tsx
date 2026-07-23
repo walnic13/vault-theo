@@ -19,7 +19,7 @@ export interface ProjectDetailProps {
   chats: ConversationSummary[];                 // B4e: this project's conversations (theo_list_conversations?projectId)
   kdraft: KDraft;
   onKdraftChange: (next: KDraft) => void;
-  onAddKnowledge: () => void;
+  onAddKnowledge: () => void | Promise<void>;
   onRemoveKnowledge: (kid: string) => void;
   onPatchInstructions: (text: string) => void;
   onStartChat: () => void;                       // "+ New chat in this project"
@@ -66,6 +66,8 @@ export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKno
   const [iOpen, setIOpen] = useState<boolean | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);   // B4f: chat row being renamed in place
   const [descEditing, setDescEditing] = useState(false);             // B4g: description edited in place
+  const [kBusy, setKBusy] = useState(false);                         // add-knowledge POST in flight (button feedback)
+  const canAddKnowledge = kdraft.title.trim().length > 0 && kdraft.content.trim().length > 0;
   const knowledgeOpen = kOpen ?? !hasChats;
   const instructionsOpen = iOpen ?? !hasChats;
 
@@ -225,6 +227,9 @@ export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKno
 
         {/* Collapsible: Project knowledge */}
         <Section title={`Project knowledge (${project.knowledge.length})`} open={knowledgeOpen} onToggle={() => setKOpen(!knowledgeOpen)}>
+          <p style={{ margin: "2px 0 14px", fontSize: 12.5, color: C.ink2, lineHeight: 1.5 }}>
+            Reference material Theo should always know when you chat in this project — a firm email template, a sample engagement letter, standard disclaimers, key client facts. Theo pulls it into context automatically, so you don’t have to paste it into every chat.
+          </p>
           {project.knowledge.map((d) => (
             <div key={d.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderBottom: `1px solid ${C.line}` }}>
               <span style={{ color: C.ink3, marginTop: 2 }}><IcDoc s={17} /></span>
@@ -236,19 +241,33 @@ export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKno
           {/* B5a: add-knowledge form is owner-only */}
           {isOwner && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-              <InputBox value={kdraft.title} onChange={(v) => onKdraftChange({ ...kdraft, title: v })} placeholder="Knowledge title" />
-              <InputBox value={kdraft.content} onChange={(v) => onKdraftChange({ ...kdraft, content: v })} placeholder="Paste reference content the assistant should know" rows={2} />
-              <div><button className="vo-chip" onClick={onAddKnowledge} style={{ background: "#fff", border: `1px solid ${C.line2}`, borderRadius: 9, padding: "8px 14px", fontSize: 13, color: C.ink, cursor: "pointer", fontFamily: SANS }}>+ Add knowledge</button></div>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink2 }}>Add knowledge</div>
+              <InputBox value={kdraft.title} onChange={(v) => onKdraftChange({ ...kdraft, title: v })} placeholder="Title — e.g. “Standard engagement letter”" />
+              <InputBox value={kdraft.content} onChange={(v) => onKdraftChange({ ...kdraft, content: v })} placeholder="Paste the text Theo should know — template wording, standard disclaimers, key client facts…" rows={3} />
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button
+                  className="vo-chip"
+                  disabled={!canAddKnowledge || kBusy}
+                  onClick={async () => { if (!canAddKnowledge || kBusy) return; setKBusy(true); try { await onAddKnowledge(); } finally { setKBusy(false); } }}
+                  style={{ background: "#fff", border: `1px solid ${C.line2}`, borderRadius: 9, padding: "8px 14px", fontSize: 13, color: C.ink, cursor: (!canAddKnowledge || kBusy) ? "default" : "pointer", opacity: (!canAddKnowledge || kBusy) ? 0.5 : 1, fontFamily: SANS }}
+                >
+                  {kBusy ? "Adding…" : "+ Add knowledge"}
+                </button>
+                {!canAddKnowledge && <span style={{ fontSize: 12, color: C.ink3 }}>Add a title and some content to save.</span>}
+              </div>
             </div>
           )}
           {project.knowledge.length === 0 && !isOwner && <div style={{ fontSize: 12.5, color: C.ink3, padding: "8px 0" }}>No knowledge in this project yet.</div>}
-          <div style={{ fontSize: 12, color: C.ink3, marginTop: 12 }}>Injected into context when you chat in this project (Azure AI Search / pgvector in production).</div>
+          <div style={{ fontSize: 12, color: C.ink3, marginTop: 12 }}>Everything here is available to Theo in every chat in this project.</div>
         </Section>
 
         {/* Collapsible: Custom instructions (owner edits; member reads) */}
         <Section title="Custom instructions" open={instructionsOpen} onToggle={() => setIOpen(!instructionsOpen)}>
+          <p style={{ margin: "2px 0 14px", fontSize: 12.5, color: C.ink2, lineHeight: 1.5 }}>
+            Standing directions for how Theo works in this project — tone, format, and what to assume — applied to every chat here. Example: “Draft in UK English, cite the relevant TCGA 1992 section, and always flag SDLT implications.”
+          </p>
           {isOwner ? (
-            <InputBox value={project.instructions} onChange={(v) => onPatchInstructions(v)} placeholder="How the assistant should behave in this project" rows={4} />
+            <InputBox value={project.instructions} onChange={(v) => onPatchInstructions(v)} placeholder="e.g. Draft in UK English, keep a formal tone, and cite the relevant legislation." rows={4} />
           ) : (
             <p style={{ fontSize: 13.5, color: project.instructions ? C.ink2 : C.ink3, lineHeight: 1.5, margin: 0, whiteSpace: "pre-wrap" }}>{project.instructions || "No custom instructions."}</p>
           )}

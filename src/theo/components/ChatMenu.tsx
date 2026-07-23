@@ -1,13 +1,12 @@
 // Chat-header title + dropdown menu (Conversation-Star program). Claude-style: the active
-// conversation's title sits top-left with a chevron; clicking opens a menu with Star / Rename /
-// Add to project (submenu of the user's projects) / Delete. Rename is edit-in-place (the title
-// becomes an input). Reuses the deployed conversation handlers via the passed callbacks; no browser
-// storage. Only rendered for a saved conversation (an id exists). Hover is tracked in state so no new
-// global CSS rule is needed. Reuses the VA-T1 icon set (+ IcStar/IcChevron) and theme tokens.
+// conversation's title sits top-left with a chevron; clicking opens the shared conversation menu
+// (Star / Rename / Add to project / Delete — see ConvMenuItems). Rename is edit-in-place (the title
+// becomes an input). Only rendered for a saved conversation (an id exists). Click-outside closes.
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
 import { C, SANS } from "../theme";
-import { IcStar, IcChevron, IcCompose, IcTrash, IcProjects } from "./icons";
+import { IcStar, IcChevron } from "./icons";
+import { ConvMenuItems } from "./ConvMenu";
 import type { ConversationSummary, Project } from "../types";
 
 function RenameInput({ initial, onCommit, onCancel }: { initial: string; onCommit: (next: string) => void; onCancel: () => void }) {
@@ -40,33 +39,25 @@ export function ChatMenu({ conversation, projects, onRename, onDelete, onToggleS
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [subOpen, setSubOpen] = useState(false);
-  const [hover, setHover] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) { setOpen(false); setSubOpen(false); } };
+    const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
   const title = (conversation.title || "").trim() || "New chat";
   const starred = !!conversation.starred;
-  const inProject = conversation.project_id != null;
 
   if (editing) {
     return <RenameInput initial={title} onCommit={(next) => { setEditing(false); if (next !== title) onRename(conversation.id, next); }} onCancel={() => setEditing(false)} />;
   }
 
-  const item = (key: string, danger = false): CSSProperties => ({
-    display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 12px",
-    background: hover === key ? C.coralTint : "none", border: "none", cursor: "pointer",
-    fontSize: 13.5, color: danger ? C.coralDk : C.ink, fontFamily: SANS, textAlign: "left", borderRadius: 8, whiteSpace: "nowrap",
-  });
   const surface: CSSProperties = {
-    minWidth: 224, background: C.bg, border: `1px solid ${C.line2}`, borderRadius: 12,
-    boxShadow: "0 10px 30px rgba(0,0,0,0.14)", padding: 6, zIndex: 60,
+    position: "absolute", top: "calc(100% + 4px)", left: 0, minWidth: 224,
+    background: C.bg, border: `1px solid ${C.line2}`, borderRadius: 12, boxShadow: "0 10px 30px rgba(0,0,0,0.14)", padding: 6, zIndex: 60,
   };
 
   return (
@@ -80,49 +71,13 @@ export function ChatMenu({ conversation, projects, onRename, onDelete, onToggleS
         {starred && <span style={{ color: C.coralDk, display: "flex", flexShrink: 0 }}><IcStar s={13} filled /></span>}
         <span style={{ color: C.ink3, display: "flex", flexShrink: 0 }}><IcChevron s={16} /></span>
       </button>
-
       {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, ...surface }}>
-          <button style={item("star")} onMouseEnter={() => setHover("star")} onMouseLeave={() => setHover(null)}
-            onClick={() => { setOpen(false); onToggleStar(conversation.id, !starred); }}>
-            <IcStar s={16} filled={starred} /> {starred ? "Unstar" : "Star"}
-          </button>
-          <button style={item("rename")} onMouseEnter={() => setHover("rename")} onMouseLeave={() => setHover(null)}
-            onClick={() => { setOpen(false); setEditing(true); }}>
-            <IcCompose s={16} /> Rename
-          </button>
-
-          <div style={{ position: "relative" }}>
-            <button style={item("proj")} onMouseEnter={() => { setHover("proj"); setSubOpen(true); }} onMouseLeave={() => setHover(null)}
-              onClick={() => setSubOpen((v) => !v)}>
-              <IcProjects s={16} /> Add to project <span style={{ marginLeft: "auto", color: C.ink3, paddingLeft: 12 }}>›</span>
-            </button>
-            {subOpen && (
-              <div onMouseLeave={() => setSubOpen(false)} style={{ position: "absolute", top: -6, left: "calc(100% + 4px)", maxHeight: 320, overflowY: "auto", ...surface, zIndex: 61 }}>
-                {projects.length === 0 && <div style={{ padding: "8px 12px", fontSize: 12.5, color: C.ink3 }}>No projects yet</div>}
-                {projects.map((p) => {
-                  const cur = conversation.project_id === p.id;
-                  const disabled = inProject && !cur;
-                  return (
-                    <button key={p.id} disabled={disabled}
-                      title={disabled ? "This chat is already in a project" : undefined}
-                      style={{ ...item(`p:${p.id}`), opacity: disabled ? 0.5 : 1, cursor: disabled ? "default" : "pointer", maxWidth: 260 }}
-                      onMouseEnter={() => setHover(`p:${p.id}`)} onMouseLeave={() => setHover(null)}
-                      onClick={() => { if (disabled) return; setOpen(false); setSubOpen(false); if (!cur) onAddToProject(conversation.id, p.id); }}>
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
-                      {cur && <span style={{ marginLeft: "auto", color: C.coralDk, paddingLeft: 12 }}>✓</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div style={{ height: 1, background: C.line2, margin: "6px 4px" }} />
-          <button style={item("del", true)} onMouseEnter={() => setHover("del")} onMouseLeave={() => setHover(null)}
-            onClick={() => { setOpen(false); if (window.confirm(`Delete chat "${title}"? This permanently removes the conversation and its messages.`)) onDelete(conversation.id); }}>
-            <IcTrash s={16} /> Delete
-          </button>
+        <div style={surface}>
+          <ConvMenuItems
+            conversation={conversation} projects={projects} submenuSide="right"
+            onToggleStar={onToggleStar} onAddToProject={onAddToProject} onDelete={onDelete}
+            onStartRename={() => setEditing(true)} close={() => setOpen(false)}
+          />
         </div>
       )}
     </div>

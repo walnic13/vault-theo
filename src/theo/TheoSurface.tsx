@@ -107,6 +107,7 @@ export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessTo
       collapsed={t.collapsed} onToggleCollapse={t.toggleCollapse} view={t.view} onNavigate={t.go} nav={NAV}
       search={t.search} onSearch={t.setSearch} recents={t.recents} onSelectRecent={t.selectRecent}
       onRenameRecent={t.renameConversation} onDeleteRecent={t.deleteConversation}
+      projects={t.projects} onToggleStar={t.setConversationStarred} onAddToProject={t.addConversationToProject}
       onNewChat={t.newChat} workspaceName={WORKSPACE_NAME} productName={PRODUCT_NAME}
       fluid={!!(navSlot && mainSlot)}
     />

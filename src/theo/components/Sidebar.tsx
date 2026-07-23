@@ -4,8 +4,9 @@
 import { useState } from "react";
 import { C, SANS } from "../theme";
 import { Burst, IcCompose, IcSearch, IcPanel } from "./icons";
-import { InlineEdit, RowActions } from "./RowManage";
-import type { NavItem, View } from "../types";
+import { InlineEdit } from "./RowManage";
+import { RowMenu } from "./RowMenu";
+import type { ConversationSummary, NavItem, Project, View } from "../types";
 
 export interface SidebarProps {
   collapsed: boolean;
@@ -15,7 +16,10 @@ export interface SidebarProps {
   nav: NavItem[];
   search: string;
   onSearch: (s: string) => void;
-  recents: { id: string; title: string }[];
+  recents: ConversationSummary[];
+  projects: Project[];
+  onToggleStar: (id: string, starred: boolean) => void;
+  onAddToProject: (id: string, projectId: string) => void;
   onSelectRecent: (id: string) => void;
   onRenameRecent: (id: string, title: string) => void;   // B4f
   onDeleteRecent: (id: string) => void;                   // B4f
@@ -29,7 +33,7 @@ export interface SidebarProps {
 }
 
 export function Sidebar(props: SidebarProps) {
-  const { collapsed, onToggleCollapse, view, onNavigate, nav, search, onSearch, recents, onSelectRecent, onRenameRecent, onDeleteRecent, onNewChat, workspaceName, productName, fluid } = props;
+  const { collapsed, onToggleCollapse, view, onNavigate, nav, search, onSearch, recents, onSelectRecent, onRenameRecent, onDeleteRecent, onNewChat, workspaceName, productName, fluid, projects, onToggleStar, onAddToProject } = props;
   const railW = collapsed ? 58 : 270;
   const [editingId, setEditingId] = useState<string | null>(null);   // B4f: recents row being renamed in place
   const [recentsExpanded, setRecentsExpanded] = useState(true);       // collapsible Recents (default open)
@@ -86,10 +90,11 @@ export function Sidebar(props: SidebarProps) {
                   />
                 </span>
                 {!editing && (
-                  <RowActions
-                    renameTitle="Rename chat" deleteTitle="Delete chat"
-                    onRename={() => setEditingId(ch.id)}
-                    onDelete={() => { if (window.confirm(`Delete chat "${ch.title || "Untitled chat"}"? This permanently removes the conversation and its messages.`)) onDeleteRecent(ch.id); }}
+                  <RowMenu
+                    conversation={ch} projects={projects}
+                    onStartRename={() => setEditingId(ch.id)}
+                    onDelete={onDeleteRecent}
+                    onToggleStar={onToggleStar} onAddToProject={onAddToProject}
                   />
                 )}
               </div>

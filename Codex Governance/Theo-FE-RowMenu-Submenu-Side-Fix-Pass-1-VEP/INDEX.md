@@ -11,7 +11,7 @@ Pass: Pass 1
 Sub-phase Track: N/A
 (Frontend sub-phase track = F-P1–F-P7 per Frontend Conformance §4A.1; the lint's P/I/E enumeration is the backend track, hence `N/A`.)
 
-Turn issued against HEAD: `<PKG_COMMIT_SHA>` (vault-theo, `development`; grounding parent `536d03c676b7619578d845546b0d9214f4164167` — the deployed recents-row ⋮ menu). No backend/contract change. Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
+Turn issued against HEAD: `21fc54038e1627504badcd935b93a8eb637717d4` (vault-theo, `development`; grounding parent `536d03c676b7619578d845546b0d9214f4164167` — the deployed recents-row ⋮ menu). No backend/contract change. Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
 Currency-anchor form: git blob SHA at HEAD.
 
 ### §4 Documents grounded this turn (Full Baseline — Frontend Conformance §4 matrix)

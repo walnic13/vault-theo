@@ -9,7 +9,7 @@ Turn Type: Verified Evidence Pack (backend plan)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5
-Turn issued against HEAD: vault-theo `43d41b786c29b3d0a29063fbc7c269c358db1712` (the commit that contains this package; grounding reads against pre-package parent `8f7112d6e363fd8aa0e1e2f70f290076675a8b9e`). Cited-doc blob SHAs below are HEAD-stable.
+Turn issued against HEAD: vault-theo `<PKG_COMMIT_SHA>` (the commit that contains this package; grounding reads against pre-package parent `8f7112d6e363fd8aa0e1e2f70f290076675a8b9e`). Cited-doc blob SHAs below are HEAD-stable.
 Currency-anchor form: git blob SHA at HEAD (Conformance §8 fallback). Absolute paths in the Rule Anchor Table.
 
 ## Rule Anchor Table
@@ -24,7 +24,7 @@ Currency-anchor form: git blob SHA at HEAD (Conformance §8 fallback). Absolute 
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/Codex Governance/Theo-Backend-FindImage-InlineDisplay-Pass-1-VEP/primary-reference/theo_message_stream.LIVE.js.md | primary-ref | "event: vault_export" | §4 — the `vault_image` block is inserted immediately after this `vault_export` emission, same idiom |
 
 ### Currency anchors (blob SHAs @ HEAD `8f7112d`)
-- THEO_GROUNDING_CONFORMANCE_STANDARD.md `7c0d902bdff3b6c0af475b483e31ed796214e57b`; CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md `c3f2267b751d5e9f4f025331359c4d3013bcbe8a`; CODEX_THEO_BACKEND_REVIEW_STANDARD.md `d2e1b9881b6e2ed7d77921a055feffb0852257fd`; THEO_GOLDEN_HANDLER_STANDARD.md `d675b2822e6c5901a601a0023aa9f067b1967b14`; THEO_EXECUTION_ORCHESTRATION_STANDARD.md `be066f12147d1eb13b51f025b275f5413ab51f0e`; THEO_ARCHITECTURE_AND_STRUCTURE.md `07451ce9d912830b3c15fedf74761d00c59f97b2`; THEO_AZURE_POSTGRES_SCHEMA.md `e6143cf55839120b696e03c6702a1144ac3cc2c9`. (THEO_API_SPEC.md was updated by the FindImage Role-C at HEAD 8f7112d; §2.1 `vault_export` clause is HEAD-stable.)
+- THEO_GROUNDING_CONFORMANCE_STANDARD.md `7c0d902bdff3b6c0af475b483e31ed796214e57b`; CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md `c3f2267b751d5e9f4f025331359c4d3013bcbe8a`; CODEX_THEO_BACKEND_REVIEW_STANDARD.md `d2e1b9881b6e2ed7d77921a055feffb0852257fd`; THEO_GOLDEN_HANDLER_STANDARD.md `8fbd67665e4fe01056ce79641cdd0c7194762e31`; THEO_EXECUTION_ORCHESTRATION_STANDARD.md `be066f12147d1eb13b51f025b275f5413ab51f0e`; THEO_ARCHITECTURE_AND_STRUCTURE.md `07451ce9d912830b3c15fedf74761d00c59f97b2`; THEO_API_SPEC.md `39aac571f29f94ebfb468902b41a0bb8d2c80329`; THEO_AZURE_POSTGRES_SCHEMA.md `e6143cf55839120b696e03c6702a1144ac3cc2c9`. (Both THEO_GOLDEN_HANDLER_STANDARD.md and THEO_API_SPEC.md were updated by the FindImage Role-C landed at HEAD 8f7112d — their SHAs above are resolved AT 8f7112d; the §2.1 `event: vault_export` clause and Golden Handler §2/§4 clauses are unchanged by that Role-C.)
 
 ### Full Baseline doc set (Conformance §4 backend) — grounded this turn
 Governor (deploy/authority), Conformance (this GCR/Rule-Anchor/lint), Codex Review, Golden Handler (§2 primary-ref, §4 shape), Orchestration (DR-T11 tool-loop), Architecture (tool-dispatch), API Spec (§2.1 SSE-frame contract; §2.15 theo_find_image), Schema — **N/A (no DB/schema/migration; a loop-emission + tool-description edit)**, cited for completeness per Conformance §4.

@@ -11,7 +11,7 @@ Pass: Pass 1
 Sub-phase Track: N/A
 (Frontend sub-phase track = F-P1–F-P7 per Frontend Conformance §4A.1; the lint's P/I/E enumeration is the backend track, hence `N/A`.)
 
-Turn issued against HEAD: `<PKG_COMMIT_SHA>` (vault-theo, `development` — the commit that first contains this package; grounding reads against parent `6ec80bf8da946cc19c9f8a9a7f545e3da6f2e762`). The paired backend (`images[]` on the `event: vault_image` frame + the deployed gallery handler) is live (func-stream VEP + vault-theo-tools gallery handler). Working tree also carried untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not source/governance, not grounding).
+Turn issued against HEAD: `cf9e8d2c50904a9f8654a60337438a255174006e` (vault-theo, `development` — the commit that first contains this package; grounding reads against parent `6ec80bf8da946cc19c9f8a9a7f545e3da6f2e762`). The paired backend (`images[]` on the `event: vault_image` frame + the deployed gallery handler) is live (func-stream VEP + vault-theo-tools gallery handler). Working tree also carried untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not source/governance, not grounding).
 Currency-anchor form: git blob SHA at HEAD.
 
 ### §4 Documents grounded this turn (Full Baseline — Frontend Conformance §4 matrix)

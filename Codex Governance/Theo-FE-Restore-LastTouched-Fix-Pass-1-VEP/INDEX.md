@@ -11,7 +11,7 @@ Pass: Pass 1
 Sub-phase Track: N/A
 (Frontend sub-phase track = F-P1–F-P7 per Frontend Conformance §4A.1; the lint's P/I/E enumeration is the backend track, hence `N/A`.)
 
-Turn issued against HEAD: `<PKG_COMMIT_SHA>` (vault-theo, `development` — the commit that first contains this package; grounding parent `94c1c3822038ed2afbc6603b2a84932a97eb2e85`). Backend unchanged (already deployed): `theo_list_conversations` returns `last_opened_at` + `updated_at` per conversation (API §2.1/§2.15). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance, not grounding).
+Turn issued against HEAD: `38589a27b066cf6ca28a55c0ae321e5a2e339a82` (vault-theo, `development` — the commit that first contains this package; grounding parent `94c1c3822038ed2afbc6603b2a84932a97eb2e85`). Backend unchanged (already deployed): `theo_list_conversations` returns `last_opened_at` + `updated_at` per conversation (API §2.1/§2.15). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance, not grounding).
 Currency-anchor form: git blob SHA at HEAD.
 
 ### §4 Documents grounded this turn (Full Baseline — Frontend Conformance §4 matrix)

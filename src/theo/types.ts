@@ -38,7 +38,8 @@ export interface FileDownload {
 // (not persisted; parallels the download card).
 export interface InlineImageItem { imageUrl: string; title?: string; source?: string; pageUrl?: string; license?: string; creator?: string }
 export interface InlineImage { url: string; title?: string; source?: string; pageUrl?: string; license?: string; creator?: string; images?: InlineImageItem[] }
-export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string; reasoning?: string; tools?: AgentToolCall[]; download?: FileDownload; image?: InlineImage; tokens?: number; streaming?: boolean }
+export interface InlineVideo { videoUrl: string; embedUrl?: string; title?: string; thumbnail?: string; source?: string; duration?: string; date?: string }
+export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string; reasoning?: string; tools?: AgentToolCall[]; download?: FileDownload; image?: InlineImage; video?: InlineVideo; tokens?: number; streaming?: boolean }
 
 export interface Knowledge { id: string; title: string; content: string }
 export type ProjectVisibility = "private" | "group";

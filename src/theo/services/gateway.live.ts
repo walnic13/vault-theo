@@ -10,7 +10,7 @@
 // Until a live backend is configured (no `VITE_FUNCTIONS_URL` and no `configureGateway` token/base),
 // this delegates to the in-repo 1A mock so the standalone vault-theo dev harness keeps working.
 import type {
-  Artifact, ArtifactSummary, AttachmentUpload, ConversationAttachment, ConversationDetail, ConversationSummary, FileDownload, InlineImage, InlineImageItem, GatewayRequest, GatewayResponse,
+  Artifact, ArtifactSummary, AttachmentUpload, ConversationAttachment, ConversationDetail, ConversationSummary, FileDownload, InlineImage, InlineImageItem, InlineVideo, GatewayRequest, GatewayResponse,
   KDraft, Knowledge, NpDraft, Person, Project, ProjectMember,
 } from "../types";
 import {
@@ -866,6 +866,8 @@ export interface StreamHandlers {
   onExport?: (d: FileDownload) => void;
   // FindImage inline display: theo_find_image → `event: vault_image`. Additive; general chat only.
   onImage?: (img: InlineImage) => void;
+  // FindVideo inline display: theo_find_video → `event: vault_video`. Additive; general chat only.
+  onVideo?: (v: InlineVideo) => void;
   // DR-T11 tool-loop live activity (VA-T7 "live token count"): the running CUMULATIVE output-token
   // count for the activity-panel header, streamed by the backend as `event: vault_tokens` — a char/4
   // estimate between turns that SNAPS to the authoritative usage total at each turn boundary. An
@@ -973,6 +975,23 @@ export async function sendMessageStream(req: GatewayRequest, handlers: StreamHan
             license: j.license as string | undefined,
             creator: j.creator as string | undefined,
             images: Array.isArray(j.images) ? (j.images as InlineImageItem[]) : undefined,
+          });
+        }
+        continue;
+      }
+      // FindVideo inline display: theo_find_video → `event: vault_video`. The FE holds the exact URL
+      // (from the frame) and renders an in-chat YouTube iframe (embedUrl) or a thumbnail link-card
+      // (videoUrl); the model no longer transcribes it. Additive — absent handler = no video (safe).
+      if (evt.includes("event: vault_video")) {
+        if (typeof j.videoUrl === "string" && (j.videoUrl as string).startsWith("https://")) {
+          handlers.onVideo?.({
+            videoUrl: j.videoUrl as string,
+            embedUrl: j.embedUrl as string | undefined,
+            title: j.title as string | undefined,
+            thumbnail: j.thumbnail as string | undefined,
+            source: j.source as string | undefined,
+            duration: j.duration as string | undefined,
+            date: j.date as string | undefined,
           });
         }
         continue;

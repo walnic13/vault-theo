@@ -516,6 +516,42 @@ export function ChatView(props: ChatViewProps) {
                       </div>
                     );
                   })()}
+                  {/* FindVideo: a tool-found video → rendered inline directly from the tool result
+                      (event: vault_video); an in-chat YouTube iframe when embeddable, else a thumbnail
+                      link-card. No model URL transcription. */}
+                  {m.video && m.video.videoUrl && (
+                    <div style={{ margin: "4px 0 14px" }}>
+                      {m.video.embedUrl ? (
+                        <div style={{ position: "relative", width: "100%", maxWidth: 560, aspectRatio: "16 / 9", borderRadius: 8, overflow: "hidden", border: `1px solid ${C.line2}` }}>
+                          <iframe
+                            src={m.video.embedUrl}
+                            title={m.video.title || "Video"}
+                            loading="lazy"
+                            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            allowFullScreen
+                            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }}
+                          />
+                        </div>
+                      ) : (
+                        <a href={m.video.videoUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", gap: 12, alignItems: "center", maxWidth: 560, textDecoration: "none", border: `1px solid ${C.line2}`, borderRadius: 8, overflow: "hidden", background: C.card }}>
+                          {m.video.thumbnail ? (
+                            <img src={m.video.thumbnail} alt={m.video.title || ""} style={{ width: 160, height: 90, objectFit: "cover", display: "block", flexShrink: 0 }} />
+                          ) : null}
+                          <span style={{ display: "block", padding: "8px 12px 8px 0", minWidth: 0 }}>
+                            <span style={{ display: "block", color: C.ink2, fontSize: 14, lineHeight: 1.3, overflowWrap: "anywhere" }}>{m.video.title || m.video.videoUrl}</span>
+                            <span style={{ display: "block", color: C.ink3, fontSize: 12, marginTop: 2 }}>{m.video.source || ""}{m.video.duration ? `${m.video.source ? " · " : ""}${m.video.duration}` : ""}</span>
+                          </span>
+                        </a>
+                      )}
+                      {m.video.embedUrl && (m.video.title || m.video.source || m.video.duration) ? (
+                        <div style={{ fontSize: 12, color: C.ink3, marginTop: 4, lineHeight: 1.4, overflowWrap: "anywhere", maxWidth: 560 }}>
+                          {m.video.title ? <span style={{ color: C.ink2 }}>{m.video.title}</span> : null}
+                          {m.video.source ? <span>{m.video.title ? " · " : ""}{m.video.source}</span> : null}
+                          {m.video.duration ? <span> · {m.video.duration}</span> : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
                   {/* VA-T8: read-aloud control on a finished reply (not the still-streaming turn). */}
                   {voiceAvailable && m.content && !(loading && i === messages.length - 1) && (
                     <div style={{ marginTop: 4 }}>

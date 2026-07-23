@@ -120,6 +120,12 @@ module.exports = async function (context, req) {
     return send(context, 400, errorBody("BAD_REQUEST", "Request body is not valid JSON.", 400));
   }
 
+  const ALLOWED_BODY_KEYS = new Set(["conversation_id", "starred"]);
+  const unknownKey = Object.keys(body || {}).find((k) => !ALLOWED_BODY_KEYS.has(k));
+  if (unknownKey) {
+    return send(context, 400, errorBody("INVALID_REQUEST", `Unknown field '${unknownKey}'.`, 400));
+  }
+
   const conversationId = typeof body.conversation_id === "string" ? body.conversation_id.trim() : "";
   if (!isUuid(conversationId)) {
     return send(context, 400, errorBody("INVALID_REQUEST", "Field 'conversation_id' is required and must be a valid UUID.", 400));

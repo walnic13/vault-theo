@@ -11,7 +11,7 @@ Pass: Pass 1
 Sub-phase Track: N/A
 (Frontend sub-phase track = F-P1–F-P7 per Frontend Conformance §4A.1; the lint's P/I/E enumeration is the backend track, hence `N/A`.)
 
-Turn issued against HEAD: `cf9e8d2c50904a9f8654a60337438a255174006e` (vault-theo, `development` — the commit that first contains this package; grounding reads against parent `6ec80bf8da946cc19c9f8a9a7f545e3da6f2e762`). The paired backend (`images[]` on the `event: vault_image` frame + the deployed gallery handler) is live (func-stream VEP + vault-theo-tools gallery handler). Working tree also carried untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not source/governance, not grounding).
+Turn issued against HEAD: `<PKG_COMMIT_SHA>` (vault-theo, `development` — the commit that first contains this re-grounded package; grounding reads against parent `9e9de5402d269588b961699ba1b2932f8f40524d` — the API-Spec Role-C commit that lands the `images[]` contract into accepted authority). **T22 pre-existence (resolves the Pass-2 REJECT):** the cited contract shapes now EXIST in accepted authority at the grounding parent — API Spec §2.1 documents `event: vault_image` `data: { …, images }` (gallery array), and §2.15 documents the `theo_find_image` 200 `data:{ …, images }`, both at blob `1d47ca209cc9572036efc91c9cd86ea13dae25ca`. The Role-C transcribes the already-deployed, Codex-approved backend (`images[]` on the frame — func-stream VEP; `images[]` in the handler response — vault-theo-tools gallery handler, golden-verified 2026-07-23). No proceed-gap remains: the contract is authority-resident before this FE VEP, per the deploy → Role-C applied → FE VEP sequence. Working tree also carried untracked `artifacts/*.xlsx` template workbooks (Class B disclosed workbook dirt — not source/governance, not grounding).
 Currency-anchor form: git blob SHA at HEAD.
 
 ### §4 Documents grounded this turn (Full Baseline — Frontend Conformance §4 matrix)
@@ -23,7 +23,7 @@ Currency-anchor form: git blob SHA at HEAD.
 | 4 | Codex Theo Frontend Review — `governance/CODEX_THEO_FRONTEND_REVIEW_STANDARD.md` (§1A hard gates) | `Grep("Component Contract Table completeness")` this turn | `e2b7e0ba91486371414da688ae3697f02a11e252` |
 | 5 | Theo Phase 1A Frontend Plan — `governance/THEO_PHASE_1A_FRONTEND_PLAN.md` | `git rev-parse` this turn | `901271478e8bec29177d379fadbbf3d4701a90fe` |
 | 6 | Theo 1A Frontend Handover — `governance/THEO_1A_FRONTEND_HANDOVER.md` | `git rev-parse` this turn | `b8155889ebfb44a153192e63796812a94aa87004` |
-| 7 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 `event: vault_image`; §2.15 theo_find_image `images[]`) | `Grep("event: vault_image")` this turn | `a3bf3607cb5d4a9391f80c7e33b97305eb3707bc` |
+| 7 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 `event: vault_image` `data:{…,images}`; §2.15 theo_find_image `data:{…,images}`) — the `images[]` contract now authority-resident (Role-C `9e9de54`) | `Grep("event: vault_image")` this turn | `1d47ca209cc9572036efc91c9cd86ea13dae25ca` |
 | 8 | Deployed render authority — `src/theo/lib/markdown.tsx` (the VA-T1 `img` treatment reused) | `Read` this turn | `b5e6ebde8bb9a7e0f08427148b64de63d6cd1754` |
 | 9 | Edited — `src/theo/types.ts` `9d5f4591a163a4d90b4c0975ce46eea7ad1c7719`; `src/theo/services/gateway.live.ts` `1e7048e31c7c505c2fd2778327763a2cef8783a5`; `src/theo/components/ChatView.tsx` `d002bbba613332c07ec65afd5c98badd3f5215e4` | `Read` this turn | (per file, left) |
 

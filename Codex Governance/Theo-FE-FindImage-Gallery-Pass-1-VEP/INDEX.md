@@ -68,7 +68,7 @@ No DEVIATION rows beyond the disclosed, Walter-directed VISUAL-AUTHORITY-DEVIATI
 - **(1) VISUAL-AUTHORITY-DEVIATION (Walter-directed).** The multi-image grid + per-image caption exceeds VA-T1's single-image treatment; classified VISUAL-AUTHORITY-DEVIATION per Golden Component Pack §5/§21A, Walter-directed 2026-07-23 (mini-gallery + captions). Each image still uses the VA-T1 treatment. Disclosed, PROCEED.
 - **(2) Caption is source-verifiable, not model-generated.** The caption shows the handler-returned `title` (the source's own caption) + `source`/`creator`/`licence` — attributed provenance, no hallucination. If a source `title` is generic, the caption is still honest (what the source says). PROCEED.
 - **(3) Ephemeral.** `images[]` (and the blob-SAS URLs) are live-turn only (parallels the single image + download card). PROCEED.
-- **(4) Role-C.** API §2.15 (images[]) + §2.1 (images[] on vault_image) gallery documentation lands with this FE deploy (the gallery is then complete end-to-end). PROCEED.
+- **(4) Role-C — ALREADY LANDED (NO-GAP).** API §2.15 (`images[]`) + §2.1 (`images[]` on `vault_image`) gallery documentation is already in accepted authority at the grounding parent (Role-C commit `9e9de54`, API Spec blob `1d47ca20`), landed before this FE VEP to satisfy T22 contract pre-existence. No documentation work remains for this VEP. NO-GAP.
 - **(5) No new VA-id/reference-artifact** (VA-T1 reused). PROCEED.
 
 ## §3 Frontend sub-phase walk (F-P1–F-P7)
@@ -84,7 +84,7 @@ No DEVIATION rows beyond the disclosed, Walter-directed VISUAL-AUTHORITY-DEVIATI
 1. Apply the three edits; run `tsc --noEmit` (green — verified this turn), then vite build.
 2. Commit + push `development` (salmon-river serves dev + prod).
 3. Verify in Theo: "show me the moment Nadal won the French Open" → a **gallery** of relevant shots, each with a caption underneath (source caption · source · link); single-result queries render one image + caption.
-4. Role-C: API §2.15 (`images[]`) + §2.1 (`images[]` on `vault_image`) — document the gallery end-to-end.
+4. Role-C: **already landed** (commit `9e9de54`, API Spec §2.15 `images[]` + §2.1 `images[]` on `vault_image`, blob `1d47ca20`) — no documentation step remains for this deploy.
 
 ## §5 Out of scope
 The gallery handler (`images[]`) and the frame carry are the deployed vault-theo-tools + func-stream VEPs. No new component/VA-id/reference-artifact (VA-T1 reused). No lightbox/zoom beyond the source-link `<a>` (a future enhancement). No persistence. No premium.
@@ -93,4 +93,4 @@ The gallery handler (`images[]`) and the frame carry are the deployed vault-theo
 `node tools/lint_microstep_submission.mjs "Codex Governance/Theo-FE-FindImage-Gallery-Pass-1-VEP/INDEX.md" --repo-root .` — expect PASS.
 
 ## Requested action
-Codex Pass-2 review. On APPROVED, Claude Code applies the three edits, runs `tsc` + vite build, pushes `development`, and lands the Role-C.
+Codex Pass-2 review. On APPROVED, Claude Code applies the three edits, runs `tsc` + vite build, and pushes `development`. The paired API-Spec Role-C is **already landed** (commit `9e9de54`) — no further documentation step remains.

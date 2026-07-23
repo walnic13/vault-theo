@@ -9,7 +9,7 @@ Turn Type: Verified Evidence Pack (backend plan)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5
-Turn issued against HEAD: vault-theo `344243e00e84421261eb17f10174c7248a4eb926` (the commit that first contains this package; grounding parent `d347cb3dacc7d3528beaa0f637fa885667c1e566`). The two edited/mirrored handlers' LIVE snapshots were GET-verified from `vaultgpt-func-premium` Kudu this turn (the deployed Theo conversation handlers are confirmed present on premium: `theo_list_conversations`/`theo_set_conversation_project`/etc. all resolve on premium VFS). Cited-doc blob SHAs resolved at the grounding parent.
+Turn issued against HEAD: vault-theo `f46fc44e535fe47817ad427602e2c6aea231d007` (the commit that first contains this package; grounding parent `d347cb3dacc7d3528beaa0f637fa885667c1e566`). The two edited/mirrored handlers' LIVE snapshots were GET-verified from `vaultgpt-func-premium` Kudu this turn (the deployed Theo conversation handlers are confirmed present on premium: `theo_list_conversations`/`theo_set_conversation_project`/etc. all resolve on premium VFS). Cited-doc blob SHAs resolved at the grounding parent.
 Currency-anchor form: git blob SHA at HEAD (Conformance §8 fallback). Absolute paths in the Rule Anchor Table.
 
 ## Rule Anchor Table

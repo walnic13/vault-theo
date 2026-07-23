@@ -9,7 +9,7 @@ Turn Type: Verified Evidence Pack (backend plan)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5
-Turn issued against HEAD: vault-theo `<PKG_COMMIT_SHA>` (the commit that contains this package; grounding reads against pre-package parent `3f5bca3c83c202f7e2d0ccdae1818b48d4fdb85d`). The paired gallery handler is at vault-theo-tools `Codex Governance/Theo-Tools-FindImage-Gallery-Pass-1-VEP/` (APPROVED + deployed). Cited-doc blob SHAs below are HEAD-stable.
+Turn issued against HEAD: vault-theo `efc650d0925037f3967fd77f4ad37822ce10bc07` (the commit that contains this package; grounding reads against pre-package parent `3f5bca3c83c202f7e2d0ccdae1818b48d4fdb85d`). The paired gallery handler is at vault-theo-tools `Codex Governance/Theo-Tools-FindImage-Gallery-Pass-1-VEP/` (APPROVED + deployed). Cited-doc blob SHAs below are HEAD-stable.
 Currency-anchor form: git blob SHA at HEAD (Conformance §8 fallback). Absolute paths in the Rule Anchor Table.
 
 ## Rule Anchor Table

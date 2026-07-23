@@ -193,17 +193,29 @@ export function useTheoState() {
   // Load the signed-in user's conversations for Recents (live → theo_list_conversations; mock fallback
   // in the standalone harness). useCallback-stable so TheoSurface's mount effect runs it once.
   const loadRecents = useCallback(async () => {
-    try { setRecentsList(await theoClient.listConversations(50)); } catch { /* keep current list */ }
+    try {
+      const list = await theoClient.listConversations(50);
+      // Order Recents (and the restore-on-reopen target) by LAST TOUCHED — the more recent of
+      // `last_opened_at` and `updated_at`. A new chat that has been messaged (fresh `updated_at`) but
+      // never explicitly reopened has a NULL `last_opened_at`, so the server's `… NULLS LAST` ordering
+      // sorts it behind older opened chats; re-sorting here keeps `recentsList[0]` the conversation the
+      // user most recently interacted with, so restore-on-reopen lands there.
+      const touched = (c: ConversationSummary) => Math.max(Date.parse(c.last_opened_at || "") || 0, Date.parse(c.updated_at || "") || 0);
+      list.sort((a, b) => touched(b) - touched(a));
+      setRecentsList(list);
+    } catch { /* keep current list */ }
   }, []);
 
   // Restore-on-reopen: on the first settle after Recents load, open the LAST-OPENED conversation
-  // (`recentsList[0]` — theo_list_conversations orders `last_opened_at DESC NULLS LAST, …`, API Spec
-  // §2.1) so a cold PWA reload lands back on the chat the user was in, not a blank new chat. Decides
+  // (`recentsList[0]` — `loadRecents` re-sorts by last-touched = max(`last_opened_at`, `updated_at`),
+  // so [0] is the chat the user most recently interacted with, not just the most recently explicitly-
+  // opened) so a cold PWA reload lands back on the chat the user was in, not a blank new chat. Decides
   // ONCE (didRestoreRef, set at the first recents-settle) so it never fires again on a later state
   // change (a New chat, a manual open, a cleared draft). Suppressed if the user is already in a chat
   // OR composing — `selectRecent`→`clearComposer()` clears attachments, and the typed `draft` would
   // otherwise be carried into the restored (wrong) conversation. Empty-user (no recents) → stays on
-  // the greeting/new-chat home. No browser storage (VA-T3 §2.5) — the ordering is server-side.
+  // the greeting/new-chat home. No browser storage (VA-T3 §2.5) — the ordering is server-sourced then
+  // re-sorted client-side by last-touched in loadRecents (no persistence).
   const didRestoreRef = useRef(false);
   useEffect(() => {
     if (didRestoreRef.current) return;

@@ -488,6 +488,11 @@ export function ChatView(props: ChatViewProps) {
                   {/* VA-T9: a tool-produced downloadable file → download card, directly after the reply
                       body and BEFORE the read-aloud control (DR-T11 event: vault_export). */}
                   {m.download && <DownloadCard download={m.download} />}
+                  {/* FindImage: a tool-found image → rendered inline directly from the tool result
+                      (event: vault_image), reusing the VA-T1 image treatment; no model URL transcription. */}
+                  {m.image && m.image.url && (
+                    <img src={m.image.url} alt={m.image.title || ""} style={{ maxWidth: "100%", height: "auto", borderRadius: 8, margin: "4px 0 14px", display: "block" }} />
+                  )}
                   {/* VA-T8: read-aloud control on a finished reply (not the still-streaming turn). */}
                   {voiceAvailable && m.content && !(loading && i === messages.length - 1) && (
                     <div style={{ marginTop: 4 }}>

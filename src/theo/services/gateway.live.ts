@@ -10,7 +10,7 @@
 // Until a live backend is configured (no `VITE_FUNCTIONS_URL` and no `configureGateway` token/base),
 // this delegates to the in-repo 1A mock so the standalone vault-theo dev harness keeps working.
 import type {
-  Artifact, ArtifactSummary, AttachmentUpload, ConversationAttachment, ConversationDetail, ConversationSummary, FileDownload, GatewayRequest, GatewayResponse,
+  Artifact, ArtifactSummary, AttachmentUpload, ConversationAttachment, ConversationDetail, ConversationSummary, FileDownload, InlineImage, GatewayRequest, GatewayResponse,
   KDraft, Knowledge, NpDraft, Person, Project, ProjectMember,
 } from "../types";
 import {
@@ -864,6 +864,8 @@ export interface StreamHandlers {
   // DR-T11 tool-loop: a downloadable tool result (theo_export_spreadsheet et al.) arrived as the
   // additive `event: vault_export` SSE frame. General chat only; additive — absent = no download card.
   onExport?: (d: FileDownload) => void;
+  // FindImage inline display: theo_find_image → `event: vault_image`. Additive; general chat only.
+  onImage?: (img: InlineImage) => void;
   // DR-T11 tool-loop live activity (VA-T7 "live token count"): the running CUMULATIVE output-token
   // count for the activity-panel header, streamed by the backend as `event: vault_tokens` — a char/4
   // estimate between turns that SNAPS to the authoritative usage total at each turn boundary. An
@@ -954,6 +956,22 @@ export async function sendMessageStream(req: GatewayRequest, handlers: StreamHan
             contentType: j.contentType as string | undefined,
             byteSize: typeof j.byteSize === "number" ? (j.byteSize as number) : undefined,
             expiresAt: j.expiresAt as string | undefined,
+          });
+        }
+        continue;
+      }
+      // FindImage inline display: theo_find_image → `event: vault_image`. The FE holds the exact URL
+      // (from the frame) and renders it via the VA-T1 image treatment; the model no longer transcribes
+      // it. Additive — absent handler = no image (safe).
+      if (evt.includes("event: vault_image")) {
+        if (typeof j.url === "string" && (j.url as string).startsWith("https://")) {
+          handlers.onImage?.({
+            url: j.url as string,
+            title: j.title as string | undefined,
+            source: j.source as string | undefined,
+            pageUrl: j.pageUrl as string | undefined,
+            license: j.license as string | undefined,
+            creator: j.creator as string | undefined,
           });
         }
         continue;

@@ -7,7 +7,7 @@ import { stripArtifactRefs } from "./lib/artifacts";
 import { buildSystemPrompt, greeting } from "./lib/prompt";
 import { MODEL } from "./swapBlock";
 import { STYLES } from "./data";
-import type { AgentToolCall, AppContext, Artifact, ArtifactSummary, Citation, ComposerAttachment, ConversationSummary, FileDownload, KDraft, Message, NpDraft, OpenArtifact, Person, Project, ProjectMember, SentAttachment, Settings, StyleKey, View } from "./types";
+import type { AgentToolCall, AppContext, Artifact, ArtifactSummary, Citation, ComposerAttachment, ConversationSummary, FileDownload, InlineImage, KDraft, Message, NpDraft, OpenArtifact, Person, Project, ProjectMember, SentAttachment, Settings, StyleKey, View } from "./types";
 
 // B8e: a paste longer than this becomes a "Pasted text" attachment (collapsed, expandable) instead
 // of flooding the composer — the Claude-style behaviour. Tunable; ~a long block, not a sentence.
@@ -468,6 +468,7 @@ export function useTheoState() {
     const toolCalls: AgentToolCall[] = [];            // VA-T7: the review agent's live tool calls
     const cites: Citation[] = [];                     // web-grounding citations (citations_delta)
     let exportPayload: FileDownload | null = null;    // DR-T11: a tool-produced download (vault_export)
+    let imagePayload: InlineImage | null = null;      // FindImage: a tool-found image (vault_image)
     let tokensOut = 0;                                // DR-T11: running CUMULATIVE output-token count (activity panel)
     let lastTextAt = 0;                               // VA-T7 two-mode toggle: ms of the last visible text/thinking delta
     let convId: string | null = null;
@@ -523,6 +524,7 @@ export function useTheoState() {
           onThinking: (d) => { reasoning += d; patchLastAssistant({ reasoning, streaming: false }); },
           onCitation: (c) => { cites.push({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text }); },
           onExport: (d) => { exportPayload = d; patchLastAssistant({ download: d }); },
+          onImage: (img) => { imagePayload = img; patchLastAssistant({ image: img }); },
           // DR-T11 tool-loop activity (VA-T7): surface the tool call live. The backend emits it at the
           // tool_use BLOCK START (name only, no input), so this fires while the payload is still
           // streaming. Thinking already streamed into `reasoning` (onThinking above), so the activity
@@ -551,7 +553,7 @@ export function useTheoState() {
       // the model cited sources, attach a single CitedRun so the existing CitedText path renders them.
       const { display, openId, blocks } = theoClient.ingestReply(acc);
       setArtifacts(theoClient.listArtifacts());
-      patchLastAssistant({ content: display, streaming: false, ...(cites.length ? { runs: [{ text: display, citations: cites }] } : {}), ...(think ? { thinking: think } : {}), ...(reasoning ? { reasoning } : {}), ...(toolCalls.length ? { tools: toolCalls.slice() } : {}), ...(exportPayload ? { download: exportPayload } : {}), ...(tokensOut ? { tokens: tokensOut } : {}) });
+      patchLastAssistant({ content: display, streaming: false, ...(cites.length ? { runs: [{ text: display, citations: cites }] } : {}), ...(think ? { thinking: think } : {}), ...(reasoning ? { reasoning } : {}), ...(toolCalls.length ? { tools: toolCalls.slice() } : {}), ...(exportPayload ? { download: exportPayload } : {}), ...(imagePayload ? { image: imagePayload } : {}), ...(tokensOut ? { tokens: tokensOut } : {}) });
       if (openId) setOpenArt({ id: openId, v: -1 });
       if (convId) setConversationId(convId);
       // B4h: persist each artifact block server-side (theo_upsert_artifact — create-or-add-version by

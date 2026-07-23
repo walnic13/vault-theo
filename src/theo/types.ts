@@ -32,7 +32,12 @@ export interface FileDownload {
   byteSize?: number;
   expiresAt?: string;
 }
-export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string; reasoning?: string; tools?: AgentToolCall[]; download?: FileDownload; tokens?: number; streaming?: boolean }
+// FindImage inline display: an image a tool produced (theo_find_image), streamed as `event: vault_image`
+// (API §2.1; DR-T11). Rendered inline via the VA-T1 image treatment (the deployed markdown `img`
+// override) directly from the frame URL — the model never transcribes it. Ephemeral to the live turn
+// (not persisted; parallels the download card).
+export interface InlineImage { url: string; title?: string; source?: string; pageUrl?: string; license?: string; creator?: string }
+export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string; reasoning?: string; tools?: AgentToolCall[]; download?: FileDownload; image?: InlineImage; tokens?: number; streaming?: boolean }
 
 export interface Knowledge { id: string; title: string; content: string }
 export type ProjectVisibility = "private" | "group";

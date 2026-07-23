@@ -37,7 +37,7 @@ export async function listConversations(limit?: number): Promise<ConversationSum
   const n = typeof limit === "number" && limit > 0 ? limit : 50;
   return RECENTS.slice(0, n).map((title, i) => ({
     id: `mock-${i}`, title, model: null, project_id: null, app_key: null,
-    created_at: "", updated_at: "",
+    created_at: "", updated_at: "", last_opened_at: null,
   }));
 }
 
@@ -52,7 +52,7 @@ export async function getConversation(id: string): Promise<ConversationDetail> {
   return {
     conversation: {
       id, title: "Mock conversation", model: null, project_id: null, app_key: null,
-      created_at: "", updated_at: "", app_context: null,
+      created_at: "", updated_at: "", last_opened_at: null, app_context: null,
     },
     messages: [],
   };

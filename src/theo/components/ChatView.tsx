@@ -528,6 +528,7 @@ export function ChatView(props: ChatViewProps) {
                             title={m.video.title || "Video"}
                             loading="lazy"
                             allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            referrerPolicy="strict-origin-when-cross-origin"
                             allowFullScreen
                             style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }}
                           />

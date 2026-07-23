@@ -9,7 +9,7 @@ Turn Type: Verified Evidence Pack (backend plan)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5
-Turn issued against HEAD: vault-theo `<PKG_COMMIT_SHA>` (the commit that first contains this package; grounding reads against pre-package parent `355d344f40249d2cc52bfc499aa63d520399777f` — the commit that lands the deployed `offset` handler's API §2.15 Role-C). The edited file's LIVE snapshot was GET-verified from Kudu this turn. Cited-doc blob SHAs resolved at the grounding parent.
+Turn issued against HEAD: vault-theo `b94dfae85c3aa06be4de51defca619850abaa39c` (the commit that first contains this package; grounding reads against pre-package parent `355d344f40249d2cc52bfc499aa63d520399777f` — the commit that lands the deployed `offset` handler's API §2.15 Role-C). The edited file's LIVE snapshot was GET-verified from Kudu this turn. Cited-doc blob SHAs resolved at the grounding parent.
 Currency-anchor form: git blob SHA at HEAD (Conformance §8 fallback). Absolute paths in the Rule Anchor Table.
 
 ## Rule Anchor Table

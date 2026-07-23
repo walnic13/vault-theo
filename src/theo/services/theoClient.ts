@@ -23,7 +23,7 @@ import {
   updateProjectDescription as gatewayUpdateProjectDescription, deleteProject as gatewayDeleteProject,
   listProjectKnowledge as gatewayListProjectKnowledge, addProjectKnowledge as gatewayAddProjectKnowledge,
   removeProjectKnowledge as gatewayRemoveProjectKnowledge,
-  setConversationProject as gatewaySetConversationProject,
+  setConversationProject as gatewaySetConversationProject, setConversationStarred as gatewaySetConversationStarred,
   renameProject as gatewayRenameProject,
   renameConversation as gatewayRenameConversation, deleteConversation as gatewayDeleteConversation,
   persistArtifact as gatewayPersistArtifact, listServerArtifacts as gatewayListServerArtifacts,
@@ -157,6 +157,10 @@ export const theoClient = {
   // project chat's first turn returns a conversation_id (theo_conversations.project_id).
   setConversationProject(conversationId: string, projectId: string): Promise<void> {
     return gatewaySetConversationProject(conversationId, projectId);
+  },
+  // Conversation-Star: owner-scoped star toggle (theo_set_conversation_starred; deployed 2026-07-23).
+  setConversationStarred(conversationId: string, starred: boolean): Promise<void> {
+    return gatewaySetConversationStarred(conversationId, starred);
   },
   // B4f: rename / delete a conversation (theo_rename_conversation / theo_delete_conversation; deployed B4f).
   renameConversation(id: string, title: string): Promise<{ id: string; title: string }> {

@@ -138,6 +138,7 @@ export interface ConversationSummary {
   project_id: string | null; app_key: string | null;
   created_at: string; updated_at: string;
   last_opened_at: string | null;   // restore-on-reopen: theo_list_conversations orders last-opened-first
+  starred?: boolean;               // per-conversation star — theo_list_conversations returns it; theo_get_conversation does NOT, so OPTIONAL on the shared summary type (ConversationDetail.conversation reuses it). The chat-header menu sources starred from the list (recentsList).
 }
 export interface PersistedMessage {
   id: string; seq: number; role: Role; content: string;

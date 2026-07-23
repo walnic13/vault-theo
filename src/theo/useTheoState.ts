@@ -920,9 +920,25 @@ export function useTheoState() {
     try { await navigator.clipboard.writeText(art.versions[vi].content); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard unavailable */ }
   }
 
+  // Chat-header menu (Conversation-Star + add-to-project). Optimistic star; add-to-project links the
+  // conversation (set-once backend) and reflects the project pill for the active chat.
+  async function setConversationStarred(id: string, starred: boolean) {
+    setRecentsList((prev) => prev.map((c) => (c.id === id ? { ...c, starred } : c)));
+    try { await theoClient.setConversationStarred(id, starred); }
+    catch { setRecentsList((prev) => prev.map((c) => (c.id === id ? { ...c, starred: !starred } : c))); setError("Couldn't update the star."); }
+  }
+  async function addConversationToProject(id: string, projectId: string) {
+    try {
+      await theoClient.setConversationProject(id, projectId);
+      setRecentsList((prev) => prev.map((c) => (c.id === id ? { ...c, project_id: projectId } : c)));
+      if (id === conversationId) { const p = projects.find((x) => x.id === projectId) ?? null; setChatProject(p); }
+    } catch { setError("Couldn't add the chat to that project."); }
+  }
+
   return {
     // state
     view, collapsed, search, projects, projectChats, artifacts, galleryArtifacts, detail, chatProject, art, openArt, messages, draft, attachments, attachmentsAvailable, loading, error, queued,
+    conversationId, currentConversation: recentsList.find((c) => c.id === conversationId) ?? null,
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
     reviewMode: hasReviewContext(appContext), // Sigma review context armed → review-assistant landing/chip
     sigmaMode: appContext.app_key === "sigma", // #5 v2: in Sigma (with or without a review) → review persona/landing
@@ -935,7 +951,7 @@ export function useTheoState() {
     clearChatProject: () => setChatProject(null), send, stop, cancelQueued, ingestAppContext, selectRecent, loadRecents, loadProjects, loadGalleryArtifacts,
     addFiles, addPastedText, removeAttachment,
     toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, patchDescription, setKdraft, addKnowledge, removeKnowledge,
-    renameProject, deleteProject, setProjectVisibility, visPending, renameConversation, deleteConversation,
+    renameProject, deleteProject, setProjectVisibility, visPending, renameConversation, deleteConversation, setConversationStarred, addConversationToProject,
     projectMembers, people, shareMember, unshareMember, memberPending,
     selectStyle: setStyleKey, setCustom, save, copyArt,
     selectVersion: (v: number) => setOpenArt(openArt ? { id: openArt.id, v } : null),

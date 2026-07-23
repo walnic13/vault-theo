@@ -37,7 +37,7 @@ export async function listConversations(limit?: number): Promise<ConversationSum
   const n = typeof limit === "number" && limit > 0 ? limit : 50;
   return RECENTS.slice(0, n).map((title, i) => ({
     id: `mock-${i}`, title, model: null, project_id: null, app_key: null,
-    created_at: "", updated_at: "", last_opened_at: null,
+    created_at: "", updated_at: "", last_opened_at: null, starred: false,
   }));
 }
 
@@ -52,7 +52,7 @@ export async function getConversation(id: string): Promise<ConversationDetail> {
   return {
     conversation: {
       id, title: "Mock conversation", model: null, project_id: null, app_key: null,
-      created_at: "", updated_at: "", last_opened_at: null, app_context: null,
+      created_at: "", updated_at: "", last_opened_at: null, starred: false, app_context: null,
     },
     messages: [],
   };
@@ -168,6 +168,11 @@ export async function removeProjectKnowledge(knowledgeId: string): Promise<void>
 // working (mock conversations come from the static RECENTS seed, which carries no project link).
 export async function setConversationProject(conversationId: string, projectId: string): Promise<void> {
   void conversationId; void projectId;   // no persistent conversations to tag in the standalone harness
+  return;
+}
+
+export async function setConversationStarred(conversationId: string, starred: boolean): Promise<void> {
+  void conversationId; void starred;   // no persistent conversations to star in the standalone harness
   return;
 }
 

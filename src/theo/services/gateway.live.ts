@@ -21,7 +21,7 @@ import {
   updateProjectDescription as mockUpdateProjectDescription, deleteProject as mockDeleteProject,
   listProjectKnowledge as mockListProjectKnowledge, addProjectKnowledge as mockAddProjectKnowledge,
   removeProjectKnowledge as mockRemoveProjectKnowledge,
-  setConversationProject as mockSetConversationProject,
+  setConversationProject as mockSetConversationProject, setConversationStarred as mockSetConversationStarred,
   renameProject as mockRenameProject,
   renameConversation as mockRenameConversation, deleteConversation as mockDeleteConversation,
   persistArtifact as mockPersistArtifact, listServerArtifacts as mockListServerArtifacts,
@@ -751,6 +751,22 @@ export async function setConversationProject(conversationId: string, projectId: 
     credentials: "same-origin",
     headers,
     body: JSON.stringify({ conversation_id: conversationId, project_id: projectId }),
+  });
+  if (!res.ok) {
+    let json: { error?: { message?: string } } | null = null;
+    try { json = await res.json(); } catch { /* non-JSON error body */ }
+    throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  }
+}
+
+export async function setConversationStarred(conversationId: string, starred: boolean): Promise<void> {
+  if (!apiBase && !tokenProvider) return mockSetConversationStarred(conversationId, starred);
+  const headers = await authHeaders();
+  const res = await fetch(`${apiBase}/api/theo_set_conversation_starred`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ conversation_id: conversationId, starred }),
   });
   if (!res.ok) {
     let json: { error?: { message?: string } } | null = null;

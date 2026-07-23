@@ -10,6 +10,8 @@ export const IcCompose = ({ s = 18 }: { s?: number }) => (<svg {...SV} width={s}
 export const IcChat = ({ s = 18 }: { s?: number }) => (<svg {...SV} width={s} height={s}><path d="M21 11.5a8.5 8.5 0 0 1-11.8 7.8L3 21l1.7-6.2A8.5 8.5 0 1 1 21 11.5Z" /></svg>);
 export const IcProjects = ({ s = 18 }: { s?: number }) => (<svg {...SV} width={s} height={s}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>);
 export const IcArtifacts = ({ s = 18 }: { s?: number }) => (<svg {...SV} width={s} height={s}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18" /></svg>);
+export const IcStar = ({ s = 18, filled = false }: { s?: number; filled?: boolean }) => (<svg {...SV} width={s} height={s} fill={filled ? "currentColor" : "none"}><path d="M12 3.6l2.6 5.3 5.8.9-4.2 4.1 1 5.8L12 17.9l-5.2 2.8 1-5.8L3.6 9.8l5.8-.9z" /></svg>);
+export const IcChevron = ({ s = 18 }: { s?: number }) => (<svg {...SV} width={s} height={s}><path d="M6 9l6 6 6-6" /></svg>);
 export const IcCustomize = ({ s = 18 }: { s?: number }) => (<svg {...SV} width={s} height={s}><path d="M4 6h7" /><path d="M16 6h4" /><circle cx="13.5" cy="6" r="2" /><path d="M4 12h4" /><path d="M13 12h7" /><circle cx="10.5" cy="12" r="2" /><path d="M4 18h7" /><path d="M16 18h4" /><circle cx="13.5" cy="18" r="2" /></svg>);
 export const IcSearch = ({ s = 16 }: { s?: number }) => (<svg {...SV} width={s} height={s}><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>);
 export const IcPanel = ({ s = 18 }: { s?: number }) => (<svg {...SV} width={s} height={s}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></svg>);

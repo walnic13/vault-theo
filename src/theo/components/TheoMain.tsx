@@ -15,6 +15,7 @@ import { splitAssistant } from "../lib/artifacts";
 import { appContextLabel } from "../lib/appContext";
 import { ArtifactCard } from "./ArtifactCard";
 import { ChatView } from "./ChatView";
+import { ChatMenu } from "./ChatMenu";
 import { ProjectsView } from "./ProjectsView";
 import { ProjectDetail } from "./ProjectDetail";
 import { ArtifactsView } from "./ArtifactsView";
@@ -49,6 +50,14 @@ export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
       <header style={{ height: 54, flexShrink: 0, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px" }}>
         {t.view === "chats" ? (<>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Conversation-Star: the active saved conversation shows its title + a dropdown menu
+                (Star / Rename / Add to project / Delete), Claude-style, top-left. Hidden on a new
+                unsaved chat (no conversationId). */}
+            {t.conversationId && t.currentConversation && (
+              <ChatMenu conversation={t.currentConversation} projects={t.projects}
+                onRename={t.renameConversation} onDelete={t.deleteConversation}
+                onToggleStar={t.setConversationStarred} onAddToProject={t.addConversationToProject} />
+            )}
             {/* VEP (Theo Header Declutter): the model label is suppressed in the Origin-hosted panel
                 (mode="panel") — clutter there; shown only standalone (mode="full"). VISUAL-AUTHORITY-
                 DEVIATION from VA-T1, authorized by VA-T4. */}

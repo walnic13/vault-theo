@@ -23,7 +23,7 @@ Currency-anchor form: git blob SHA at HEAD.
 | 4 | Theo Execution Orchestration Standard — `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md` (§1E run-from-package, DR-T13) | `Read`+`Grep` this turn | `eb2a40ab3e6b0b51691eb90a313143164c2b05e9` |
 | 5 | Codex Theo Backend Review Standard — `governance/CODEX_THEO_BACKEND_REVIEW_STANDARD.md` | `Grep` this turn | `d2e1b9881b6e2ed7d77921a055feffb0852257fd` |
 | 6 | Theo Architecture and Structure — `governance/THEO_ARCHITECTURE_AND_STRUCTURE.md` (§1 boundary, §5 theo_ schema/RLS, §6 RAG) | `Grep` this turn | `07451ce9d912830b3c15fedf74761d00c59f97b2` |
-| 7 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.2 route unchanged; §2.6 RAG intent / HF-T4) | `Grep` this turn | `94145351007d3b336320fb56ac3719b9d0ce860e` |
+| 7 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.2 route unchanged; §2.6 RAG intent / HF-T4) | `Grep` this turn | `435d72f7726070ba34077768919fa69f04fe03c4` |
 | 8 | Theo Azure Postgres Schema — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` (§5 theo_project_knowledge — RAG-indexed) | `Grep` this turn | `fa9aad4c75019de0b621e31b5d33ef97f3689639` |
 | 9 | Primary Reference (deployed) — `theo_add_project_knowledge_file/index.js` (current handler on `vaultgpt-func-projects`, PdfExtract) — blob `630ff773165f5dc30caa2cebed3751f4275f504e` | `Read` this turn | `630ff773165f5dc30caa2cebed3751f4275f504e` (inlined verbatim below) |
 | 10 | Authorized-reuse source (deployed) — `theo_index_messages.index.js` (B7b1 indexer; getAadToken/ensureIndex/embedBatch/upsertDocs) — blob `665bdb36fe5e59dbe75dec4a88bc29c4c1519003` | `Read` this turn | `665bdb36fe5e59dbe75dec4a88bc29c4c1519003` (reused helpers inlined verbatim below) |

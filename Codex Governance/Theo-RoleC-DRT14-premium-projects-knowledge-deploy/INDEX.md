@@ -10,7 +10,7 @@ Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 4
 Sub-phase Track: N/A
 
-Turn issued against HEAD: `9e48ce2ebe45fee586d7db3473e9dc1468811e0e` (vault-theo, `development`; grounding parent `b29e2ebe8c6029cb6fb6d9ed8bb4cc23343563a6`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
+Turn issued against HEAD: `4ae99b050dc2cde177c2dafc81fc6d7e72fd3bb8` (vault-theo, `development`; grounding parent `b29e2ebe8c6029cb6fb6d9ed8bb4cc23343563a6`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
 Currency-anchor form: git blob SHA at HEAD.
 Grounding-mode basis: Conformance §4 "Documentation-update package" row = Targeted Current-Turn Grounding. Walter grant: "yes, take on d2" + "path b" (2026-07-24), following the explicit "i'll give you permission to deploy to premium" — the Path-B choice being Claude-direct premium deploy for the Projects-knowledge handlers rather than the Walter-self-deploy model.
 

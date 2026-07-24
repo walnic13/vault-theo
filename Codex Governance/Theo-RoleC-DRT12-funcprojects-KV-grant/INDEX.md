@@ -12,7 +12,7 @@ Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 4
 Sub-phase Track: N/A
 
-Turn issued against HEAD: `1828fd2238a1db6ec55b1b4ae057f61ace6ea241` (vault-theo, `development`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
+Turn issued against HEAD: `824e142ed117abd4d4c2c57bad5a5c232e0c80e9` (vault-theo, `development` — the commit that contains this package; this stamp is applied in the immediately-following child commit under review, since a commit cannot record its own SHA). All §4 anchors resolve identically at `824e142` and the child commit. Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
 Currency-anchor form: git blob SHA at HEAD.
 Grounding-mode basis: Conformance §4 "Documentation-update package" row = Targeted Current-Turn Grounding. Provisioning evidence (this turn): ARM role-assignment PUT granting Key Vault Secrets User (`4633458b-17de-408a-b874-0445c86b69e6`) to principal `90847272-…` at scope `.../vaults/kv-vaultgpt-uks`, verified present; func-stream MI (`f522c0ba-…`) independently shown to hold the same role; post-grant re-verify — add → 201, index `theo-project-knowledge` created (HTTP 200), Search query returned the doc, no-bearer → 401; test project + index doc deleted after.
 

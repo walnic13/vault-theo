@@ -11,7 +11,7 @@ Pass: Pass 1
 Sub-phase Track: N/A
 (Frontend sub-phase track = F-P1–F-P7 per Frontend Conformance §4A.1; the lint's P/I/E enumeration is the backend track, hence `N/A`.)
 
-Turn issued against HEAD: `298acc611a4f4a1938bb9c77f6f34fbda2dfe719` (vault-theo, `development`; grounding parent `5437f4d6752e81aab6822628e431d356fc1793f7` — the §2.2 API-Spec Role-C landing documenting the route). No backend change (the handler + route are already deployed + documented). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance; not used as grounding evidence this turn).
+Turn issued against HEAD: `f8644181bee980f3395266d72dc566b418708677` (vault-theo, `development`; grounding parent `5437f4d6752e81aab6822628e431d356fc1793f7` — the §2.2 API-Spec Role-C landing documenting the route). No backend change (the handler + route are already deployed + documented). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance; not used as grounding evidence this turn).
 Currency-anchor form: git blob SHA at HEAD.
 
 ### §4 Documents grounded this turn (Full Baseline — Frontend Conformance §4 matrix)

@@ -11,7 +11,7 @@ Pass: Pass 1
 Sub-phase Track: P5
 (A VEP turn walks P1–P8 (§3); the GCR field takes one value and the lint rejects a range, so the crux phase — P5 Handler grounding — is declared, the full P1–P8 authority set anchored below.)
 
-Turn issued against HEAD: `d2d5a6a3c4a55c5cec5f161e349476e120c6e9a8` (vault-theo, `development` — the commit that contains this complete package body; this stamp is applied in the immediately-following child commit under review, since a commit cannot record its own SHA). Every §4 currency anchor below resolves identically at `d2d5a6a` and at the child commit. Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
+Turn issued against HEAD: `b58da4e2369b3115a2ab896ffd0b381741af35e2` (vault-theo, `development` — the commit that contains this complete package body, including the function.json full-verbatim inline; this stamp is applied in the immediately-following child commit under review, since a commit cannot record its own SHA). Every §4 currency anchor below resolves identically at `b58da4e2` and at the child commit. Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
 Currency-anchor form: git blob SHA at HEAD.
 
 ### §4 Documents grounded this turn (Full Baseline — Conformance §4 VEP row)

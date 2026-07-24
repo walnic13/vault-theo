@@ -1,6 +1,6 @@
 # Theo Backend — `theo_add_project_knowledge_file` on-ingest RAG indexing (Phase D / D1): Pass-1 Verified Evidence Pack
 
-Backend Verified Evidence Pack (plan). Phase D / D1: after the `theo_project_knowledge` INSERT, `theo_add_project_knowledge_file` (on `vaultgpt-func-projects`) **chunks the stored text, embeds each chunk, and upserts one doc per chunk into the Azure AI Search `theo-project-knowledge` index** (created idempotently), scoped by `project_id` + `created_by`. Indexing is **NON-FATAL** — an embed/Search failure never fails the add (the row is already committed). The indexing helpers (`getAadToken`, `ensureIndex`, `embedBatch`, `upsertDocs`) are **byte-identical to the deployed `theo_index_messages` (B7b1)**, adapted only for the project index schema + content chunking, per the Walter-authorized composite (2026-07-24). No new npm dependency (embeddings + Search over `https`), no schema change, no contract change (response shape identical). `node --check` PASS this turn.
+Backend Verified Evidence Pack (plan). Phase D / D1: after the `theo_project_knowledge` INSERT, `theo_add_project_knowledge_file` (on `vaultgpt-func-projects`) **chunks the stored text, embeds each chunk, and upserts one doc per chunk into the Azure AI Search `theo-project-knowledge` index** (created idempotently), scoped by `project_id` + `created_by`. Indexing is **NON-FATAL** — an embed/Search failure never fails the add (the row is already committed). The indexing helpers are **reused from the deployed `theo_index_messages` (B7b1)** per the Walter-authorized composite (2026-07-24): `getAadToken` + `embedBatch` byte-identical (EXACT), `ensureIndex` + `upsertDocs` authorized adapted reuse (index-name → `PK_SEARCH_INDEX` / project-schema deltas only), plus content chunking. No new npm dependency (embeddings + Search over `https`), no schema change, no contract change (response shape identical). `node --check` PASS this turn.
 
 ## Grounding Conformance Receipt
 
@@ -40,13 +40,13 @@ Currency-anchor form: git blob SHA at HEAD.
 > failure never fails the knowledge add). No new external system (Azure OpenAI embeddings + Azure AI
 > Search vaultgpt-search are already used by B7b).
 
-Satisfies Golden Handler §2 (composite requires Walter authorization) + §4 / Conformance §10 T12 (the embedding + Search helpers are byte-identical EXACT mirrors of the deployed `theo_index_messages` AND carry a verbatim Walter authorization predating this VEP).
+Satisfies Golden Handler §2 (composite requires Walter authorization) + §4 / Conformance §10 T12: `getAadToken` + `embedBatch` are byte-identical EXACT mirrors of the deployed `theo_index_messages`; `ensureIndex` + `upsertDocs` are authorized adapted reuse of it (index-name / project-schema deltas only) — all under a verbatim Walter authorization predating this VEP.
 
 ## Rule Anchor Table
 | Source doc (absolute path) | Clause id | Verbatim clause text | Applied in output at |
 |----------------------------|-----------|----------------------|----------------------|
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_GOLDEN_HANDLER_STANDARD.md | §2 | "exactly one" | §Structural Mirror — canonical Primary Reference = deployed theo_add_project_knowledge_file |
-| c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_GOLDEN_HANDLER_STANDARD.md | §4 | "an EXACT mirror against a deployed handler containing that helper" | §Structural Mirror — getAadToken/ensureIndex/embedBatch/upsertDocs byte-exact from deployed theo_index_messages |
+| c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_GOLDEN_HANDLER_STANDARD.md | §4 | "an EXACT mirror against a deployed handler containing that helper" | §Structural Mirror — getAadToken/embedBatch byte-exact; ensureIndex/upsertDocs authorized adapted reuse; from deployed theo_index_messages |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_GOLDEN_HANDLER_STANDARD.md | §4 | "ALLOWED DELTA" | §Structural Mirror — project-index schema + chunking + non-fatal on-ingest block = ALLOWED DELTAs |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_GOLDEN_HANDLER_STANDARD.md | §5.1 | "mapping every handler region to the Primary Reference region" | §Structural Mirror table |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_GOLDEN_HANDLER_STANDARD.md | §5.5 | "Run-from-package deploy model" | §Deploy — rebuild the run-from-package artifact per DR-T13 |
@@ -68,12 +68,12 @@ Satisfies Golden Handler §2 (composite requires Walter authorization) + §4 / C
 - **Deploy** — `vaultgpt-func-projects` run-from-package (DR-T13/§1E): rebuild artifact (pg + pdf-parse — unchanged deps), repoint, restart.
 
 ## §1 Feature Identification + boundary
-- **Change:** append a non-fatal on-ingest indexing block to `theo_add_project_knowledge_file` after COMMIT — chunk `text` (`CHUNK_CHARS=2000`), `getAadToken` (embed + search scopes), `ensureIndex` (`theo-project-knowledge`), `embedBatch` the chunks, `upsertDocs` one doc/chunk (`id=<knowledge_id>-<i>`, `knowledge_id`, `project_id`, `created_by`, `title`, `content`, `chunk_index`, `created_at`, `content_vector`). Helpers byte-identical to `theo_index_messages`.
+- **Change:** append a non-fatal on-ingest indexing block to `theo_add_project_knowledge_file` after COMMIT — chunk `text` (`CHUNK_CHARS=2000`), `getAadToken` (embed + search scopes), `ensureIndex` (`theo-project-knowledge`), `embedBatch` the chunks, `upsertDocs` one doc/chunk (`id=<knowledge_id>-<i>`, `knowledge_id`, `project_id`, `created_by`, `title`, `content`, `chunk_index`, `created_at`, `content_vector`). Helpers from `theo_index_messages`: `getAadToken`/`embedBatch` byte-identical; `ensureIndex`/`upsertDocs` authorized adapted reuse (index-name / project-schema deltas).
 - **Boundary:** one handler edit; no new npm dep; no schema change; no contract change (same route + response shape). Indexing failures are swallowed (logged) — the 201 + committed row are unaffected. `node --check` PASS.
 
 ## §2 Gap Register
 **PROCEED.**
-- **(1) Composite reuse authorized + EXACT-mirrored.** getAadToken/ensureIndex/embedBatch/upsertDocs byte-identical to deployed theo_index_messages; verbatim Walter authorization predates this VEP. §4/T12 clean. PROCEED.
+- **(1) Composite reuse authorized.** getAadToken/embedBatch byte-identical to deployed theo_index_messages (EXACT); ensureIndex/upsertDocs authorized adapted reuse (index-name / project-schema deltas). Verbatim Walter authorization predates this VEP. §4/T12 clean. PROCEED.
 - **(2) No schema/contract change.** theo_project_knowledge unchanged; response shape identical (index docs are in Search, not the API response). PROCEED.
 - **(3) Non-fatal.** Index/embewd/Search failure is caught + logged; the knowledge add still returns 201. PROCEED.
 - **(4) Retrieval + de-index are later steps.** D3 (func-stream) adds the retrieval seam (project-scoped) + intersects Search hits against live DB rows so removed items aren't retrieved; D4 (FE) retires client-side concatenation; a one-time backfill indexes pre-existing rows. This D1 only indexes NEW file-knowledge adds. Disclosed. PROCEED.
@@ -85,7 +85,7 @@ Satisfies Golden Handler §2 (composite requires Walter authorization) + §4 / C
 - **P2.5:** Gap Register (PROCEED).
 - **P3:** no schema change; `theo_project_knowledge` + `theo_attachments` unchanged; Search index `theo-project-knowledge` created idempotently by `ensureIndex`.
 - **P4:** no contract change (route + response shape identical; §2.6 RAG intent satisfied for the indexing half).
-- **P5:** Primary Reference = deployed `theo_add_project_knowledge_file` (inlined verbatim); reuse helpers byte-exact from deployed `theo_index_messages` (inlined); Structural Mirror below.
+- **P5:** Primary Reference = deployed `theo_add_project_knowledge_file` (inlined verbatim); reuse helpers from deployed `theo_index_messages` (inlined) — getAadToken/embedBatch byte-exact, ensureIndex/upsertDocs authorized adapted reuse; Structural Mirror below.
 - **P6:** no migration; handler SQL unchanged (the INSERT + set_config + SELECTs are the deployed ones).
 - **P7:** golden curls below (incl. verifying an indexed doc appears in Search); Claude Code runs them post-deploy.
 - **P8:** this pack.
@@ -267,7 +267,7 @@ Blob `72a5278ecdb72142e3ffa4c4a7b644f180d653dd` (byte-identical in the deployed 
 ```
 
 ## Authorized-reuse source (deployed `theo_index_messages` B7b1) — helpers VERBATIM
-Copied byte-identically (only the index name → `PK_SEARCH_INDEX`, and the `ensureIndex` field set → the project schema, per the authorization):
+`getAadToken` + `embedBatch` are copied byte-identically (neither references the index name). `upsertDocs` is copied with the single change of the index variable `SEARCH_INDEX` → `PK_SEARCH_INDEX` in the docs/index URL. `ensureIndex` reuses the same create-or-update PUT logic with the project field set (see §Handler). All under the composite authorization:
 ```javascript
 async function getAadToken(scope) {
   const tenantId = process.env.AAD_TENANT_ID;
@@ -303,7 +303,8 @@ async function upsertDocs(searchToken, docs) {
 |---|---|---|---|
 | Entire deployed handler body (boilerplate, blob helpers, validation, ownership + attachment SELECT, extraction, INSERT, COMMIT, catch/finally) | deployed theo_add_project_knowledge_file (primary ref) | **EXACT** (unchanged) | Golden Handler §2 "exactly one" |
 | RAG constants (EMBED_*/SEARCH_*/PK_SEARCH_INDEX/scopes/CHUNK_CHARS/EMBED_BATCH) + parseJsonSafe | from deployed theo_index_messages config | **ALLOWED DELTA** (config) + EXACT-mirror | Golden Handler §4 "ALLOWED DELTA" |
-| getAadToken / embedBatch / upsertDocs | deployed theo_index_messages | **AUTHORIZED REUSE** (byte-exact; index name → PK_SEARCH_INDEX in upsertDocs URL) | Golden Handler §4 "an EXACT mirror against a deployed handler containing that helper" |
+| getAadToken / embedBatch | deployed theo_index_messages | **AUTHORIZED REUSE — EXACT** (byte-identical; neither references the index name) | Golden Handler §4 "an EXACT mirror against a deployed handler containing that helper" |
+| upsertDocs | deployed theo_index_messages upsertDocs | **AUTHORIZED REUSE + ALLOWED DELTA** (same logic; the one difference is the index variable `SEARCH_INDEX` → `PK_SEARCH_INDEX` in the docs/index URL — NOT byte-identical) | Golden Handler §4 "ALLOWED DELTA" + composite authorization |
 | ensureIndex | deployed theo_index_messages ensureIndex | **AUTHORIZED REUSE + ALLOWED DELTA** (same PUT logic; project field set per authorization) | Golden Handler §4 "an EXACT mirror against a deployed handler containing that helper" |
 | chunkText | new (project docs are large) | **ALLOWED DELTA** | Golden Handler §4 "ALLOWED DELTA" |
 | on-ingest indexing block (after COMMIT, non-fatal try/catch) | new | **ALLOWED DELTA** | Golden Handler §4 "ALLOWED DELTA" |
@@ -325,7 +326,7 @@ Bearer via `az account get-access-token` for `api://4e1a1e31-…/access_as_user`
 
 ## Parity Checklist (Golden Handler §5.4)
 - [x] Single canonical Primary Reference (deployed theo_add_project_knowledge_file) inlined full verbatim + function.json unchanged.
-- [x] Reuse helpers inlined verbatim; byte-identical to deployed theo_index_messages; Walter-authorized + EXACT-mirror.
+- [x] Reuse helpers inlined verbatim from deployed theo_index_messages; getAadToken/embedBatch byte-identical (EXACT), ensureIndex/upsertDocs authorized adapted reuse (index-name / project-schema deltas); all Walter-authorized.
 - [x] Structural Mirror classifies every region; on-ingest block + chunking = ALLOWED DELTAs; indexing helpers = AUTHORIZED REUSE.
 - [x] Executes as the signed-in user; unchanged Postgres access; index docs carry created_by + project_id (retrieval scope).
 - [x] Only theo_ tables + theo-content Blob + vaultgpt-search; no reporting_*; no new external system.

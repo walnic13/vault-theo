@@ -11,7 +11,7 @@ Pass: Pass 1
 Sub-phase Track: P5
 (A VEP turn walks P1–P8 (§3 below); the GCR field takes one value and the lint rejects a range, so the crux phase — P5 Handler grounding / Primary-Reference selection — is declared, with the full P1–P8 authority set anchored below for §4A completeness.)
 
-Turn issued against HEAD: `<STAMP>` (vault-theo, `development`; grounding parent `b413575851f05e81a0ecb373f1bdbf7dfafedb22` — the deployed Phase A clarity fix). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance; not used as grounding evidence this turn).
+Turn issued against HEAD: `92551bf49d6be4ac4b4178e31144bca951143756` (vault-theo, `development`; grounding parent `b413575851f05e81a0ecb373f1bdbf7dfafedb22` — the deployed Phase A clarity fix). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance; not used as grounding evidence this turn).
 Currency-anchor form: git blob SHA at HEAD.
 
 ### §4 Documents grounded this turn (Full Baseline — Conformance §4 VEP row)

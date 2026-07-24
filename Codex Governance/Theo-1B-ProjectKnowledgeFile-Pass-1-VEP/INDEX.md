@@ -11,7 +11,7 @@ Pass: Pass 1
 Sub-phase Track: P5
 (A VEP turn walks P1–P8 (§3 below); the GCR field takes one value and the lint rejects a range, so the crux phase — P5 Handler grounding / Primary-Reference selection — is declared, with the full P1–P8 authority set anchored below for §4A completeness.)
 
-Turn issued against HEAD: `92551bf49d6be4ac4b4178e31144bca951143756` (vault-theo, `development`; grounding parent `b413575851f05e81a0ecb373f1bdbf7dfafedb22` — the deployed Phase A clarity fix). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance; not used as grounding evidence this turn).
+Turn issued against HEAD: `<STAMP2>` (vault-theo, `development`; grounding parent `df4e5f03e78b30b1513c0e3309361345517bf942` — the DR-T12 Role-C landing that added `vaultgpt-func-projects` to the Claude-deploy exception). **Re-issue** of the VEP previously REJECTED solely on deploy authority (`vaultgpt-func-projects` not yet in DR-T7); the handler + `function.json` are byte-unchanged (same blobs), and the deploy gate is now satisfied by DR-T12. Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance; not used as grounding evidence this turn).
 Currency-anchor form: git blob SHA at HEAD.
 
 ### §4 Documents grounded this turn (Full Baseline — Conformance §4 VEP row)
@@ -20,7 +20,7 @@ Currency-anchor form: git blob SHA at HEAD.
 | 1 | Claude Code Theo Governor Standard — `governance/CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md` | `Grep("Never-Guess…")` this turn | `c3f2267b751d5e9f4f025331359c4d3013bcbe8a` |
 | 2 | Theo Golden Handler Standard — `governance/THEO_GOLDEN_HANDLER_STANDARD.md` (§2/§4/§5) | `Read` this turn | `521442379b47d8bf43b877b4feb5b420065b5cfe` |
 | 3 | Theo Grounding Conformance Standard — `governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md` (§3/§5/§6/§10) | `Read` this turn | `7c0d902bdff3b6c0af475b483e31ed796214e57b` |
-| 4 | Theo Execution Orchestration Standard — `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md` (roles; DR-T7 deploy exception) | `Grep("Claude Code…")` this turn | `be066f12147d1eb13b51f025b275f5413ab51f0e` |
+| 4 | Theo Execution Orchestration Standard — `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md` (roles; DR-T7/DR-T12 deploy exception — now incl. `vaultgpt-func-projects`) | `Read`+`Grep` this turn | `733615cb6db444e0e8c16b5fe47402e0b77d2aa8` |
 | 5 | Codex Theo Backend Review Standard — `governance/CODEX_THEO_BACKEND_REVIEW_STANDARD.md` | `Grep("APPROVED…")` this turn | `d2e1b9881b6e2ed7d77921a055feffb0852257fd` |
 | 6 | Theo Phase 1B Backend Plan — `governance/THEO_PHASE_1B_BACKEND_PLAN.md` (Tier B8 extract pipeline; HF-T4 RAG) | `Grep("project knowledge…")` this turn | `28183604ddfcfe80fa3f3dda6f78e437b88d32d6` |
 | 7 | Theo Architecture and Structure — `governance/THEO_ARCHITECTURE_AND_STRUCTURE.md` (§1 boundary, §5 theo_ schema/RLS) | `Grep("theo_ tables…")` this turn | `07451ce9d912830b3c15fedf74761d00c59f97b2` |
@@ -52,6 +52,7 @@ Currency-anchor form: git blob SHA at HEAD.
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/spec/THEO_API_SPEC.md | §2.8 | "theo_finalize_attachment" | §Authorization — the deployed extract pipeline reused |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/spec/THEO_AZURE_POSTGRES_SCHEMA.md | §5 | "theo_project_knowledge" | §P3 — target table; file-pointer columns already deployed |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1 | "Theo-app deployment exception granted to Claude Code (DR-T7)" | §Deploy — Claude Code deploys the new Theo app |
+| c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1E | "the Projects app `vaultgpt-func-projects`" | §Deploy — DR-T12 (landed df4e5f0) authorizes Claude-Code Kudu deploy to `vaultgpt-func-projects` |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/CODEX_THEO_BACKEND_REVIEW_STANDARD.md | §review | "No conditional, partial, or pending-correction approval" | §Requested action — APPROVED / REJECTED only |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_PHASE_1B_BACKEND_PLAN.md | Tier B8 | "extract-class (Excel/Word/PPT/CSV/TXT)" | §1/§Gap — accepts finalize-extracted files; native-only files rejected |
 
@@ -506,7 +507,7 @@ curl -s -X POST "$BASE/api/theo_add_project_knowledge_file" -H "Authorization: B
 - [x] Golden curls deterministic (method/path/headers/body/asserted response); Claude Code runs them post-deploy.
 - [x] Mechanical lint PASS (below).
 
-## §Deploy (Pass-3, on APPROVAL) — Claude Code deploys `vaultgpt-func-projects`
+## §Deploy (Pass-3, on APPROVAL) — Claude Code deploys `vaultgpt-func-projects` (authorized: DR-T12 / §1E, landed 2026-07-24 `df4e5f0`)
 1. Kudu VFS PUT `theo_add_project_knowledge_file/{index.js,function.json}` to `/site/wwwroot/theo_add_project_knowledge_file/` on `vaultgpt-func-projects` (SCM host resolved via `az functionapp show … enabledHostNames`); `npm` deps (`pg`) present on the app; GET-back diff; `az functionapp restart`.
 2. Claude Code runs the golden curls (GC1–GC6) and reports results (§5.5 — "Claude both deploys and curls").
 3. Land the API-Spec §2.2 Role-C (separate Pass-4) documenting the shipped endpoint, THEN author the Phase C FE package (drop-zone) — FE VEP citing the route comes after the Role-C is applied.

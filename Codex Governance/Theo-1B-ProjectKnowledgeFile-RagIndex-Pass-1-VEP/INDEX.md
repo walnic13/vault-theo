@@ -26,6 +26,7 @@ Currency-anchor form: git blob SHA at HEAD.
 | 7 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.2 route unchanged; §2.6 RAG intent / HF-T4) | `Grep` this turn | `435d72f7726070ba34077768919fa69f04fe03c4` |
 | 8 | Theo Azure Postgres Schema — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` (§5 theo_project_knowledge — RAG-indexed) | `Grep` this turn | `fa9aad4c75019de0b621e31b5d33ef97f3689639` |
 | 9 | Primary Reference (deployed) — `theo_add_project_knowledge_file/index.js` (current handler on `vaultgpt-func-projects`, PdfExtract) — blob `630ff773165f5dc30caa2cebed3751f4275f504e` | `Read` this turn | `630ff773165f5dc30caa2cebed3751f4275f504e` (inlined verbatim below) |
+| 9b | Primary Reference (deployed) — `theo_add_project_knowledge_file/function.json` (the paired deployed function.json — Golden Handler §2) — blob `72a5278ecdb72142e3ffa4c4a7b644f180d653dd` | `Read` this turn | `72a5278ecdb72142e3ffa4c4a7b644f180d653dd` (inlined verbatim below) |
 | 10 | Authorized-reuse source (deployed) — `theo_index_messages.index.js` (B7b1 indexer; getAadToken/ensureIndex/embedBatch/upsertDocs) — blob `665bdb36fe5e59dbe75dec4a88bc29c4c1519003` | `Read` this turn | `665bdb36fe5e59dbe75dec4a88bc29c4c1519003` (reused helpers inlined verbatim below) |
 
 ## Walter Authorization (composite — quoted verbatim, predating this VEP)
@@ -243,6 +244,28 @@ module.exports = async function (context, req) {
 ```
 *(Formatting note: the inline above is the deployed handler's exact logic; the committed package copy at `Theo-1B-ProjectKnowledgeFile-PdfExtract-Pass-1-VEP` blob `630ff773` is the byte-authority. The D1 package's handler is this file PLUS the reuse helpers + on-ingest block below.)*
 
+### Primary Reference paired `function.json` (deployed) — FULL VERBATIM (Golden Handler §2 / Conformance T9)
+Blob `72a5278ecdb72142e3ffa4c4a7b644f180d653dd` (byte-identical in the deployed PdfExtract package and the D1 package — the route binding is unchanged by this VEP):
+```json
+{
+  "bindings": [
+    {
+      "authLevel": "anonymous",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "req",
+      "methods": ["post", "options"],
+      "route": "theo_add_project_knowledge_file"
+    },
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "res"
+    }
+  ]
+}
+```
+
 ## Authorized-reuse source (deployed `theo_index_messages` B7b1) — helpers VERBATIM
 Copied byte-identically (only the index name → `PK_SEARCH_INDEX`, and the `ensureIndex` field set → the project schema, per the authorization):
 ```javascript
@@ -286,7 +309,7 @@ async function upsertDocs(searchToken, docs) {
 | on-ingest indexing block (after COMMIT, non-fatal try/catch) | new | **ALLOWED DELTA** | Golden Handler §4 "ALLOWED DELTA" |
 
 ## New handler + package
-Included: `theo_add_project_knowledge_file/index.js` (blob `74a7d6c6437877d67ded4f881d337fe6fe37d667`; `node --check` PASS) + `function.json` (unchanged) + `package.json`/`package-lock.json` (pg + pdf-parse — UNCHANGED; no new dep) + `host.json`.
+Included: `theo_add_project_knowledge_file/index.js` (blob `74a7d6c6437877d67ded4f881d337fe6fe37d667`; `node --check` PASS) + `function.json` (blob `72a5278ecdb72142e3ffa4c4a7b644f180d653dd` — byte-identical to the deployed Primary Reference function.json inlined full-verbatim above; the route binding is unchanged by this VEP) + `package.json`/`package-lock.json` (pg + pdf-parse — UNCHANGED; no new dep) + `host.json`.
 
 ## Golden Curls (P7 / §5.5; run by Claude Code post-deploy)
 Bearer via `az account get-access-token` for `api://4e1a1e31-…/access_as_user`; base `https://vaultgpt-func-projects.azurewebsites.net`.

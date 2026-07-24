@@ -28,7 +28,7 @@ export function buildSystemPrompt(styleKey: StyleKey, custom: string, project: P
       // knowledge item cannot blow the system prompt. Full-fidelity relevance retrieval arrives in Phase D.
       const PER_ITEM_MAX = 6000;
       project.knowledge.forEach((k) => {
-        const body = k.content.length > PER_ITEM_MAX ? k.content.slice(0, PER_ITEM_MAX) + "\n…(truncated; full text retrieved on demand)" : k.content;
+        const body = k.content.length > PER_ITEM_MAX ? k.content.slice(0, PER_ITEM_MAX) + "\n…(truncated in prompt)" : k.content;
         p += `\n--- ${k.title} ---\n${body}\n`;
       });
     }

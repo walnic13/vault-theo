@@ -630,7 +630,7 @@ async function ensureIndex(searchToken) {
 | on-ingest indexing block (after COMMIT, non-fatal try/catch) | new | **ALLOWED DELTA** | Golden Handler §4 "ALLOWED DELTA" |
 
 ## New handler + package
-Included: `theo_add_project_knowledge_file/index.js` (blob `74a7d6c6437877d67ded4f881d337fe6fe37d667`; `node --check` PASS) + `function.json` (blob `72a5278ecdb72142e3ffa4c4a7b644f180d653dd` — byte-identical to the deployed Primary Reference function.json inlined full-verbatim above; the route binding is unchanged by this VEP) + `package.json`/`package-lock.json` (pg + pdf-parse — UNCHANGED; no new dep) + `host.json`.
+Included: `theo_add_project_knowledge_file/index.js` (blob `edbb107fc22ea22b36f424725b6a42767822a555`; `node --check` PASS) + `function.json` (blob `72a5278ecdb72142e3ffa4c4a7b644f180d653dd` — byte-identical to the deployed Primary Reference function.json inlined full-verbatim above; the route binding is unchanged by this VEP) + `package.json`/`package-lock.json` (pg + pdf-parse — UNCHANGED; no new dep) + `host.json`.
 
 ## Golden Curls (P7 / §5.5; run by Claude Code post-deploy)
 Bearer via `az account get-access-token` for `api://4e1a1e31-…/access_as_user`; base `https://vaultgpt-func-projects.azurewebsites.net`.

@@ -13,9 +13,9 @@ const FILE_CONTENT_MAX_LEN = 100000;
 // theo-content Blob account/container (identical resolution to the deployed theo_finalize_attachment).
 const STORAGE_ACCOUNT = process.env.THEO_BLOB_ACCOUNT || "vaultgptstorage01";
 // Phase D — RAG on-ingest indexing (Azure AI Search project-knowledge index). Config + helpers
-// (getAadToken/ensureIndex/embedBatch/upsertDocs) reused byte-identically from the deployed
-// theo_index_messages (B7b1) per the Walter-authorized composite (2026-07-24), adapted only for the
-// theo-project-knowledge index + content chunking. Indexing is NON-FATAL (never fails the add).
+// reused from the deployed theo_index_messages (B7b1) per the Walter-authorized composite
+// (2026-07-24): getAadToken + embedBatch byte-identical (EXACT); ensureIndex + upsertDocs adapted
+// reuse (index name -> PK_SEARCH_INDEX / project field set). Indexing is NON-FATAL (never fails the add).
 const EMBED_ENDPOINT = (process.env.THEO_EMBED_ENDPOINT || "").replace(/\/+$/, "");
 const EMBED_DEPLOYMENT = process.env.THEO_EMBED_DEPLOYMENT;
 const EMBED_API_VERSION = process.env.THEO_EMBED_API_VERSION || "2023-05-15";
@@ -218,8 +218,9 @@ async function downloadBlob(accountName, containerName, blobKey) {
   return r.body; // Buffer
 }
 
-// ---- Phase D RAG indexing helpers (byte-identical reuse of the deployed theo_index_messages B7b1,
-// per the Walter-authorized composite; adapted only for the theo-project-knowledge index) ----
+// ---- Phase D RAG indexing helpers reused from the deployed theo_index_messages B7b1 per the
+// Walter-authorized composite: getAadToken + embedBatch byte-identical (EXACT); ensureIndex +
+// upsertDocs adapted reuse (index name -> PK_SEARCH_INDEX / project field set) ----
 function parseJsonSafe(raw) {
   if (typeof raw !== "string" || raw.trim() === "") return null;
   try {

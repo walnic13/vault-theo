@@ -84,12 +84,48 @@ Format: Golden Pack §3. `no any`; every row: interface (full TS) + VA-id + cont
 
 | # | Module (ownership; ACTIVE/NEW) | Interface change (TypeScript) | Visual authority | Data / contract dependency | Impl eligibility |
 | - | --- | --- | --- | --- | --- |
-| TC-1 | `types.ts` (Theo surface; **ACTIVE**, modify) | `GatewayRequest` gains `project_id?: string \| null;` (additive optional; placed after `attachment_ids?: string[]`). No other member changes; `GatewayResponse`/`ConversationSummary`/`AppContext` unchanged. | VA-T1 (no surface) | API Spec §2.1 `theo_message_stream` (`project_id`) | PROCEED |
+| TC-1 | `types.ts` (Theo surface; **ACTIVE**, modify) | `GatewayRequest` gains `project_id?: string \| null;` (additive optional; placed after `attachment_ids?: string[]`). No other member changes; `GatewayResponse`/`ConversationSummary`/`AppContext` unchanged. **Full literal `GatewayRequest` locked in §F-P5.1.** | VA-T1 (no surface) | API Spec §2.1 `theo_message_stream` (`project_id`) | PROCEED |
 | TC-2 | `useTheoState` (Theo surface; **ACTIVE**, modify — state owner) | In `send`, the request object gains `...(chatProject ? { project_id: chatProject.id } : {})` (after the `attachment_ids` spread). `chatProject` is the existing held `Project \| null`. No signature/handler-name change. Plus the disclosed pre-existing fold `let think` → `const think` (behaviour-neutral). | VA-T1 (chat surface; unchanged render) | API Spec §2.1; D3 seam | PROCEED |
-| TC-3 | `gateway.live` (Theo surface; **ACTIVE**, modify) | In `sendMessageStream`'s `theo_message_stream` body, add `...(req.project_id != null ? { project_id: req.project_id } : {})` (after the `attachment_ids` spread). **Stream path ONLY** — `sendMessage` (non-stream) is unchanged. Signature `sendMessageStream(req: GatewayRequest, handlers, opts?)` unchanged. | VA-T1 (no surface) | `theo_message_stream` (DEPLOYED D3) | PROCEED |
+| TC-3 | `gateway.live` (Theo surface; **ACTIVE**, modify) | In `sendMessageStream`'s `theo_message_stream` body, add `...(req.project_id != null ? { project_id: req.project_id } : {})` (after the `attachment_ids` spread). **Stream path ONLY** — `sendMessage` (non-stream) is unchanged. Signature unchanged. **Full `sendMessageStream` signature + `StreamHandlers` interface locked in §F-P5.1.** | VA-T1 (no surface) | `theo_message_stream` (DEPLOYED D3) | PROCEED |
 | TC-4 | `prompt.ts` (Theo surface; **ACTIVE**, modify) | `buildSystemPrompt(styleKey, custom, project, userName?, appKey?)` signature unchanged. Body: remove the `if (project.knowledge.length) { p += " Project knowledge…"; const PER_ITEM_MAX = 6000; project.knowledge.forEach(…) }` block; keep the project name + instructions line. Replaced with a comment recording that D1/D2a+D3 now inject knowledge server-side. `Project.knowledge` remains on the type (still rendered in `ProjectDetail`). | VA-T1 (no surface) | D3 seam (server-side knowledge injection) | PROCEED |
 
 **Infra:** consumes the already-baked `VITE_STREAM_FUNCTIONS_URL`/config; no `vite.config`/dependency change. `theoClient.ts` is **unchanged** — `sendMessageStream` passes the typed `GatewayRequest` straight through, so widening the type carries `project_id` with no code change. `gateway.mock.ts` unchanged (optional field; mock ignores it). `ChatView.tsx`/`ProjectDetail.tsx`/`TheoMain.tsx` unchanged.
+
+## F-P5.1 — Locked interface literals (T20 — full literal CCT surfaces)
+
+**`GatewayRequest`** (`src/theo/types.ts`) — full literal AFTER this VEP (the only change is the additive final member `project_id?`):
+```typescript
+export interface GatewayRequest {
+  model: string; max_tokens: number; system: string; messages: Message[];
+  conversation_id?: string;                          // B3a: omit to start a new thread
+  app_key?: string | null;                           // B3a: persisted on a new conversation
+  app_context?: Record<string, unknown> | null;      // B3a: opaque anchor (jsonb)
+  attachment_ids?: string[];                         // B8d: owner-scoped attachments to inject
+  project_id?: string | null;                        // D4: active project for project-scoped knowledge RAG (theo_message_stream, D3)
+}
+```
+
+**`sendMessageStream` signature** (`src/theo/services/gateway.live.ts`; and the identical passthrough in `theoClient.ts`) — UNCHANGED by this VEP:
+```typescript
+export async function sendMessageStream(req: GatewayRequest, handlers: StreamHandlers, opts?: { signal?: AbortSignal }): Promise<void>
+```
+
+**`StreamHandlers`** (`src/theo/services/gateway.live.ts`) — full literal, UNCHANGED by this VEP (locked as the consumed handler surface):
+```typescript
+export interface StreamHandlers {
+  onText: (delta: string) => void;
+  onThinking?: (delta: string) => void;
+  onCitation?: (c: StreamCitation) => void;
+  onMeta?: (meta: { conversation_id?: string; model?: string }) => void;
+  onTool?: (t: { name: string; input: unknown }) => void;
+  onToolResult?: (t: { name: string; ok: boolean }) => void;
+  onExport?: (d: FileDownload) => void;
+  onImage?: (img: InlineImage) => void;
+  onVideo?: (v: InlineVideo) => void;
+  onTokens?: (t: { tokens: number }) => void;
+}
+```
+(Comments elided in the StreamHandlers literal for length; the member set + types are byte-exact to the deployed interface at `gateway.live.ts:901`. Only `GatewayRequest` changes this VEP — one additive optional member.)
 
 ## F-P6 — Repository & active-surface grounding
 Targets read this turn, ACTIVE @ vault-theo `f7f47ab`: `types.ts` (+`project_id`), `useTheoState.ts` (send +`project_id`; folded `const think`), `services/gateway.live.ts` (stream body +`project_id`), `lib/prompt.ts` (retire knowledge concat). Guardrails: gateway abstraction preserved; no browser→model call (user Bearer only); no `localStorage`/`sessionStorage`; no Tailwind; no `reporting_*`/`corporate-reporting`. Validated: `tsc --noEmit` exit 0, `eslint` exit 0 (pre-existing warning only), `vite build` exit 0; `src` reverted (package carries only `proposed-src/`).

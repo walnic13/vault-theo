@@ -12,7 +12,7 @@ Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5
 
-Turn issued against HEAD: `5327e8e524c719f8b09d449d0bc15f8268a5ec99` (vault-theo, `development`; grounding parent `22150425cdc6ab84da528f67a17496371925634e`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
+Turn issued against HEAD: `c8dba679683c5e4ac73ba25b2a39174b21dc82d7` (vault-theo, `development`; grounding parent `22150425cdc6ab84da528f67a17496371925634e`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
 Currency-anchor form: git blob SHA at HEAD.
 Baseline-verification note: the Primary Reference below was fetched **live** from `vaultgpt-func-stream` (Kudu VFS `site/wwwroot/src/functions/theo_message_stream.js`, ARM-bearer GET, HTTP 200) this turn and confirmed **byte-identical** to the committed snapshot blob `bdbb71f488414cc82c31f211977f630d7d5e0293` — the deployed baseline is not assumed.
 

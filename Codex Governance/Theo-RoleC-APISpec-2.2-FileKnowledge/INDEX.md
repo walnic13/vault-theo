@@ -10,7 +10,7 @@ Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 4
 Sub-phase Track: N/A
 
-Turn issued against HEAD: `d75b19122671a30de76cd2f30b40585b97b9d336` (vault-theo, `development`; grounding parent `9368e662f812d42a658081c43b613c5ca473bcd3`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
+Turn issued against HEAD: `796af7339ce89418f620acc0940308532eb68aa2` (vault-theo, `development`; grounding parent `9368e662f812d42a658081c43b613c5ca473bcd3`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
 Currency-anchor form: git blob SHA at HEAD.
 Grounding-mode basis: Conformance §4 "Documentation-update package" row = Targeted Current-Turn Grounding (Governor documentation-update sections + target document + this Standard). Deploy evidence: `theo_add_project_knowledge_file` live on `vaultgpt-func-projects`; **golden curls GC1–GC6 run this session end-to-end** — 401 (no bearer) / 400 (unknown field) / 400 (bad uuid) / 404 (unowned project) / **201** (happy path: created a project, uploaded a `.txt` via `theo_create_attachment_upload`→`theo_finalize_attachment`, then `201` `source_type='file'`, `content` = extracted text) / **400 `UNSUPPORTED_MEDIA_TYPE`** (native `.png`, no extracted text). Test project + both attachments deleted after verification.
 

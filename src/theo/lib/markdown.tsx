@@ -39,6 +39,12 @@ const MD: Components = {
   table: ({ children }) => <div style={{ overflowX: "auto", margin: "10px 0" }}><table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13.5 }}>{children}</table></div>,
   th: ({ children }) => <th style={{ ...cell, background: C.bubble, fontWeight: 650 }}>{children}</th>,
   td: ({ children }) => <td style={cell}>{children}</td>,
+  // Inline image display (Theo emits a markdown image to SHOW the user something). https-only
+  // (defense-in-depth over react-markdown's default urlTransform); max-width caps it to the bubble.
+  img: ({ src, alt }) =>
+    typeof src === "string" && src.startsWith("https://")
+      ? <img src={src} alt={alt || ""} style={{ maxWidth: "100%", height: "auto", borderRadius: 8, margin: "8px 0" }} />
+      : null,
 };
 
 export function Formatted({ text }: { text: string }) {

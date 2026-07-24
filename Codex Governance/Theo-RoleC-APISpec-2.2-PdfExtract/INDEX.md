@@ -10,7 +10,7 @@ Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 4
 Sub-phase Track: N/A
 
-Turn issued against HEAD: `<STAMP>` (vault-theo, `development`; grounding parent `3dea26feb416a35f4f0e8a7899f5ceaff5da55d1`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
+Turn issued against HEAD: `2c30eb21bbc84803ee21cb00f264c209c566d019` (vault-theo, `development`; grounding parent `3dea26feb416a35f4f0e8a7899f5ceaff5da55d1`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
 Currency-anchor form: git blob SHA at HEAD.
 Grounding-mode basis: Conformance §4 "Documentation-update package" row = Targeted Current-Turn Grounding. Deploy evidence: PdfExtract VEP APPROVED (package 639a4ba) + deployed (run-from-package `pkg-639a4ba.zip`, pg+pdf-parse); golden curls this session — GC-PDF 201 (native text PDF, pdf-parse), GC5 201 (.txt), GC6 400 (native image), GC1 401; test data deleted after.
 

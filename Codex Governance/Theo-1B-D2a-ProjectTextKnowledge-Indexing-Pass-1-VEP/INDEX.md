@@ -27,6 +27,7 @@ Baseline-verification note: the Primary Reference below was fetched **live** fro
 | 6 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.2 `theo_add_project_knowledge`; §2.6 RAG intent / HF-T4) | `Grep` this turn | `c99a66f39b4ec03644701c266e49aaf2bf52c2ed` |
 | 7 | Theo Azure Postgres Schema — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` (§5 `theo_project_knowledge` — RAG-indexed) | `Read`+`Grep` this turn | `fa9aad4c75019de0b621e31b5d33ef97f3689639` |
 | 8 | Primary Reference (deployed, live-fetched) — `theo_add_project_knowledge/index.js` (premium) — blob `b867eca08c6945cf5da6ec5f08ec19601b187379` | `Read` this turn (+ live Kudu fetch) | `b867eca08c6945cf5da6ec5f08ec19601b187379` (inlined verbatim below) |
+| 8b | Primary Reference (deployed) — `theo_add_project_knowledge/function.json` (the paired deployed function.json — Golden Handler §2) — blob `ce3589b4e2e85f6c3a7d4161831a68b60bd6efaa` | `Read` this turn (+ live Kudu fetch) | `ce3589b4e2e85f6c3a7d4161831a68b60bd6efaa` (inlined verbatim below) |
 | 9 | Authorized-reuse source (deployed) — `theo_add_project_knowledge_file/index.js` (D1) — blob `edbb107f…` and `theo_index_messages.index.js` (B7b1) — blob `665bdb36fe5e59dbe75dec4a88bc29c4c1519003` | `Read` this turn | `665bdb36fe5e59dbe75dec4a88bc29c4c1519003` (reused helpers byte-identical; verified vs D1 this turn) |
 
 ## Walter Authorization (composite — quoted verbatim, predating this VEP)
@@ -306,6 +307,29 @@ module.exports = async function (context, req) {
 };
 ```
 
+
+## Primary Reference paired `function.json` (deployed) — FULL VERBATIM (Golden Handler §2 / Conformance T9)
+Blob `ce3589b4e2e85f6c3a7d4161831a68b60bd6efaa` (deployed premium; route binding UNCHANGED by this VEP — index.js-only deploy):
+```json
+{
+  "bindings": [
+    {
+      "authLevel": "anonymous",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "req",
+      "methods": ["post", "options"],
+      "route": "theo_add_project_knowledge"
+    },
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "res"
+    }
+  ]
+}
+```
+
 ## Exact unified diff vs the live-fetched baseline (authoritative delta)
 ```diff
 --- deployed baseline (b867eca0)
@@ -551,7 +575,7 @@ module.exports = async function (context, req) {
 | on-ingest indexing block (after COMMIT, non-fatal) | deployed D1 handler on-ingest block (`text`→`content`, log label) | **ALLOWED DELTA** | Golden Handler §4 "ALLOWED DELTA" |
 
 ## New handler + package
-Included: `theo_add_project_knowledge/index.js` (blob `fc0163383a4714b8dd0d887a5b74a92723470410`; `node --check` PASS). No `function.json` change (route binding unchanged — not included). No `package.json` change (no new dep; premium's existing `pg` covers it; the indexing uses Node built-in `https`). Deploy unit = this single handler file (premium Kudu VFS surgical overwrite, DR-T14 / §5.5).
+Included: `theo_add_project_knowledge/index.js` (blob `fc0163383a4714b8dd0d887a5b74a92723470410`; `node --check` PASS). `function.json` (blob `ce3589b4` — route binding UNCHANGED from deployed) is included in the package and inlined full-verbatim above (Golden Handler §2 pair); it is NOT redeployed (index.js-only deploy). No `package.json` change (no new dep; premium's existing `pg` covers it; the indexing uses Node built-in `https`). Deploy unit = this single handler file (premium Kudu VFS surgical overwrite, DR-T14 / §5.5).
 
 ## Golden Curls (P7; run by Claude Code post-deploy)
 Bearer via `az account get-access-token` for `api://4e1a1e31-…/access_as_user`; premium base `https://vaultgpt-func-premium-…uksouth-01.azurewebsites.net`.
@@ -569,7 +593,7 @@ Bearer via `az account get-access-token` for `api://4e1a1e31-…/access_as_user`
 ```
 
 ## Parity Checklist (Golden Handler §5.4)
-- [x] Single canonical Primary Reference (deployed theo_add_project_knowledge) inlined full verbatim; live-fetched byte-faithful.
+- [x] Single canonical Primary Reference (deployed theo_add_project_knowledge) — handler index.js AND paired function.json both inlined full verbatim; live-fetched byte-faithful.
 - [x] Reused helpers byte-identical to the deployed D1 handler (verified this turn); Walter-authorized composite names D2.
 - [x] Structural mirror classifies every region; on-ingest block + chunking = ALLOWED DELTAs.
 - [x] Executes as the signed-in user; unchanged Postgres access; index docs carry created_by + project_id.

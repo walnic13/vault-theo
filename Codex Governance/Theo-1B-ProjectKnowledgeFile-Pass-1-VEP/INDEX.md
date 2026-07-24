@@ -11,7 +11,7 @@ Pass: Pass 1
 Sub-phase Track: P5
 (A VEP turn walks P1–P8 (§3 below); the GCR field takes one value and the lint rejects a range, so the crux phase — P5 Handler grounding / Primary-Reference selection — is declared, with the full P1–P8 authority set anchored below for §4A completeness.)
 
-Turn issued against HEAD: `<STAMP2>` (vault-theo, `development`; grounding parent `df4e5f03e78b30b1513c0e3309361345517bf942` — the DR-T12 Role-C landing that added `vaultgpt-func-projects` to the Claude-deploy exception). **Re-issue** of the VEP previously REJECTED solely on deploy authority (`vaultgpt-func-projects` not yet in DR-T7); the handler + `function.json` are byte-unchanged (same blobs), and the deploy gate is now satisfied by DR-T12. Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance; not used as grounding evidence this turn).
+Turn issued against HEAD: `29c2c7470457d0f4966b50455f00b9281bd8d7f9` (vault-theo, `development`; grounding parent `df4e5f03e78b30b1513c0e3309361345517bf942` — the DR-T12 Role-C landing that added `vaultgpt-func-projects` to the Claude-deploy exception). **Re-issue** of the VEP previously REJECTED solely on deploy authority (`vaultgpt-func-projects` not yet in DR-T7); the handler + `function.json` are byte-unchanged (same blobs), and the deploy gate is now satisfied by DR-T12. Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance; not used as grounding evidence this turn).
 Currency-anchor form: git blob SHA at HEAD.
 
 ### §4 Documents grounded this turn (Full Baseline — Conformance §4 VEP row)

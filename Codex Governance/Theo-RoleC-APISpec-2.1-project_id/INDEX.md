@@ -1,6 +1,6 @@
 # Role-C Verbatim-Edit Handoff — API Spec §2.1: `theo_message_stream` accepts optional `project_id` (Phase D / D3)
 
-Pass-4 Role-C documentation amendment — the **companion contract documentation for D3**, sequenced with the D3 handler VEP (`Codex Governance/Theo-1B-D3-ProjectKnowledge-Retrieval-Pass-1-VEP/`). D3 adds a project-knowledge RAG injection to `theo_message_stream`; to know the active project it accepts a new **additive-optional** request field `project_id` (UUID). The deployed §2.1 row currently says `theo_message_stream` has the **"same request shape"** as `theo_message` (whose extra fields are `conversation_id`/`app_key`/`app_context`), so `project_id` would be an **undocumented** request-contract extension — the exact gap Codex flagged on D3 (Golden Handler §3 + API Spec §2.1). This Role-C brings `project_id` into the §2.1 contract. **Applied on the D3 landing (post-deploy documentation, matching the PdfExtract §2.2 precedent)** — Claude Code applies it right after the D3 handler is deployed + golden-curl-verified. One additive edit to the §2.1 `theo_message_stream` row. No code/schema change.
+Pass-4 Role-C documentation amendment — the **companion contract documentation for D3**, sequenced with the D3 handler VEP (`Codex Governance/Theo-1B-D3-ProjectKnowledge-Retrieval-Pass-1-VEP/`). D3 adds a project-knowledge RAG injection to `theo_message_stream`; to know the active project it accepts a new **additive-optional** request field `project_id` (UUID; a present-but-invalid value → 400, mirroring `conversation_id`). The deployed §2.1 row currently says `theo_message_stream` has the **"same request shape"** as `theo_message` (whose extra fields are `conversation_id`/`app_key`/`app_context`), so `project_id` would be an **undocumented** request-contract extension — the exact gap Codex flagged on D3 (Golden Handler §3 + API Spec §2.1). This Role-C brings `project_id` into the §2.1 contract. **Applied on the D3 landing (post-deploy documentation, matching the PdfExtract §2.2 precedent)** — Claude Code applies it right after the D3 handler is deployed + golden-curl-verified. One additive edit to the §2.1 `theo_message_stream` row. No code/schema change.
 
 ## Grounding Conformance Receipt
 
@@ -39,7 +39,7 @@ BEFORE (exact substring):
 ```
 AFTER:
 ```
-`POST /api/theo_message_stream` — **same request shape** as `theo_message` plus an optional additive `project_id` (UUID) that names the active project for project-scoped knowledge-RAG injection (Phase D / D3; backward-compatible — omit for non-project chats; when absent the handler resolves the conversation's linked `theo_conversations.project_id`); responds `text/event-stream`, relaying the upstream Anthropic SSE
+`POST /api/theo_message_stream` — **same request shape** as `theo_message` plus an optional additive `project_id` (UUID) that names the active project for project-scoped knowledge-RAG injection (Phase D / D3; backward-compatible — omit for non-project chats; when absent the handler resolves the conversation's linked `theo_conversations.project_id`; a present-but-invalid `project_id` → **400**); responds `text/event-stream`, relaying the upstream Anthropic SSE
 ```
 
 ## Boundary / no-drift

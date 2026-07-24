@@ -61,7 +61,7 @@ Baseline-verification note: the Primary Reference below was fetched **live** fro
 **PROCEED.**
 - **(1) Retrieval mirrors a deployed seam.** `searchProjectKnowledge`/`projectKnowledgeBlock` mirror the deployed `searchHistory`/`historyBlock` (B7b-2) structurally; `getAadToken`/`embedQuery` reused as-is (same file). No new external system. PROCEED.
 - **(2) Removed-knowledge correctness.** D1's on-ingest indexer does not de-index on knowledge removal (D2 will add de-index). D3 compensates by intersecting Search hits against live `theo_project_knowledge` rows (owner+project scoped) — a removed row's orphaned Search doc is dropped. Disclosed. PROCEED.
-- **(3) Request-contract extension — documented, sequenced with D3 (not deferred).** No schema change; response shape unchanged; reads existing `theo_conversations.project_id` + `theo_project_knowledge`. The handler accepts one new **additive-optional** request field `body.project_id`; per Golden Handler §3 + API Spec §2.1 that is a request-contract change, documented by the **companion API Spec §2.1 Role-C in this submission**, applied on the D3 landing (post-deploy documentation, PdfExtract §2.2 precedent). PROCEED.
+- **(3) Request-contract extension — documented, sequenced with D3 (not deferred).** No schema change; response shape unchanged; reads existing `theo_conversations.project_id` + `theo_project_knowledge`. The handler accepts one new **additive-optional** request field `body.project_id`; per Golden Handler §3 + API Spec §2.1 that is a request-contract change, so (a) a present-but-invalid `project_id` is **rejected with a deterministic 400** (`jsonErr(400,"BAD_REQUEST",…)`) exactly mirroring the deployed `conversation_id` validation — Golden Handler §3 "Validates input against the Theo API Spec contract" is satisfied at runtime — and (b) the field is documented by the **companion API Spec §2.1 Role-C in this submission**, applied on the D3 landing (post-deploy documentation, PdfExtract §2.2 precedent). PROCEED.
 - **(4) NON-FATAL.** Any resolution/embed/search/DB failure is caught + logged; chat is unaffected (mirrors the memory + history blocks). PROCEED.
 - **(5) FE wiring + backfill are separate; the §2.1 Role-C is NOT.** D4 wires the FE to SEND `project_id` (and retires the client-side knowledge concatenation + interim cap); a one-time backfill re-indexes pre-existing knowledge rows (incl. any pre-KV-grant unindexed adds). The API Spec §2.1 documentation of `project_id`, by contrast, is sequenced WITH D3 (companion Role-C, this submission) — not deferred. Grounding note (API Spec §2.1 line 30): `theo_set_conversation_project` links a conversation to its project only AFTER the first turn returns a `conversation_id`, so conversation-resolution alone cannot surface project knowledge on turn 1 — the explicit `body.project_id` is what makes turn-1 project knowledge work, which is why D3 keeps it. PROCEED.
 
@@ -70,7 +70,7 @@ Baseline-verification note: the Primary Reference below was fetched **live** fro
 - **P2:** architecture reconciliation above (theo_ + vaultgpt-search; no reporting_*).
 - **P2.5:** Gap Register (PROCEED).
 - **P3:** no schema change; reads `theo_conversations.project_id` (Schema §5 canonical link) + `theo_project_knowledge` (owner+project scoped); Search index `theo-project-knowledge` (created by D1).
-- **P4:** response contract unchanged; the **request** contract gains an additive-optional `body.project_id` (API Spec §2.1 `theo_message_stream`), documented via the **companion API Spec §2.1 Role-C** (this submission), applied on the D3 landing (T22-sequenced with D3, not deferred); §2.6 RAG intent satisfied for the retrieval half.
+- **P4:** response contract unchanged; the **request** contract gains an additive-optional `body.project_id` (API Spec §2.1 `theo_message_stream`), documented via the **companion API Spec §2.1 Role-C** (this submission), applied on the D3 landing (T22-sequenced with D3, not deferred). A present-but-invalid `project_id` returns a deterministic **400** (mirroring `conversation_id`); malformed/absent semantics are documented in the §2.1 Role-C. §2.6 RAG intent satisfied for the retrieval half.
 - **P5:** Primary Reference = the live-verified deployed `theo_message_stream`, committed byte-faithfully as `functions/theo_message_stream.LIVE.js` in this package; the 4 additive regions mirror the deployed history-RAG seam; Structural Mirror + unified diff below.
 - **P6:** no migration; no handler SQL schema change (two additive owner-scoped SELECTs on existing tables).
 - **P7:** golden curls below (project chat surfaces knowledge; removed knowledge excluded; no-project unaffected; non-project chat unchanged).
@@ -78,13 +78,23 @@ Baseline-verification note: the Primary Reference below was fetched **live** fro
 
 ## Primary Reference (deployed, live-verified `theo_message_stream.js`) — FULL VERBATIM (Conformance T9)
 v4 programming model (in-code `app.http` registration) — there is no per-function `function.json` to pair (confirmed: the deployed function folder contains only this `.js`). This is the exact, byte-faithful content of the deployed file (blob `bdbb71f488414cc82c31f211977f630d7d5e0293`), fetched live from func-stream this turn and spliced from disk — no reconstruction. Per the func-stream `.LIVE.js` convention (the deployed handler is 1160 lines and its verbatim `THEO_RULESET` text contains phrases the mechanical lint's C9 forbids in prose), the byte-faithful Primary Reference is committed **in this package** as `functions/theo_message_stream.LIVE.js` (blob `bdbb71f488414cc82c31f211977f630d7d5e0293`) — present at the reviewed commit, and confirmed byte-identical to the live func-stream file (Kudu GET) this turn. The modified handler is `functions/theo_message_stream.js`. Diff the two: `git diff --no-index functions/theo_message_stream.LIVE.js functions/theo_message_stream.js`.
-## The four additive regions (spliced byte-faithfully from the D1-package handler, blob `fb4369f15ab9edf8551bb19c04739e603ad96c2b`)
+## The additive regions (spliced byte-faithfully from the D1-package handler, blob `4c72e7226c1ea9d8476e21f4e351dbd1008fbe3a`)
 Config (mirrors the history-RAG config lines):
 ```javascript
 // Project-knowledge RAG (Phase D / D3): retrieve the ACTIVE project's indexed knowledge. Mirrors the
 // history-RAG config; when unset, project-knowledge recall is silently skipped (non-fatal).
 const PK_SEARCH_INDEX = process.env.THEO_PK_SEARCH_INDEX || "theo-project-knowledge";
 const PK_TOP_K = parsePositiveInt(process.env.THEO_PK_TOP_K, 6);
+```
+Request-field parse + **explicit 400 validation** — `project_id` is parsed alongside `conversation_id` and a present-but-invalid value is rejected with a deterministic 400 **exactly mirroring the deployed `conversation_id` validation** (Golden Handler §3; the validated value flows into the block):
+```javascript
+    const requestedProjectId =
+      typeof body.project_id === "string" && body.project_id.trim() !== "" ? body.project_id.trim() : null;
+```
+```javascript
+    if (requestedProjectId !== null && !isUuid(requestedProjectId)) {
+      return jsonErr(400, "BAD_REQUEST", "Field 'project_id' must be a valid UUID.");
+    }
 ```
 `searchProjectKnowledge` (structural mirror of the deployed `searchHistory`):
 ```javascript
@@ -117,7 +127,7 @@ async function searchProjectKnowledge(searchToken, queryText, queryVector, owner
   return payload.value;
 }
 ```
-`projectKnowledgeBlock` assembly (structural mirror of the deployed `historyBlock`; adds active-project resolution + the live-DB intersect):
+`projectKnowledgeBlock` assembly (structural mirror of the deployed `historyBlock`; uses the already-validated `requestedProjectId`, adds active-project resolution + the live-DB intersect):
 ```javascript
     // ---- Project-knowledge RAG injection (Phase D / D3): recall the ACTIVE PROJECT's indexed knowledge.
     // Active project = explicit body.project_id (validated) else the persisted conversation's project_id
@@ -125,8 +135,7 @@ async function searchProjectKnowledge(searchToken, queryText, queryVector, owner
     // removed from the project are never surfaced. Non-fatal: never breaks chat.
     let projectKnowledgeBlock = "";
     {
-      let activeProjectId =
-        typeof body.project_id === "string" && isUuid(body.project_id.trim()) ? body.project_id.trim() : null;
+      let activeProjectId = requestedProjectId; // present-but-invalid already rejected 400 above (mirrors conversation_id)
       let pkClient = null;
       try {
         if (!activeProjectId && requestedConversationId) {
@@ -190,15 +199,13 @@ async function searchProjectKnowledge(searchToken, queryText, queryVector, owner
 Injection fold (the one changed line):
 ```javascript
     const effectiveSystem =
-      [THEO_RULESET, memoryBlock, historyBlock, projectKnowledgeBlock, systemPrompt].filter((s) => typeof s === "string" && s.trim() !== "").join("
-
-") || null;
+      [THEO_RULESET, memoryBlock, historyBlock, projectKnowledgeBlock, systemPrompt].filter((s) => typeof s === "string" && s.trim() !== "").join("\n\n") || null;
 ```
 
 ## Exact unified diff vs the live-verified baseline (authoritative delta)
 ```diff
 --- deployed baseline (bdbb71f4)
-+++ D3 handler (fb4369f1)
++++ D3 handler (4c72e722)
 @@ -98,4 +98,8 @@
  const HISTORY_TOP_K = parsePositiveInt(process.env.THEO_HISTORY_TOP_K, 5);
  const HISTORY_QUERY_MAX_CHARS = 8000;
@@ -242,7 +249,22 @@ Injection fold (the one changed line):
 +    throw new Error(`searchProjectKnowledge failed (HTTP ${r.statusCode}).`);
    }
    return payload.value;
-@@ -893,7 +926,75 @@
+@@ -802,4 +835,6 @@
+     const appContext =
+       body.app_context != null && typeof body.app_context === "object" ? body.app_context : null;
++    const requestedProjectId =
++      typeof body.project_id === "string" && body.project_id.trim() !== "" ? body.project_id.trim() : null;
+ 
+     const lastUserIndex = (() => {
+@@ -814,4 +849,7 @@
+     if (requestedConversationId !== null && !isUuid(requestedConversationId)) {
+       return jsonErr(400, "BAD_REQUEST", "Field 'conversation_id' must be a valid UUID.");
++    }
++    if (requestedProjectId !== null && !isUuid(requestedProjectId)) {
++      return jsonErr(400, "BAD_REQUEST", "Field 'project_id' must be a valid UUID.");
+     }
+ 
+@@ -893,7 +931,74 @@
      }
  
 +    // ---- Project-knowledge RAG injection (Phase D / D3): recall the ACTIVE PROJECT's indexed knowledge.
@@ -251,8 +273,7 @@ Injection fold (the one changed line):
 +    // removed from the project are never surfaced. Non-fatal: never breaks chat.
 +    let projectKnowledgeBlock = "";
 +    {
-+      let activeProjectId =
-+        typeof body.project_id === "string" && isUuid(body.project_id.trim()) ? body.project_id.trim() : null;
++      let activeProjectId = requestedProjectId; // present-but-invalid already rejected 400 above (mirrors conversation_id)
 +      let pkClient = null;
 +      try {
 +        if (!activeProjectId && requestedConversationId) {
@@ -326,13 +347,14 @@ Injection fold (the one changed line):
 |---|---|---|---|
 | Entire baseline handler body (1160 lines) | deployed theo_message_stream (primary ref) | **EXACT** (unchanged) | Golden Handler §2 "exactly one" |
 | Config `PK_SEARCH_INDEX`/`PK_TOP_K` | the deployed `SEARCH_INDEX`/`HISTORY_TOP_K` config lines | **ALLOWED DELTA** (config, mirror) | Golden Handler §4 "ALLOWED DELTA" |
+| `requestedProjectId` parse + present-but-invalid **400** | deployed `requestedConversationId` parse + its `!isUuid` 400 | **ALLOWED DELTA** (structural mirror — identical validation shape) | Golden Handler §3 "Validates input against the Theo API Spec contract" |
 | `searchProjectKnowledge` | deployed `searchHistory` | **ALLOWED DELTA** (structural mirror; index → PK_SEARCH_INDEX, `$filter` adds `project_id`, select `knowledge_id,title,content`) | Golden Handler §4 "ALLOWED DELTA" |
 | `projectKnowledgeBlock` | deployed `historyBlock` | **ALLOWED DELTA** (structural mirror; adds active-project resolution + live-DB intersect) | Golden Handler §4 "ALLOWED DELTA" |
 | Injection fold (+`projectKnowledgeBlock`) | deployed fold `[THEO_RULESET, memoryBlock, historyBlock, systemPrompt]` | **ALLOWED DELTA** (one array element added) | Golden Handler §4 "ALLOWED DELTA" |
 | `getAadToken` / `embedQuery` | deployed same-file helpers | **REUSED AS-IS** (same file; unchanged) | Golden Handler §2 |
 
 ## New handler + package
-Included: `functions/theo_message_stream.js` (blob `fb4369f15ab9edf8551bb19c04739e603ad96c2b`; `node --check` PASS; +102 lines / −1 vs baseline — purely the 4 additive regions). No `function.json` (v4 model). No `package.json` change (no new dep). The deploy unit is this single file (Kudu VFS surgical overwrite, §5.5).
+Included: `functions/theo_message_stream.js` (blob `4c72e7226c1ea9d8476e21f4e351dbd1008fbe3a`; `node --check` PASS; +106 / −1 vs baseline — purely the additive regions (config, `project_id` parse + 400 validation, `searchProjectKnowledge`, `projectKnowledgeBlock`, fold)). No `function.json` (v4 model). No `package.json` change (no new dep). The deploy unit is this single file (Kudu VFS surgical overwrite, §5.5).
 
 ## Golden Curls (P7; run by Claude Code post-deploy, SSE)
 Bearer via `az account get-access-token` for `api://4e1a1e31-…/access_as_user`; base `https://vaultgpt-func-stream…azurewebsites.net`.
@@ -347,6 +369,8 @@ Bearer via `az account get-access-token` for `api://4e1a1e31-…/access_as_user`
 #   re-ask with project_id → the probe content is NO LONGER surfaced (the live-DB intersect drops it).
 # GC-D3c (conversation-resolved) — set the conversation's project_id (theo_set_conversation_project),
 #   send WITHOUT body.project_id but WITH conversation_id → knowledge still surfaces (resolved from the conv).
+# GC-D3e (input validation) — POST with body.project_id = "not-a-uuid" -> deterministic 400 BAD_REQUEST
+#   ("Field 'project_id' must be a valid UUID."), before any embed/search (mirrors the conversation_id 400).
 # GC-D3d (regression) — a normal chat with no project + no project_id streams exactly as before (no new
 #   block; memory/history unaffected); no-bearer → 401.
 # (test project + knowledge + index docs cleaned up after)
@@ -360,11 +384,11 @@ Bearer via `az account get-access-token` for `api://4e1a1e31-…/access_as_user`
 - [x] Only theo_ tables + the shared vaultgpt-search; no reporting_*; no new external system; no new npm dep.
 - [x] No schema change; response shape unchanged; the one request-contract extension (additive-optional body.project_id) is documented via the companion API Spec §2.1 Role-C in this submission (Golden Handler §3 / API Spec §2.1).
 - [x] NON-FATAL (chat never broken by retrieval failure); removed knowledge excluded via live-DB intersect.
-- [x] node --check PASS; unified diff = purely the 4 additive regions; golden curls cover retrieval / removal / conversation-resolution / regression; Claude Code runs post-deploy.
+- [x] node --check PASS; unified diff = purely the additive regions (incl. the `project_id` present-but-invalid 400, mirroring `conversation_id`); golden curls cover retrieval / removal / conversation-resolution / malformed-400 / regression; Claude Code runs post-deploy.
 - [x] Mechanical lint PASS (below).
 
 ## §Deploy (Pass-3, on APPROVAL) — Claude Code, `vaultgpt-func-stream` Kudu VFS (§5.5 / DR-T11)
-1. Kudu VFS PUT `src/functions/theo_message_stream.js` (the D1-package blob `fb4369f15ab9edf8551bb19c04739e603ad96c2b`) over the deployed file (ARM-bearer; If-Match the current ETag), GET-back + diff to confirm byte-identical, then `az functionapp restart`.
+1. Kudu VFS PUT `src/functions/theo_message_stream.js` (the D1-package blob `4c72e7226c1ea9d8476e21f4e351dbd1008fbe3a`) over the deployed file (ARM-bearer; If-Match the current ETag), GET-back + diff to confirm byte-identical, then `az functionapp restart`.
 2. Claude Code runs GC-D3a–d and reports.
 3. Apply the **companion API Spec §2.1 Role-C** (this submission) documenting the additive-optional `body.project_id` request field — **post-deploy documentation sequenced with D3** (PdfExtract §2.2 precedent), NOT deferred to D4.
 

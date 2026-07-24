@@ -834,6 +834,8 @@ app.http("theo_message_stream", {
       typeof body.app_key === "string" && body.app_key.trim() !== "" ? body.app_key.trim() : null;
     const appContext =
       body.app_context != null && typeof body.app_context === "object" ? body.app_context : null;
+    const requestedProjectId =
+      typeof body.project_id === "string" && body.project_id.trim() !== "" ? body.project_id.trim() : null;
 
     const lastUserIndex = (() => {
       for (let i = messages.length - 1; i >= 0; i--) {
@@ -846,6 +848,9 @@ app.http("theo_message_stream", {
 
     if (requestedConversationId !== null && !isUuid(requestedConversationId)) {
       return jsonErr(400, "BAD_REQUEST", "Field 'conversation_id' must be a valid UUID.");
+    }
+    if (requestedProjectId !== null && !isUuid(requestedProjectId)) {
+      return jsonErr(400, "BAD_REQUEST", "Field 'project_id' must be a valid UUID.");
     }
 
     let attachmentIds = [];
@@ -931,8 +936,7 @@ app.http("theo_message_stream", {
     // removed from the project are never surfaced. Non-fatal: never breaks chat.
     let projectKnowledgeBlock = "";
     {
-      let activeProjectId =
-        typeof body.project_id === "string" && isUuid(body.project_id.trim()) ? body.project_id.trim() : null;
+      let activeProjectId = requestedProjectId; // present-but-invalid already rejected 400 above (mirrors conversation_id)
       let pkClient = null;
       try {
         if (!activeProjectId && requestedConversationId) {

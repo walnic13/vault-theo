@@ -475,7 +475,7 @@ export function useTheoState() {
     // stop() (or a chat switch) can cancel it. Held in abortRef for stop()/newChat() to reach.
     const ac = new AbortController(); abortRef.current = ac;
     let acc = "";                                     // accumulated answer text
-    let think = "";                                   // accumulated extended-thinking text (general chat)
+    const think = "";                                 // accumulated extended-thinking text (general chat)
     let reasoning = "";                               // VA-T7: accumulated agent reasoning (review agent)
     const toolCalls: AgentToolCall[] = [];            // VA-T7: the review agent's live tool calls
     const cites: Citation[] = [];                     // web-grounding citations (citations_delta)
@@ -505,6 +505,7 @@ export function useTheoState() {
         ...(conversationId ? { conversation_id: conversationId } : {}),
         app_key: appContext.app_key, app_context: appContext.app_context,
         ...(ready.length ? { attachment_ids: ready.map((a) => a.id as string) } : {}),
+        ...(chatProject ? { project_id: chatProject.id } : {}),   // D4: project-scoped knowledge RAG (D3 retrieval seam)
       };
       if (useReviewAgent) {
         // VA-T7: route to the K-1 review agent; stream its reasoning + tool calls into the assistant

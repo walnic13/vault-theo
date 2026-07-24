@@ -22,16 +22,10 @@ export function buildSystemPrompt(styleKey: StyleKey, custom: string, project: P
   if (custom.trim()) p += " Standing guidance from the team: " + custom.trim();
   if (project) {
     p += `\n\nYou are working inside the project "${project.name}". Project instructions: ${project.instructions || "(none)"}.`;
-    if (project.knowledge.length) {
-      p += " Project knowledge you may reference:\n";
-      // Interim guard (pre-RAG, Phase D / HF-T4): cap each item's injected text so a large file-backed
-      // knowledge item cannot blow the system prompt. Full-fidelity relevance retrieval arrives in Phase D.
-      const PER_ITEM_MAX = 6000;
-      project.knowledge.forEach((k) => {
-        const body = k.content.length > PER_ITEM_MAX ? k.content.slice(0, PER_ITEM_MAX) + "\n…(truncated in prompt)" : k.content;
-        p += `\n--- ${k.title} ---\n${body}\n`;
-      });
-    }
+    // Project KNOWLEDGE is no longer concatenated client-side. Phase D RAG replaces the interim
+    // concatenation + per-item cap: D1/D2a index knowledge on ingest, and D3 retrieves the
+    // query-relevant, project-scoped items server-side into the system prompt (theo_message_stream,
+    // via the project_id sent on send). Large knowledge sets now scale without blowing the prompt.
   }
   return p;
 }

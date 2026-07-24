@@ -956,6 +956,7 @@ export async function sendMessageStream(req: GatewayRequest, handlers: StreamHan
       ...(req.app_key != null ? { app_key: req.app_key } : {}),
       ...(req.app_context != null ? { app_context: req.app_context } : {}),
       ...(req.attachment_ids && req.attachment_ids.length ? { attachment_ids: req.attachment_ids } : {}),
+      ...(req.project_id != null ? { project_id: req.project_id } : {}),
     }),
   });
 

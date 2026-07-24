@@ -126,6 +126,7 @@ export interface GatewayRequest {
   app_key?: string | null;                           // B3a: persisted on a new conversation
   app_context?: Record<string, unknown> | null;      // B3a: opaque anchor (jsonb)
   attachment_ids?: string[];                         // B8d: owner-scoped attachments to inject
+  project_id?: string | null;                        // D4: active project for project-scoped knowledge RAG (theo_message_stream, D3)
 }
 export interface GatewayResponse {
   content: { type: string; text?: string; citations?: { url?: string; title?: string; cited_text?: string }[] }[];

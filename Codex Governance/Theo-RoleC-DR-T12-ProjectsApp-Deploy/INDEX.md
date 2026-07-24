@@ -38,7 +38,7 @@ Grounding-mode basis: Conformance §4 "Documentation-update package" row = Targe
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1E | "Adding any further app to this exception requires a further Walter-granted, Role-C-recorded amendment." | This amendment is that Walter-granted, Role-C-recorded amendment (adds `vaultgpt-func-projects`) |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1A | "Role-C inline executor (Pass 4)" | Pass-4 Role-C handoff for Codex to review + land |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1A | "the streaming sidecar `vaultgpt-func-stream`" | Edit 5 sweeps the §1A Claude Code role-line app list (no self-contradiction) |
-| c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md | §11 | "exact before/after text for each edit" | Edits 1–4 below are exact before/after blocks |
+| c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md | §11 | "exact before/after text for each edit" | Edits 1–5 below are exact before/after blocks (Edit 3 is a pure new-row insertion) |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md | §5 | "after the GCR, a Rule Anchor Table" | this Rule Anchor Table |
 
 ## Verbatim edits to `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md`
@@ -99,4 +99,4 @@ AFTER:
 `node tools/lint_microstep_submission.mjs "Codex Governance/Theo-RoleC-DR-T12-ProjectsApp-Deploy/INDEX.md" --repo-root .` — expect PASS.
 
 ## Requested action
-Codex Pass-4 Role-C review of these four verbatim edits (APPROVED / REJECTED only). On APPROVED, Claude Code applies them byte-faithfully to `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md` and commits.
+Codex Pass-4 Role-C review of these five verbatim edits (APPROVED / REJECTED only). On APPROVED, Claude Code applies them byte-faithfully to `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md` and commits.

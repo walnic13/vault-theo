@@ -147,4 +147,4 @@ Preconditions unchanged (Codex-APPROVED VEP; Walter-only DB/migrations/merges; `
 `node tools/lint_microstep_submission.mjs "Codex Governance/Theo-RoleC-DRT14-premium-projects-knowledge-deploy/INDEX.md" --repo-root .` — expect PASS.
 
 ## Requested action
-Codex Pass-4 Role-C review (APPROVED / REJECTED only). On APPROVED, Claude Code applies Edits 1–8 byte-faithfully and commits. DR-T14 is the precondition for the D2 handler VEPs (premium `theo_add_project_knowledge` indexing + `theo_remove_project_knowledge` de-index).
+Codex Pass-4 Role-C review (APPROVED / REJECTED only). On APPROVED, Claude Code applies Edits 1–10 byte-faithfully and commits. DR-T14 is the precondition for the D2 handler VEPs (premium `theo_add_project_knowledge` indexing + `theo_remove_project_knowledge` de-index).

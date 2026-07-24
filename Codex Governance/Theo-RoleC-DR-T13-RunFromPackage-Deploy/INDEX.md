@@ -10,7 +10,7 @@ Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 4
 Sub-phase Track: N/A
 
-Turn issued against HEAD: `<STAMP>` (vault-theo, `development`; grounding parent `9562f8d2bcd0fa1ed618c5bea31320906a2aa798`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
+Turn issued against HEAD: `42c535a347878aeab2ee9e053d2e3c65ce56cfd2` (vault-theo, `development`; grounding parent `9562f8d2bcd0fa1ed618c5bea31320906a2aa798`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
 Currency-anchor form: git blob SHA at HEAD.
 Grounding-mode basis: Conformance §4 "Documentation-update package" row = Targeted Current-Turn Grounding (Governor documentation-update sections + target documents + this Standard).
 

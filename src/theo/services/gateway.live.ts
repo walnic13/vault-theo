@@ -20,6 +20,7 @@ import {
   updateProjectInstructions as mockUpdateProjectInstructions,
   updateProjectDescription as mockUpdateProjectDescription, deleteProject as mockDeleteProject,
   listProjectKnowledge as mockListProjectKnowledge, addProjectKnowledge as mockAddProjectKnowledge,
+  addProjectKnowledgeFile as mockAddProjectKnowledgeFile,
   removeProjectKnowledge as mockRemoveProjectKnowledge,
   setConversationProject as mockSetConversationProject, setConversationStarred as mockSetConversationStarred,
   renameProject as mockRenameProject,
@@ -51,15 +52,23 @@ let streamBase: string = normalizeBase((import.meta.env as Record<string, unknow
 // is baked via VITE_CHAT_FUNCTIONS_URL (or injected via configureGateway), mirroring `streamBase` for
 // the func-stream sidecar. Used ONLY by the two voice calls; falls back to `apiBase` when unset.
 let chatBase: string = normalizeBase((import.meta.env as Record<string, unknown>).VITE_CHAT_FUNCTIONS_URL);
+// Projects Phase C: file-backed project knowledge (theo_add_project_knowledge_file) lives on the
+// dedicated `vaultgpt-func-projects` app (Claude-deployable per DR-T12; run-from-package per DR-T13),
+// NOT the monolith `apiBase`. Baked via VITE_PROJECTS_FUNCTIONS_URL (or injected via configureGateway),
+// mirroring streamBase/chatBase; defaults to the known func-projects host so the call never falls back
+// to `apiBase` (which does not host the endpoint). Used ONLY by addProjectKnowledgeFile.
+const DEFAULT_PROJECTS_BASE = "https://vaultgpt-func-projects.azurewebsites.net";
+let projectsBase: string = normalizeBase((import.meta.env as Record<string, unknown>).VITE_PROJECTS_FUNCTIONS_URL) || DEFAULT_PROJECTS_BASE;
 
 // Configured once by the federated TheoSurface mount with the Origin shell's token provider (and,
 // optionally, the monolith Functions base URL and the streaming sidecar base URL). Supplying a token
 // provider switches this gateway mock → live.
-export function configureGateway(opts: { getAccessToken?: TokenProvider | null; baseUrl?: string | null; streamBaseUrl?: string | null; chatBaseUrl?: string | null }): void {
+export function configureGateway(opts: { getAccessToken?: TokenProvider | null; baseUrl?: string | null; streamBaseUrl?: string | null; chatBaseUrl?: string | null; projectsBaseUrl?: string | null }): void {
   if (opts.getAccessToken !== undefined) tokenProvider = opts.getAccessToken;
   if (opts.baseUrl != null) apiBase = normalizeBase(opts.baseUrl);
   if (opts.streamBaseUrl != null) streamBase = normalizeBase(opts.streamBaseUrl);
   if (opts.chatBaseUrl != null) chatBase = normalizeBase(opts.chatBaseUrl);
+  if (opts.projectsBaseUrl != null) projectsBase = normalizeBase(opts.projectsBaseUrl);
 }
 
 // True once a live backend is wired (token provider or a Functions base URL). Attachments require it.
@@ -470,7 +479,7 @@ function toProject(r: RawProject): Project {
 }
 
 function toKnowledge(r: RawKnowledge): Knowledge {
-  return { id: r.id, title: r.title, content: r.content ?? "" };
+  return { id: r.id, title: r.title, content: r.content ?? "", source_type: r.source_type === "file" ? "file" : "text" };
 }
 
 export async function listProjects(): Promise<Project[]> {
@@ -715,6 +724,27 @@ export async function addProjectKnowledge(projectId: string, k: KDraft): Promise
     credentials: "same-origin",
     headers,
     body: JSON.stringify({ project_id: projectId, title: k.title.trim(), content: k.content.trim() }),
+  });
+  let json: { data?: { knowledge?: RawKnowledge }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const item = json?.data?.knowledge;
+  if (!item) throw new Error("Theo gateway response missing data.knowledge.");
+  return toKnowledge(item);
+}
+
+// Projects Phase C: turn an already-uploaded+finalized attachment into a FILE-backed knowledge item.
+// Runs against the dedicated `vaultgpt-func-projects` app (projectsBase), not the monolith apiBase.
+export async function addProjectKnowledgeFile(projectId: string, attachmentId: string, title?: string): Promise<Knowledge> {
+  if (!apiBase && !tokenProvider) return mockAddProjectKnowledgeFile(projectId, attachmentId, title);
+  const headers = await authHeaders();
+  const body: Record<string, unknown> = { project_id: projectId, attachment_id: attachmentId };
+  if (title && title.trim()) body.title = title.trim();
+  const res = await fetch(`${projectsBase}/api/theo_add_project_knowledge_file`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify(body),
   });
   let json: { data?: { knowledge?: RawKnowledge }; error?: { message?: string } } | null = null;
   try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }

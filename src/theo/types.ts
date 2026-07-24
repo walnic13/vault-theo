@@ -41,7 +41,7 @@ export interface InlineImage { url: string; title?: string; source?: string; pag
 export interface InlineVideo { videoUrl: string; embedUrl?: string; title?: string; thumbnail?: string; source?: string; duration?: string; date?: string }
 export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string; reasoning?: string; tools?: AgentToolCall[]; download?: FileDownload; image?: InlineImage; video?: InlineVideo; tokens?: number; streaming?: boolean }
 
-export interface Knowledge { id: string; title: string; content: string }
+export interface Knowledge { id: string; title: string; content: string; source_type?: "text" | "file" }
 export type ProjectVisibility = "private" | "group";
 export interface Project {
   id: string; name: string; desc: string; updated: string;

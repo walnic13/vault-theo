@@ -7,7 +7,7 @@
 // B4f: each chat row gains hover-revealed manage actions — Rename (edit-in-place) and Delete (native
 // confirm) — wired to theo_rename_conversation / theo_delete_conversation (deployed B4f), same as the
 // Sidebar recents rows.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { C, SANS } from "../theme";
 import { IcChat, IcCompose, IcDoc, IcTrash } from "./icons";
 import { InputBox } from "./ui";
@@ -20,6 +20,7 @@ export interface ProjectDetailProps {
   kdraft: KDraft;
   onKdraftChange: (next: KDraft) => void;
   onAddKnowledge: () => void | Promise<void>;
+  onAddKnowledgeFile: (file: File) => void | Promise<void>;   // Phase C: upload a file → file-backed knowledge
   onRemoveKnowledge: (kid: string) => void;
   onPatchInstructions: (text: string) => void;
   onStartChat: () => void;                       // "+ New chat in this project"
@@ -54,7 +55,7 @@ function Section({ title, open, onToggle, children }: { title: string; open: boo
   );
 }
 
-export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKnowledge, onRemoveKnowledge, onPatchInstructions, onStartChat, onSelectChat, onRenameChat, onDeleteChat, onPatchDescription, onSetVisibility, visibilityBusy, members, people, onShareMember, onUnshareMember, memberPendingKey }: ProjectDetailProps) {
+export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKnowledge, onAddKnowledgeFile, onRemoveKnowledge, onPatchInstructions, onStartChat, onSelectChat, onRenameChat, onDeleteChat, onPatchDescription, onSetVisibility, visibilityBusy, members, people, onShareMember, onUnshareMember, memberPendingKey }: ProjectDetailProps) {
   // B5a: only the owner may edit config (description / knowledge / instructions / sharing). A
   // shared-with-me project (isOwner=false) is read-only + chattable — members see the config but can't
   // change it, and chat with their own conversations.
@@ -67,6 +68,8 @@ export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKno
   const [editingId, setEditingId] = useState<string | null>(null);   // B4f: chat row being renamed in place
   const [descEditing, setDescEditing] = useState(false);             // B4g: description edited in place
   const [kBusy, setKBusy] = useState(false);                         // add-knowledge POST in flight (button feedback)
+  const [kFileBusy, setKFileBusy] = useState(false);                 // file upload+ingest in flight
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const canAddKnowledge = kdraft.title.trim().length > 0 && kdraft.content.trim().length > 0;
   const knowledgeOpen = kOpen ?? !hasChats;
   const instructionsOpen = iOpen ?? !hasChats;
@@ -233,7 +236,7 @@ export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKno
           {project.knowledge.map((d) => (
             <div key={d.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderBottom: `1px solid ${C.line}` }}>
               <span style={{ color: C.ink3, marginTop: 2 }}><IcDoc s={17} /></span>
-              <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 13.5 }}>{d.title}</div><div style={{ fontSize: 12.5, color: C.ink2, lineHeight: 1.45 }}>{d.content}</div></div>
+              <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 13.5, display: "flex", alignItems: "center", gap: 6 }}>{d.title}{d.source_type === "file" && <span style={{ fontSize: 10.5, fontWeight: 700, color: C.coralDk, background: C.coralSoft, borderRadius: 999, padding: "1px 7px", flexShrink: 0 }}>File</span>}</div><div style={{ fontSize: 12.5, color: C.ink2, lineHeight: 1.45, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{d.content}</div></div>
               {/* B5a: remove is owner-only */}
               {isOwner && <button className="vo-ghost" onClick={() => onRemoveKnowledge(d.id)} title="Remove" style={{ background: "none", border: "none", cursor: "pointer", color: C.ink3, borderRadius: 6, padding: 4, display: "flex" }}><IcTrash s={15} /></button>}
             </div>
@@ -254,6 +257,18 @@ export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKno
                   {kBusy ? "Adding…" : "+ Add knowledge"}
                 </button>
                 {!canAddKnowledge && <span style={{ fontSize: 12, color: C.ink3 }}>Add a title and some content to save.</span>}
+              </div>
+              <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink2 }}>…or upload a file</div>
+                <input ref={fileInputRef} type="file" style={{ display: "none" }}
+                  onChange={async (e) => { const f = e.target.files?.[0]; e.currentTarget.value = ""; if (!f || kFileBusy) return; setKFileBusy(true); try { await onAddKnowledgeFile(f); } finally { setKFileBusy(false); } }} />
+                <div>
+                  <button className="vo-chip" disabled={kFileBusy} onClick={() => fileInputRef.current?.click()}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#fff", border: `1px solid ${C.line2}`, borderRadius: 9, padding: "8px 14px", fontSize: 13, color: C.ink, cursor: kFileBusy ? "default" : "pointer", opacity: kFileBusy ? 0.6 : 1, fontFamily: SANS }}>
+                    <IcDoc s={15} /> {kFileBusy ? "Uploading…" : "Upload a file"}
+                  </button>
+                </div>
+                <span style={{ fontSize: 12, color: C.ink3 }}>Word, Excel, PowerPoint, CSV, or TXT (and text-based PDFs). Theo reads the text into this project’s knowledge.</span>
               </div>
             </div>
           )}

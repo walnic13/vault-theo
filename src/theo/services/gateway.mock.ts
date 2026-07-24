@@ -155,7 +155,13 @@ export async function listProjectKnowledge(projectId: string): Promise<Knowledge
 }
 
 export async function addProjectKnowledge(projectId: string, k: KDraft): Promise<Knowledge> {
-  const item: Knowledge = { id: "k" + Date.now().toString(36), title: k.title.trim(), content: k.content.trim() };
+  const item: Knowledge = { id: "k" + Date.now().toString(36), title: k.title.trim(), content: k.content.trim(), source_type: "text" };
+  mockProjects = mockProjects.map((p) => (p.id === projectId ? { ...p, knowledge: [...p.knowledge, item] } : p));
+  return { ...item };
+}
+
+export async function addProjectKnowledgeFile(projectId: string, _attachmentId: string, title?: string): Promise<Knowledge> {
+  const item: Knowledge = { id: "k" + Date.now().toString(36), title: (title && title.trim()) || "Uploaded file", content: "(mock) extracted file text", source_type: "file" };
   mockProjects = mockProjects.map((p) => (p.id === projectId ? { ...p, knowledge: [...p.knowledge, item] } : p));
   return { ...item };
 }

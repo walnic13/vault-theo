@@ -24,7 +24,13 @@ export function buildSystemPrompt(styleKey: StyleKey, custom: string, project: P
     p += `\n\nYou are working inside the project "${project.name}". Project instructions: ${project.instructions || "(none)"}.`;
     if (project.knowledge.length) {
       p += " Project knowledge you may reference:\n";
-      project.knowledge.forEach((k) => { p += `\n--- ${k.title} ---\n${k.content}\n`; });
+      // Interim guard (pre-RAG, Phase D / HF-T4): cap each item's injected text so a large file-backed
+      // knowledge item cannot blow the system prompt. Full-fidelity relevance retrieval arrives in Phase D.
+      const PER_ITEM_MAX = 6000;
+      project.knowledge.forEach((k) => {
+        const body = k.content.length > PER_ITEM_MAX ? k.content.slice(0, PER_ITEM_MAX) + "\n…(truncated in prompt)" : k.content;
+        p += `\n--- ${k.title} ---\n${body}\n`;
+      });
     }
   }
   return p;

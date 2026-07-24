@@ -765,6 +765,17 @@ export function useTheoState() {
       setKdraft({ title: "", content: "" });
     } catch { setError("Couldn't add the knowledge item."); }
   }
+  // Phase C: add a FILE as knowledge — upload via the B8 pipeline (create→upload→finalize), then
+  // theo_add_project_knowledge_file turns its extracted text into a file-backed knowledge row.
+  async function addKnowledgeFile(file: File) {
+    if (!detailId) return;
+    const id = detailId;
+    try {
+      const up = await theoClient.uploadAttachment({ blob: file, name: file.name, contentType: file.type || "application/octet-stream" });
+      const k = await theoClient.addProjectKnowledgeFile(id, up.id);
+      setProjects((ps) => ps.map((p) => (p.id === id ? { ...p, knowledge: [...p.knowledge, k] } : p)));
+    } catch { setError("Couldn't add that file to project knowledge. Try a Word, Excel, PowerPoint, CSV, or TXT file (or a text-based PDF)."); }
+  }
   // B4c: remove a knowledge item live (theo_remove_project_knowledge); optimistic, resync on failure.
   async function removeKnowledge(kid: string) {
     if (!detailId) return;
@@ -950,7 +961,7 @@ export function useTheoState() {
     go, toggleCollapse: () => setCollapsed((v) => !v), setSearch, setDraft, newChat, startInProject, openProject,
     clearChatProject: () => setChatProject(null), send, stop, cancelQueued, ingestAppContext, selectRecent, loadRecents, loadProjects, loadGalleryArtifacts,
     addFiles, addPastedText, removeAttachment,
-    toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, patchDescription, setKdraft, addKnowledge, removeKnowledge,
+    toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, patchDescription, setKdraft, addKnowledge, addKnowledgeFile, removeKnowledge,
     renameProject, deleteProject, setProjectVisibility, visPending, renameConversation, deleteConversation, setConversationStarred, addConversationToProject,
     projectMembers, people, shareMember, unshareMember, memberPending,
     selectStyle: setStyleKey, setCustom, save, copyArt,

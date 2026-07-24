@@ -22,6 +22,7 @@ import {
   updateProjectInstructions as gatewayUpdateProjectInstructions,
   updateProjectDescription as gatewayUpdateProjectDescription, deleteProject as gatewayDeleteProject,
   listProjectKnowledge as gatewayListProjectKnowledge, addProjectKnowledge as gatewayAddProjectKnowledge,
+  addProjectKnowledgeFile as gatewayAddProjectKnowledgeFile,
   removeProjectKnowledge as gatewayRemoveProjectKnowledge,
   setConversationProject as gatewaySetConversationProject, setConversationStarred as gatewaySetConversationStarred,
   renameProject as gatewayRenameProject,
@@ -41,7 +42,7 @@ let appContext: AppContext = { app_key: null, app_context: null };
 
 export const theoClient = {
   // ── Gateway wiring (Origin mount supplies the token provider; switches mock → live) ──
-  configureGateway(opts: { getAccessToken?: (() => Promise<string | null>) | null; baseUrl?: string | null; streamBaseUrl?: string | null; chatBaseUrl?: string | null }): void {
+  configureGateway(opts: { getAccessToken?: (() => Promise<string | null>) | null; baseUrl?: string | null; streamBaseUrl?: string | null; chatBaseUrl?: string | null; projectsBaseUrl?: string | null }): void {
     gatewayConfigure(opts);
   },
 
@@ -152,6 +153,7 @@ export const theoClient = {
   deleteProject(id: string): Promise<void> { return gatewayDeleteProject(id); },
   listProjectKnowledge(projectId: string): Promise<Knowledge[]> { return gatewayListProjectKnowledge(projectId); },
   addProjectKnowledge(projectId: string, k: KDraft): Promise<Knowledge> { return gatewayAddProjectKnowledge(projectId, k); },
+  addProjectKnowledgeFile(projectId: string, attachmentId: string, title?: string): Promise<Knowledge> { return gatewayAddProjectKnowledgeFile(projectId, attachmentId, title); },
   removeProjectKnowledge(knowledgeId: string): Promise<void> { return gatewayRemoveProjectKnowledge(knowledgeId); },
   // B4d: link a conversation to a project (owner-scoped, idempotent set-once). Called once after a
   // project chat's first turn returns a conversation_id (theo_conversations.project_id).

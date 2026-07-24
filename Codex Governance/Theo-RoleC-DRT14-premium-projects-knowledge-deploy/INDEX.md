@@ -1,6 +1,6 @@
 # Role-C Verbatim-Edit Handoff — DR-T14: narrow premium deploy exception for Projects-knowledge handlers (Phase D / D2)
 
-Pass-4 Role-C governance amendment recording **Walter's premium-deploy grant (Path B, 2026-07-24)**. Phase D / D2 puts on-ingest RAG indexing + de-index into the project **text**-knowledge handlers, which live on the shared monolith **`vaultgpt-func-premium`** (`theo_add_project_knowledge`, `theo_remove_project_knowledge`). Today §1E makes premium an **absolute exclusion** ("Claude Code MUST NEVER … deploy to it"). This amendment **narrowly** extends the DR-T7/§1E deployment exception to premium for **those Projects-domain knowledge handlers ONLY**, via **surgical Kudu VFS overwrite** (premium is classic per-fn — Golden Handler §5.5), after a Codex-APPROVED VEP. Everything else on the shared monolith stays excluded: all `reporting_*` and non-Projects Theo handlers remain Walter-deploy-only; **no** DB writes/migrations/merges; **no** premium app-setting/resource changes. This is a **cross-cutting** amendment — every LIVE statement of "premium is READ-ONLY" across the four governance docs gets the DR-T14 carve-out (8 edits); the append-only Decision Register rows (DR-T7/T11/T12/T13) are left as-dated. No code/schema change.
+Pass-4 Role-C governance amendment recording **Walter's premium-deploy grant (Path B, 2026-07-24)**. Phase D / D2 puts on-ingest RAG indexing + de-index into the project **text**-knowledge handlers, which live on the shared monolith **`vaultgpt-func-premium`** (`theo_add_project_knowledge`, `theo_remove_project_knowledge`). Today §1E makes premium an **absolute exclusion** ("Claude Code MUST NEVER … deploy to it"). This amendment **narrowly** extends the DR-T7/§1E deployment exception to premium for **those Projects-domain knowledge handlers ONLY**, via **surgical Kudu VFS overwrite** (premium is classic per-fn — Golden Handler §5.5), after a Codex-APPROVED VEP. Everything else on the shared monolith stays excluded: all `reporting_*` and non-Projects Theo handlers remain Walter-deploy-only; **no** DB writes/migrations/merges; **no** premium app-setting/resource changes. This is a **cross-cutting** amendment — every LIVE statement of "premium is READ-ONLY" across the four governance docs gets the DR-T14 carve-out (10 edits); the append-only Decision Register rows (DR-T7/T11/T12/T13) are left as-dated. No code/schema change.
 
 ## Grounding Conformance Receipt
 
@@ -118,8 +118,28 @@ AFTER:
 only the monolith `vaultgpt-func-premium` remains READ-ONLY, EXCEPT the narrow DR-T14 carve-out (2026-07-24) for the Projects-domain knowledge handlers `theo_add_project_knowledge`/`theo_remove_project_knowledge` (Claude Code MAY deploy these to premium via surgical Kudu VFS after a Codex-APPROVED VEP). |
 ```
 
+### Edit 9 — Golden Handler §5.5: premium curl-split statement gets the DR-T14 carve-out
+BEFORE (exact substring):
+```
+The split is: Walter deploys the premium handler manually → **Claude Code runs the golden curls**
+```
+AFTER:
+```
+The split is: Walter deploys the premium handler manually (EXCEPT the DR-T14 Projects-knowledge handlers `theo_add_project_knowledge`/`theo_remove_project_knowledge`, which Claude Code deploys directly via surgical Kudu VFS after a Codex-APPROVED VEP) → **Claude Code runs the golden curls**
+```
+
+### Edit 10 — Golden Handler §5.5: run-from-package preconditions premium-READ-ONLY carve-out
+BEFORE (exact substring):
+```
+Preconditions unchanged (Codex-APPROVED VEP; Walter-only DB/migrations/merges; `vaultgpt-func-premium` READ-ONLY); the DR-T7/§1E deploy exception is **extended by the §1E amendment (DR-T13, below)**
+```
+AFTER:
+```
+Preconditions unchanged (Codex-APPROVED VEP; Walter-only DB/migrations/merges; `vaultgpt-func-premium` READ-ONLY except the narrow DR-T14 Projects-knowledge-handler carve-out, 2026-07-24); the DR-T7/§1E deploy exception is **extended by the §1E amendment (DR-T13, below)**
+```
+
 ## Boundary / no-drift
-- Four governed docs edited (Orchestration ×5, Golden Handler ×1, Governor ×1, Plan ×1 = 8 edits). Every LIVE statement of the premium READ-ONLY rule now carries the DR-T14 carve-out; the append-only Decision Register rows DR-T7/T11/T12/T13 are left as-dated (historical). No other value changes.
+- Four governed docs edited (Orchestration ×5, Golden Handler ×3, Governor ×1, Plan ×1 = 10 edits). Every LIVE statement of the premium READ-ONLY rule now carries the DR-T14 carve-out; the append-only Decision Register rows DR-T7/T11/T12/T13 are left as-dated (historical). No other value changes.
 - The exception is **narrow**: only `theo_add_project_knowledge` + `theo_remove_project_knowledge` (+ future project-knowledge handlers named in an APPROVED VEP), only surgical Kudu VFS overwrite, only after Codex APPROVAL. All `reporting_*`, all other Theo premium handlers, all DB/migrations/merges, and all premium app-setting/resource changes remain excluded / Walter-only.
 - No code/schema change.
 

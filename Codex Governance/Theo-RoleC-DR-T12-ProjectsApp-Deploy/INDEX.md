@@ -1,6 +1,6 @@
 # Role-C Verbatim-Edit Handoff — DR-T12: add `vaultgpt-func-projects` to the Claude-Code deployment exception
 
-Pass-4 Role-C documentation amendment. Records the Walter-granted (2026-07-24) addition of the dedicated Projects app **`vaultgpt-func-projects`** to the DR-T7 / §1E scoped Claude-Code deployment exception, exactly as `vaultgpt-func-theo-tools` (DR-T10) and `vaultgpt-func-stream` (DR-T11) were added. Edits one file — `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md` — in four places (§1C table row, §1B DR-T7 register line, a new §1B DR-T12 register row, §1E in-scope list). No behaviour/code change; this only records the granted deploy authority so the Phase C handler VEP can be re-issued with a satisfied deploy gate.
+Pass-4 Role-C documentation amendment. Records the Walter-granted (2026-07-24) addition of the dedicated Projects app **`vaultgpt-func-projects`** to the DR-T7 / §1E scoped Claude-Code deployment exception, exactly as `vaultgpt-func-theo-tools` (DR-T10) and `vaultgpt-func-stream` (DR-T11) were added. Edits one file — `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md` — in **five** places (every current app-list enumeration): §1A Claude Code role line, §1C table row, §1B DR-T7 register line, a new §1B DR-T12 register row, §1E in-scope list. (The DR-T9/DR-T10/DR-T11 register rows are per-decision historical records about their own apps and are correctly left unchanged.) No behaviour/code change; this only records the granted deploy authority so the Phase C handler VEP can be re-issued with a satisfied deploy gate.
 
 ## Grounding Conformance Receipt
 
@@ -37,6 +37,7 @@ Grounding-mode basis: Conformance §4 "Documentation-update package" row = Targe
 |----------------------------|-----------|----------------------|----------------------|
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1E | "Adding any further app to this exception requires a further Walter-granted, Role-C-recorded amendment." | This amendment is that Walter-granted, Role-C-recorded amendment (adds `vaultgpt-func-projects`) |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1A | "Role-C inline executor (Pass 4)" | Pass-4 Role-C handoff for Codex to review + land |
+| c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1A | "the streaming sidecar `vaultgpt-func-stream`" | Edit 5 sweeps the §1A Claude Code role-line app list (no self-contradiction) |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md | §11 | "exact before/after text for each edit" | Edits 1–4 below are exact before/after blocks |
 | c:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/vault-theo/governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md | §5 | "after the GCR, a Rule Anchor Table" | this Rule Anchor Table |
 
@@ -78,8 +79,19 @@ AFTER:
 - **In scope:** Claude Code MAY execute Pass-3 deployment of **handler/function code + `function.json`** to a **Walter-designated dedicated Theo Function App**. The designated apps are **`vaultgpt-func-chat`**, **`vaultgpt-func-theo-tools`** (both Windows, Functions v4, EP1 plan `ASP-VaultTax-931c`), the streaming sidecar **`vaultgpt-func-stream`** (Windows, Functions v4 programming model, EP1), and the Projects app **`vaultgpt-func-projects`** (Windows, Functions v4, EP1 plan `ASP-VaultTax-931c`, system-assigned MI, EasyAuth on the shared audience `api://4e1a1e31-5c20-4480-99e4-098901707d9e`); `vaultgpt-func-theo-tools` was added by the DR-T10 amendment, `vaultgpt-func-stream` by the DR-T11 amendment (both Walter-granted 2026-07-17; func-stream aligns with the deploy procedure already recorded in Golden Handler §5.5), and `vaultgpt-func-projects` by the DR-T12 amendment (Walter-granted 2026-07-24). Adding any further app to this exception requires a further Walter-granted, Role-C-recorded amendment.
 ```
 
+### Edit 5 — §1A Role Vocabulary (Claude Code role line — the app-list enumeration Codex flagged)
+BEFORE:
+```
+- **Claude Code** — author. Produces VEPs (Pass 1), implementation packages (Pass 3 execution), and Role-C verbatim-edit handoffs (Pass 4 authoring). Confined to a dedicated `vault-theo` development branch. Plans and hands off; never executes database writes or migrations; never merges. **Scoped deployment exception (§1E, DR-T7):** MAY execute Pass-3 deployment of handler/function code to a Walter-designated dedicated Theo Function App (`vaultgpt-func-chat`, `vaultgpt-func-theo-tools`, and the streaming sidecar `vaultgpt-func-stream`) after a Codex-APPROVED VEP; only the monolith `vaultgpt-func-premium` remains READ-ONLY / never written by Claude Code.
+```
+AFTER:
+```
+- **Claude Code** — author. Produces VEPs (Pass 1), implementation packages (Pass 3 execution), and Role-C verbatim-edit handoffs (Pass 4 authoring). Confined to a dedicated `vault-theo` development branch. Plans and hands off; never executes database writes or migrations; never merges. **Scoped deployment exception (§1E, DR-T7):** MAY execute Pass-3 deployment of handler/function code to a Walter-designated dedicated Theo Function App (`vaultgpt-func-chat`, `vaultgpt-func-theo-tools`, the streaming sidecar `vaultgpt-func-stream`, and the Projects app `vaultgpt-func-projects`) after a Codex-APPROVED VEP; only the monolith `vaultgpt-func-premium` remains READ-ONLY / never written by Claude Code.
+```
+
 ## Boundary / no-drift
-- One governed doc edited; four localized edits; all mechanical/additive (records granted authority). No code, no handler, no schema, no API contract change.
+- One governed doc edited; **five** localized edits — every current full-app-list enumeration (§1A, §1C, DR-T7, §1E) plus the new DR-T12 row; all mechanical/additive (records granted authority). No code, no handler, no schema, no API contract change.
+- **Swept all mentions** (Codex Pass-4 finding): after these edits no §-section of the Orchestration Standard enumerates the current deploy-app list without `vaultgpt-func-projects`; the DR-T9/DR-T10/DR-T11 rows are per-decision historical records about their own apps and are intentionally left as-is (they are not the current-list authority).
 - The three existing designated apps + the `vaultgpt-func-premium` READ-ONLY exclusion + Walter-only DB/migrations/merges are all preserved verbatim.
 - After landing, the Phase C handler VEP (`Theo-1B-ProjectKnowledgeFile-Pass-1-VEP`) is re-issued with its deploy section citing DR-T12.
 

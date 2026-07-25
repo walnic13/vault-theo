@@ -10,7 +10,7 @@ Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 4
 Sub-phase Track: N/A
 
-Turn issued against HEAD: `@@ISSUED_HEAD@@` (vault-theo, `development`; grounding parent `32f7fc3ecb9b74c98ae8fa76f32945a20f6b795`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
+Turn issued against HEAD: `8d3b794ed86a9af75f4d303381cf3926862ebca8` (vault-theo, `development`; grounding parent `32f7fc3ecb9b74c98ae8fa76f32945a20f6b795`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
 Currency-anchor form: git blob SHA at HEAD.
 Grounding-mode basis: Conformance §4 "Documentation-update package" row = Targeted Current-Turn Grounding. Walter grant: "okay, any updates you need to make to the monolith i give you permission" (2026-07-25), for the Chat Media Persistence monolith update (`theo_get_conversation` reload-read). Precedent + carve-out language: DR-T14 (2026-07-24), swept identically.
 

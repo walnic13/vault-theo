@@ -1,0 +1,11 @@
+# Codex Governance Package — Theo 1B FindImage Gallery Lightbox FE Pass-1 VEP
+
+- **Main artifact:** `Theo_1B_Gallery_Lightbox_FE_VEP.md` — Pass-1 frontend VEP (plan). Reviewer = Codex (Pass 2). Open it with the governance-bound GCR + Rule Anchor Table (Theo FE Conformance §3/§5).
+- **Microstep:** FindImage gallery **lightbox** — a tool-found image batch renders cover-cropped thumbnails; on mobile the single-column grid clips each photo to a 150px band (Walter: "a photo of Chipper Jones … each photo is cut off"). Keep the cropped grid; make each thumbnail **tap-to-expand** into a full-screen in-app viewer (whole image, `objectFit: contain`, caption + "Open original").
+  - **New component** — `ImageLightbox({ item, onClose })`, a `role="dialog"` fixed-inset overlay mirroring the **deployed VA-T10 idiom** (`AddToChatSheet`): backdrop-dismiss + `IcClose` + Esc + `env(safe-area-inset-*)` + `vt-fade-in`.
+  - **Wiring** — `ChatView` gains one `useState<InlineImageItem | null>`; the gallery thumbnail wrapper `<a href target="_blank">` → `<button onClick={setLightboxImage}>` (thumbnail `<img>` unchanged); renders `<ImageLightbox>`.
+- **Changed (1 file, staged in `proposed-src/theo/components/`):** `ChatView.tsx` (+`ImageLightbox` + viewer state + thumbnail button).
+- **Visual classification:** the viewer body = **VISUAL-AUTHORITY-DEVIATION** (net-new surface, no VA-T1 analog) anchored to Golden Pack §5; the dialog idiom = **EXACT** mirror of registered **VA-T10**; thumbnails = **VISUAL-AUTHORITY-MATCH** (unchanged). Only registered VA-ids cited (VA-T1, VA-T10) — T21-safe. Walter SWA screenshot = Visual Acceptance Evidence.
+- **Contract:** none — the viewer renders the existing `InlineImageItem` shape already on `m.image.images` (`event: vault_image`). No backend/API/schema change.
+- **Validation:** file applied to `src` this turn → `tsc --noEmit` (exit 0) + `eslint` (exit 0, **no warnings** on `ChatView.tsx`) + `vite build` (exit 0; TheoSurface 299.40 kB / 87.03 kB gzip); `src` reverted. Microstep lint → PASS. Proposed-src content-addressed blob `ChatView.tsx`=`822e3fd` (HEAD-independent; the reviewed-commit SHA is carried in the submission note).
+- **Pipeline:** Author = Claude Code (Pass 1). Reviewer = Codex (Pass 2). On APPROVAL → Pass 3 commits the 1 file to `development`; the Theo dev SWA serves it.

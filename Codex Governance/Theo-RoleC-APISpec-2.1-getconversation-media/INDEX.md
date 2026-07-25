@@ -10,7 +10,7 @@ Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 4
 Sub-phase Track: N/A
 
-Turn issued against HEAD: `@@ISSUED_HEAD@@` (vault-theo, `development`; grounding parent `429de3439f826daa19fd0c7eb629ba11a33047d2`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
+Turn issued against HEAD: `a5506d4bbee37604e85a532f0d6ec50e43d7cd45` (vault-theo, `development`; grounding parent `429de3439f826daa19fd0c7eb629ba11a33047d2`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
 Currency-anchor form: git blob SHA at HEAD.
 Grounding-mode basis: Conformance §4 "Documentation-update package" row = Targeted Current-Turn Grounding. Application is gated on the Part 3 handler deploy + golden curls — this Role-C is applied only after `theo_get_conversation` on premium actually returns `media`.
 

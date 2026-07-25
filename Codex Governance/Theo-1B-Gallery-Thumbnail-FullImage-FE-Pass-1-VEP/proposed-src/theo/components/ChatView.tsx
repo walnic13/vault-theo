@@ -218,8 +218,8 @@ function AddToChatSheet({ open, onClose, onCamera, onPhotos, onFiles }: { open: 
   );
 }
 
-// FindImage lightbox — tap a gallery thumbnail to view the whole image in-app. Mobile thumbnails
-// are cover-cropped for a tidy grid; tapping opens the full frame here (objectFit:contain, no crop).
+// FindImage lightbox — tap a gallery thumbnail to view the image full-screen in-app. Gallery
+// thumbnails show the whole image scaled to the grid-column width; this opens it large (objectFit:contain).
 // Mirrors AddToChatSheet's dialog idiom (role=dialog + aria-modal + backdrop-dismiss + IcClose);
 // Esc also closes. Inline-style / C+SANS idiom; no browser storage; "Open original" link preserved.
 function ImageLightbox({ item, onClose }: { item: InlineImageItem | null; onClose: () => void }) {

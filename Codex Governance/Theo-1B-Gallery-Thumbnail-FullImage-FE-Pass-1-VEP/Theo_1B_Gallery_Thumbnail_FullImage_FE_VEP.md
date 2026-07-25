@@ -23,7 +23,7 @@ Currency anchors: blob SHA (captured this turn via `git rev-parse HEAD:<path>` /
 | 5 | Theo Phase 1A Frontend Plan — `governance/THEO_PHASE_1A_FRONTEND_PLAN.md` | cited (surface authority) | `901271478e8bec29177d379fadbbf3d4701a90fe` |
 | 6 | **VA-T1 artifact** (registered §4B) — `frontend/theo-frontend-reference.jsx` (chat surface; no gallery) | `Grep` this turn | `433f6236344f6e8bdbc49db85a53036427610fed` |
 | 7 | ACTIVE (modify) — `src/theo/components/ChatView.tsx` (gallery thumbnail render; baseline = the landed lightbox version) | `Read(full-region)` this turn | `822e3fd64d2b86ea9443904551c8a69bba18814c` |
-| 8 | **PROPOSED** — `proposed-src/theo/components/ChatView.tsx` (content-addressed; the reviewed source) | authored + validated this turn | `3d24052f5e0bfdcc5b3195e612ad3417c76aeaa4` |
+| 8 | **PROPOSED** — `proposed-src/theo/components/ChatView.tsx` (content-addressed; the reviewed source) | authored + validated this turn | `35b07ab7af0af0b449a156ad24301aa4386d43b8` |
 
 No ChatGPT advisory cited (§6 T18). No `corporate-reporting`/`reporting_*` change. No `localStorage`/`sessionStorage`. No Tailwind/CSS-in-JS. No new backend/contract/schema/component/prop.
 
@@ -46,6 +46,7 @@ No ChatGPT advisory cited (§6 T18). No `corporate-reporting`/`reporting_*` chan
 **Microstep:** FindImage gallery thumbnails **show the whole image**. A tool-found image batch (`m.image.images: InlineImageItem[]`) renders in a grid; each thumbnail currently uses `width: "100%", height: 150, objectFit: "cover"` — the image is scaled to FILL a fixed 150px band and the overflow is cropped, so the thumbnail never shows the whole photo (worst on mobile's single column). This VEP:
 1. **Thumbnail** — `multi` branch changes to `width: "100%", height: "auto"` (drop the fixed height + `objectFit: "cover"`), so each image renders whole at its natural aspect ratio, scaled to the grid-column width. (The single-image branch already used `height: "auto"` — unchanged.)
 2. **Grid** — the gallery grid gains `alignItems: "start"` so now-variable-height images align to the top of their row rather than stretching, keeping the grid tidy.
+3. **Stale comment** — the `ImageLightbox` header comment (landed with the tap-to-expand viewer) described the thumbnails as "cover-cropped for a tidy grid"; since this VEP removes that crop, the comment is updated to describe the now-uncropped thumbnails (the viewer opens a grid-scaled image large). Comment-only; no behavioural change.
 
 **Out of scope:** the tap-to-expand full-screen viewer (landed, unchanged — still the full-res view); the video link-card thumbnail (a separate 160×90 `cover` thumb, unrelated to Walter's image report); the crop was the prior behaviour and is being removed by choice.
 
@@ -77,12 +78,12 @@ Format: Golden Pack §3. `no any`; the row: interface (full TS) + VA-id + contra
 
 | # | Module (ownership; ACTIVE/NEW) | Interface (TypeScript) | Visual authority | Data / contract dependency | Impl eligibility |
 | - | --- | --- | --- | --- | --- |
-| TC-1 | `ChatView` (Theo surface; **ACTIVE**, modify) | `ChatViewProps` **UNCHANGED** (full literal locked in §F-P5.1). Delta = two inline-style properties in the gallery render: (a) the grid container gains `alignItems: "start"`; (b) the `multi` thumbnail `<img>` style changes from `{ width: "100%", height: 150, objectFit: "cover", borderRadius: 8, display: "block", border }` to `{ width: "100%", height: "auto", borderRadius: 8, display: "block", border }`. No prop/state/handler/signature change. | VA-T1 (surface unchanged); gallery render (VISUAL-AUTHORITY-DEVIATION, §5) | None (renders existing `m.image.images: InlineImageItem[]`) | PROCEED |
+| TC-1 | `ChatView` (Theo surface; **ACTIVE**, modify) | `ChatViewProps` **UNCHANGED** (full literal locked in §F-P5.1). Delta = two inline-style properties in the gallery render plus one stale-comment fix: (a) the grid container gains `alignItems: "start"`; (b) the `multi` thumbnail `<img>` style changes from `{ width: "100%", height: 150, objectFit: "cover", borderRadius: 8, display: "block", border }` to `{ width: "100%", height: "auto", borderRadius: 8, display: "block", border }`; and (c) the `ImageLightbox` header comment is updated (it previously described the thumbnails as "cover-cropped") — comment-only, no code behaviour. No prop/state/handler/signature change. | VA-T1 (surface unchanged); gallery render (VISUAL-AUTHORITY-DEVIATION, §5) | None (renders existing `m.image.images: InlineImageItem[]`) | PROCEED |
 
 **Infra:** no `vite.config`/dependency change. Single file touched: `ChatView.tsx` (2 lines).
 
 ## F-P5.1 — Locked interface literals (T20 — full literal CCT surfaces)
-**`ChatViewProps`** (`src/theo/components/ChatView.tsx`) — full literal, **UNCHANGED** by this VEP (pasted per T20; the change is style-only, no prop change):
+**`ChatViewProps`** (`src/theo/components/ChatView.tsx`) — full literal, **UNCHANGED** by this VEP (pasted per T20; the change is style + comment only, no prop change):
 ```typescript
 export interface ChatViewProps {
   messages: Message[];
@@ -134,7 +135,7 @@ export interface InlineImageItem { imageUrl: string; title?: string; source?: st
 ```
 
 ## F-P6 — Repository & active-surface grounding
-Target read this turn: `src/theo/components/ChatView.tsx` (baseline blob `822e3fd` @ HEAD `a743569` — the landed lightbox version). The single proposed file — `proposed-src/theo/components/ChatView.tsx`, content-addressed blob `3d24052f5e0bfdcc5b3195e612ad3417c76aeaa4` (the HEAD-independent currency anchor; verify via `git cat-file -p 3d24052`; the reviewed-commit SHA is carried in the submission note, not restated here) — was applied to `src` this turn and reverted after validation (the package carries only `proposed-src/`). Guardrails: no browser→model call; no `localStorage`/`sessionStorage`; no Tailwind; no `reporting_*`/`corporate-reporting`. Validated: `tsc --noEmit` exit 0, `eslint` exit 0 (**no warnings** on `ChatView.tsx`), `vite build` exit 0 (TheoSurface 299.40 kB / 87.03 kB gzip).
+Target read this turn: `src/theo/components/ChatView.tsx` (baseline blob `822e3fd` @ HEAD `a743569` — the landed lightbox version). The single proposed file — `proposed-src/theo/components/ChatView.tsx`, content-addressed blob `35b07ab7af0af0b449a156ad24301aa4386d43b8` (the HEAD-independent currency anchor; verify via `git cat-file -p 35b07ab`; the reviewed-commit SHA is carried in the submission note, not restated here) — was applied to `src` this turn and reverted after validation (the package carries only `proposed-src/`). Guardrails: no browser→model call; no `localStorage`/`sessionStorage`; no Tailwind; no `reporting_*`/`corporate-reporting`. Validated: `tsc --noEmit` exit 0, `eslint` exit 0 (**no warnings** on `ChatView.tsx`), `vite build` exit 0 (TheoSurface 299.40 kB / 87.03 kB gzip).
 
 ## F-P7 — VEP assembly
 GCR (§3) + Rule Anchors (§5) open the pack; F-P1→F-P6 walked; Gap Disclosure present (G-1…G-3 PROCEED); CCT locked (1 ACTIVE modify row + §F-P5.1 full literal). No implementation begun — the one file was validated this turn (`tsc` + `eslint` exit 0 + `build` green, `src` reverted). On Codex APPROVAL, Pass 3 commits `ChatView.tsx` to `development` (the Theo dev SWA serves it; Walter accepts) → **gallery thumbnails show the whole image** (no crop; mobile no longer clips). Walter SWA acceptance (a screenshot of the gallery vs this CCT + acceptance note) = Visual Acceptance Evidence for the VISUAL-AUTHORITY-DEVIATION.

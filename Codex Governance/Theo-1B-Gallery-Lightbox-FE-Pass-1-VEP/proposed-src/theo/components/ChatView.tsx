@@ -218,8 +218,8 @@ function AddToChatSheet({ open, onClose, onCamera, onPhotos, onFiles }: { open: 
   );
 }
 
-// FindImage lightbox — tap a gallery thumbnail to view the image full-screen in-app. Gallery
-// thumbnails show the whole image scaled to the grid-column width; this opens it large (objectFit:contain).
+// FindImage lightbox — tap a gallery thumbnail to view the whole image in-app. Mobile thumbnails
+// are cover-cropped for a tidy grid; tapping opens the full frame here (objectFit:contain, no crop).
 // Mirrors AddToChatSheet's dialog idiom (role=dialog + aria-modal + backdrop-dismiss + IcClose);
 // Esc also closes. Inline-style / C+SANS idiom; no browser storage; "Open original" link preserved.
 function ImageLightbox({ item, onClose }: { item: InlineImageItem | null; onClose: () => void }) {
@@ -538,12 +538,12 @@ export function ChatView(props: ChatViewProps) {
                     if (!items.length) return null;
                     const multi = items.length > 1;
                     return (
-                      <div style={{ display: "grid", gridTemplateColumns: multi ? "repeat(auto-fill, minmax(200px, 1fr))" : "1fr", alignItems: "start", gap: 12, margin: "4px 0 14px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: multi ? "repeat(auto-fill, minmax(200px, 1fr))" : "1fr", gap: 12, margin: "4px 0 14px" }}>
                         {items.map((im, k) => (
                           <figure key={k} style={{ margin: 0, minWidth: 0 }}>
                             <button type="button" onClick={() => setLightboxImage(im)} aria-label={im.title ? `View image: ${im.title}` : "View image"} style={{ display: "block", width: "100%", padding: 0, border: "none", background: "transparent", cursor: "pointer" }}>
                               <img src={im.imageUrl} alt={im.title || ""} style={multi
-                                ? { width: "100%", height: "auto", borderRadius: 8, display: "block", border: `1px solid ${C.line2}` }
+                                ? { width: "100%", height: 150, objectFit: "cover", borderRadius: 8, display: "block", border: `1px solid ${C.line2}` }
                                 : { maxWidth: "100%", height: "auto", borderRadius: 8, display: "block", border: `1px solid ${C.line2}` }} />
                             </button>
                             <figcaption style={{ fontSize: 12, color: C.ink3, marginTop: 4, lineHeight: 1.4, overflowWrap: "anywhere" }}>

@@ -12,7 +12,7 @@ import { Burst, IcMic, IcSpeaker, IcClose } from "./icons";
 import { CitedText } from "./CitedText";
 import { AgentActivity } from "./AgentActivity";
 import { DownloadCard } from "./DownloadCard";
-import type { ComposerAttachment, Message, Project, SentAttachment } from "../types";
+import type { ComposerAttachment, InlineImageItem, Message, Project, SentAttachment } from "../types";
 
 export interface ChatViewProps {
   messages: Message[];
@@ -218,6 +218,43 @@ function AddToChatSheet({ open, onClose, onCamera, onPhotos, onFiles }: { open: 
   );
 }
 
+// FindImage lightbox — tap a gallery thumbnail to view the whole image in-app. Mobile thumbnails
+// are cover-cropped for a tidy grid; tapping opens the full frame here (objectFit:contain, no crop).
+// Mirrors AddToChatSheet's dialog idiom (role=dialog + aria-modal + backdrop-dismiss + IcClose);
+// Esc also closes. Inline-style / C+SANS idiom; no browser storage; "Open original" link preserved.
+function ImageLightbox({ item, onClose }: { item: InlineImageItem | null; onClose: () => void }) {
+  useEffect(() => {
+    if (!item) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [item, onClose]);
+  if (!item) return null;
+  const caption = [item.title, item.source, item.creator, item.license].filter(Boolean).join(" · ");
+  return (
+    <div
+      role="dialog" aria-modal="true" aria-label={item.title || "Image"} onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(24,22,17,0.82)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "calc(20px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom))", zIndex: 70, animation: "vt-fade-in .15s ease" }}
+    >
+      <style>{SHEET_KEYFRAMES}</style>
+      <button
+        onClick={onClose} aria-label="Close" title="Close"
+        style={{ position: "absolute", top: "calc(12px + env(safe-area-inset-top))", right: 14, width: 40, height: 40, border: "none", borderRadius: "50%", background: "rgba(255,255,255,0.16)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+      >
+        <IcClose s={22} />
+      </button>
+      <img
+        src={item.imageUrl} alt={item.title || ""} onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: "100%", maxHeight: "80vh", objectFit: "contain", borderRadius: 8, display: "block", boxShadow: "0 10px 44px rgba(0,0,0,0.5)" }}
+      />
+      <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720, textAlign: "center", color: "rgba(255,255,255,0.88)", fontFamily: SANS, fontSize: 13, lineHeight: 1.45, display: "flex", flexDirection: "column", gap: 6 }}>
+        {caption ? <span style={{ overflowWrap: "anywhere" }}>{caption}</span> : null}
+        <a href={item.pageUrl || item.imageUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", fontWeight: 600, textDecoration: "underline" }}>Open original ↗</a>
+      </div>
+    </div>
+  );
+}
+
 // One attachment chip — file or "Pasted text". Pasted/text chips with a preview expand inline.
 // `onRemove` present ⇒ composer chip (removable); absent ⇒ sent-bubble chip (read-only).
 function Chip(props: {
@@ -369,6 +406,8 @@ export function ChatView(props: ChatViewProps) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const photosRef = useRef<HTMLInputElement>(null);
   const [attachOpen, setAttachOpen] = useState(false);
+  // FindImage: which gallery image is open in the full-screen lightbox (null = closed).
+  const [lightboxImage, setLightboxImage] = useState<InlineImageItem | null>(null);
   const isNarrow = () => typeof window !== "undefined" && window.matchMedia("(max-width: 767.98px)").matches;
 
   useEffect(() => { if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [messages, loading]);
@@ -443,6 +482,8 @@ export function ChatView(props: ChatViewProps) {
         onPhotos={() => { setAttachOpen(false); photosRef.current?.click(); }}
         onFiles={() => { setAttachOpen(false); fileRef.current?.click(); }}
       />
+      {/* FindImage: full-screen viewer for a tapped gallery thumbnail (mobile crop → full frame). */}
+      <ImageLightbox item={lightboxImage} onClose={() => setLightboxImage(null)} />
       <div ref={scroller} className="vo-scroll" style={{ flex: 1, overflowY: "auto" }}>
         {messages.length === 0 ? (
           <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px", textAlign: "center" }}>
@@ -500,11 +541,11 @@ export function ChatView(props: ChatViewProps) {
                       <div style={{ display: "grid", gridTemplateColumns: multi ? "repeat(auto-fill, minmax(200px, 1fr))" : "1fr", gap: 12, margin: "4px 0 14px" }}>
                         {items.map((im, k) => (
                           <figure key={k} style={{ margin: 0, minWidth: 0 }}>
-                            <a href={im.pageUrl || im.imageUrl} target="_blank" rel="noopener noreferrer" style={{ display: "block" }}>
+                            <button type="button" onClick={() => setLightboxImage(im)} aria-label={im.title ? `View image: ${im.title}` : "View image"} style={{ display: "block", width: "100%", padding: 0, border: "none", background: "transparent", cursor: "pointer" }}>
                               <img src={im.imageUrl} alt={im.title || ""} style={multi
                                 ? { width: "100%", height: 150, objectFit: "cover", borderRadius: 8, display: "block", border: `1px solid ${C.line2}` }
                                 : { maxWidth: "100%", height: "auto", borderRadius: 8, display: "block", border: `1px solid ${C.line2}` }} />
-                            </a>
+                            </button>
                             <figcaption style={{ fontSize: 12, color: C.ink3, marginTop: 4, lineHeight: 1.4, overflowWrap: "anywhere" }}>
                               {im.title ? <span style={{ color: C.ink2 }}>{im.title}</span> : null}
                               {im.source ? <span>{im.title ? " · " : ""}{im.source}</span> : null}

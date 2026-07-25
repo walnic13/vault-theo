@@ -10,7 +10,7 @@ Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 4
 Sub-phase Track: N/A
 
-Turn issued against HEAD: `aa153519a38750468702bee1cc1975335109ba03` (vault-theo, `development`; grounding parent `ec8f6d564b65f43fbf0608d14bcf7fb29d1ffe69`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
+Turn issued against HEAD: `337916e08f5908425c3e4e0ecf24c0bbaa864653` (vault-theo, `development`; grounding parent `ec8f6d564b65f43fbf0608d14bcf7fb29d1ffe69`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
 Currency-anchor form: git blob SHA at HEAD.
 Grounding-mode basis: Conformance §4 "Documentation-update package" row = Targeted Current-Turn Grounding. This lands the schema-authority documentation for `theo_messages.media`; the canonical DDL is `media_addendum.sql` (Walter-executed migration).
 

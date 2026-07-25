@@ -10,7 +10,7 @@ Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5
 
-Turn issued against HEAD: `a5506d4bbee37604e85a532f0d6ec50e43d7cd45` (vault-theo, `development`; grounding parent `429de3439f826daa19fd0c7eb629ba11a33047d2`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
+Turn issued against HEAD: `a5506d4bbee37604e85a532f0d6ec50e43d7cd45` (vault-theo, `development`; grounding parent `26b0dbfb44c23caffba65c944e08f275266e3863`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
 Currency-anchor form: git blob SHA at HEAD.
 Baseline-verification note: the Primary Reference was fetched **live** from `vaultgpt-func-premium` (Kudu VFS `site/wwwroot/theo_get_conversation/{index.js,function.json}`, ARM-bearer GET, HTTP 200) this turn (index.js blob `48a330cec1f3cf3c887a0c8192c8bb40868c0b1e`, function.json blob `11257bb1733f0f351b04fc58e2355119c754902b`); both inlined verbatim (spliced from disk).
 
@@ -23,7 +23,7 @@ Baseline-verification note: the Primary Reference was fetched **live** from `vau
 | 4 | Theo Execution Orchestration Standard — `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md` (§1E DR-T15 — theo_get_conversation named) | `Read`+`Grep` this turn | `565559b699c1309f8e750b0dbbac859c13d807c8` |
 | 5 | Theo Architecture and Structure — `governance/THEO_ARCHITECTURE_AND_STRUCTURE.md` (§1 boundary, §5 RLS) | `Grep` this turn | `07451ce9d912830b3c15fedf74761d00c59f97b2` |
 | 6 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 `theo_get_conversation` — additive `media` field, companion Role-C) | `Grep` this turn | `c99a66f39b4ec03644701c266e49aaf2bf52c2ed` |
-| 7 | Theo Azure Postgres Schema — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` (§5 `theo_messages.media` — Part 1) | `Read`+`Grep` this turn | `fa9aad4c75019de0b621e31b5d33ef97f3689639` |
+| 7 | Theo Azure Postgres Schema — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` (§5 `theo_messages.media` — Part 1) | `Read`+`Grep` this turn | `a698d85692b3ccaf052e639f226c76d31c20c0df` |
 | 8 | Primary Reference (deployed, live-fetched) — `theo_get_conversation/index.js` (premium) — blob `48a330cec1f3cf3c887a0c8192c8bb40868c0b1e` | `Read` this turn (+ live Kudu fetch) | `48a330cec1f3cf3c887a0c8192c8bb40868c0b1e` (inlined verbatim below) |
 | 8b | Primary Reference (deployed) — `theo_get_conversation/function.json` (paired binding — Golden Handler §2) — blob `11257bb1733f0f351b04fc58e2355119c754902b` | `Read` this turn (+ live Kudu fetch) | `11257bb1733f0f351b04fc58e2355119c754902b` (inlined verbatim below) |
 

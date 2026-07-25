@@ -10,7 +10,7 @@ Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P5
 
-Turn issued against HEAD: `8f5254afbeba30d879e16f5171798046ed0452fc` (vault-theo, `development`; grounding parent `0ee7ba8a302e8f8ecc048339de070a1422f654bb`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
+Turn issued against HEAD: `8f5254afbeba30d879e16f5171798046ed0452fc` (vault-theo, `development`; grounding parent `26b0dbfb44c23caffba65c944e08f275266e3863`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
 Currency-anchor form: git blob SHA at HEAD.
 Baseline-verification note: the Primary Reference was fetched **live** from `vaultgpt-func-stream` (Kudu VFS `site/wwwroot/src/functions/theo_message_stream.js`, ARM-bearer GET, HTTP 200) this turn (blob `4c72e7226c1ea9d8476e21f4e351dbd1008fbe3a`, 1265 lines — the current deployed handler incl. D3) and committed byte-faithfully as `functions/theo_message_stream.LIVE.js`.
 
@@ -23,7 +23,7 @@ Baseline-verification note: the Primary Reference was fetched **live** from `vau
 | 4 | Theo Execution Orchestration Standard — `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md` (§1E, DR-T11 func-stream deploy) | `Read`+`Grep` this turn | `565559b699c1309f8e750b0dbbac859c13d807c8` |
 | 5 | Theo Architecture and Structure — `governance/THEO_ARCHITECTURE_AND_STRUCTURE.md` (§1 boundary, §5 theo_ schema/RLS) | `Grep` this turn | `07451ce9d912830b3c15fedf74761d00c59f97b2` |
 | 6 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 `theo_message_stream` persist; wire contract unchanged) | `Grep` this turn | `c99a66f39b4ec03644701c266e49aaf2bf52c2ed` |
-| 7 | Theo Azure Postgres Schema — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` (§5 `theo_messages` — new `media jsonb` per Part 1) | `Read`+`Grep` this turn | `fa9aad4c75019de0b621e31b5d33ef97f3689639` |
+| 7 | Theo Azure Postgres Schema — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` (§5 `theo_messages` — new `media jsonb` per Part 1) | `Read`+`Grep` this turn | `a698d85692b3ccaf052e639f226c76d31c20c0df` |
 | 8 | Primary Reference (deployed, live-fetched) — `theo_message_stream.js` (func-stream, v4 model — no per-function `function.json`) — blob `4c72e7226c1ea9d8476e21f4e351dbd1008fbe3a` | `Read` this turn (+ live Kudu fetch) | `4c72e7226c1ea9d8476e21f4e351dbd1008fbe3a` (committed byte-faithfully as `functions/theo_message_stream.LIVE.js` in this package) |
 
 ## Rule Anchor Table

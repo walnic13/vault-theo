@@ -10,7 +10,7 @@ Grounding Mode: Targeted Current-Turn Grounding
 Pass: Pass 4
 Sub-phase Track: N/A
 
-Turn issued against HEAD: `a5506d4bbee37604e85a532f0d6ec50e43d7cd45` (vault-theo, `development`; grounding parent `429de3439f826daa19fd0c7eb629ba11a33047d2`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
+Turn issued against HEAD: `a5506d4bbee37604e85a532f0d6ec50e43d7cd45` (vault-theo, `development`; grounding parent `26b0dbfb44c23caffba65c944e08f275266e3863`). Working tree also carried untracked `artifacts/*.xlsx` (Class B disclosed workbook dirt — not source/governance).
 Currency-anchor form: git blob SHA at HEAD.
 Grounding-mode basis: Conformance §4 "Documentation-update package" row = Targeted Current-Turn Grounding. Application is gated on the Part 3 handler deploy + golden curls — this Role-C is applied only after `theo_get_conversation` on premium actually returns `media`.
 
@@ -19,7 +19,7 @@ Grounding-mode basis: Conformance §4 "Documentation-update package" row = Targe
 |---|---|---|---|
 | 1 | Theo API Spec (target — §2.1 `theo_get_conversation` row) — `spec/THEO_API_SPEC.md` | `Read`+`Grep` this turn | `c99a66f39b4ec03644701c266e49aaf2bf52c2ed` |
 | 2 | Claude Code Theo Governor Standard (Verbatim-Edit Handoff §11) — `governance/CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md` | `Grep` this turn | `e44cdd85d3d0e5df332dc754cdec731e2e68022e` |
-| 3 | Theo Azure Postgres Schema (§5 `theo_messages.media`) — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` | `Grep` this turn | `fa9aad4c75019de0b621e31b5d33ef97f3689639` |
+| 3 | Theo Azure Postgres Schema (§5 `theo_messages.media`) — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` | `Grep` this turn | `a698d85692b3ccaf052e639f226c76d31c20c0df` |
 | 4 | Theo Grounding Conformance Standard (§3/§5) — `governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md` | `Read` this turn | `7c0d902bdff3b6c0af475b483e31ed796214e57b` |
 
 ## Rule Anchor Table

@@ -145,6 +145,7 @@ export interface PersistedMessage {
   id: string; seq: number; role: Role; content: string;
   model: string | null;
   citations: { url?: string; title?: string; cited_text?: string }[] | null;
+  media?: { image?: InlineImage; video?: InlineVideo } | null;   // Chat Media Persistence: persisted inline media (theo_get_conversation returns it)
   created_at: string;
 }
 export interface ConversationDetail {

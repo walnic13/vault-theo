@@ -432,13 +432,13 @@ export function useTheoState() {
         const cites = Array.isArray(m.citations) ? m.citations : [];
         if (m.role === "assistant") {
           const { display } = theoClient.ingestReply(m.content);   // parse+upsert artifacts; markers → placeholders
-          if (cites.length) {
-            return {
-              role: "assistant", content: display,
-              runs: [{ text: display, citations: cites.map((c) => ({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text })) }],
-            };
-          }
-          return { role: "assistant", content: display };
+          const media = m.media && typeof m.media === "object" ? m.media : null;   // Chat Media Persistence: restore fetched images/videos on reload
+          return {
+            role: "assistant", content: display,
+            ...(cites.length ? { runs: [{ text: display, citations: cites.map((c) => ({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text })) }] } : {}),
+            ...(media && media.image ? { image: media.image } : {}),
+            ...(media && media.video ? { video: media.video } : {}),
+          };
         }
         return { role: m.role, content: m.content, ...(atts && atts.length ? { attachments: atts } : {}) };
       });

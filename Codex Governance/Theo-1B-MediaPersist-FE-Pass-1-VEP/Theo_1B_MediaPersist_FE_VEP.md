@@ -7,7 +7,7 @@
 ## GROUNDING CONFORMANCE RECEIPT
 Role: Claude Code
 Turn Type: Verified Evidence Pack (frontend plan)
-Turn issued against HEAD: `0cfd77af157c71a147d1c0355eced24f921c93a3` (vault-theo, `development`)
+Turn issued against HEAD: `ee255758383a7df263ee0ab4b1f1060ec5ea7e87` (vault-theo, `development`)
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A
@@ -21,7 +21,7 @@ Currency anchors: blob SHA (captured this turn via `git rev-parse HEAD:<path>`);
 | 3 | Codex Theo FE Review Standard — `governance/CODEX_THEO_FRONTEND_REVIEW_STANDARD.md` | cited (regime reviewer) | `e2b7e0ba91486371414da688ae3697f02a11e252` |
 | 4 | Theo Golden Component Pack Standard — `governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` (§3 CCT; §5 deltas) | `Read` this turn | `0035a1d9fed103d07bf420b957c3727ec47fcc6b` |
 | 5 | Theo Phase 1A Frontend Plan — `governance/THEO_PHASE_1A_FRONTEND_PLAN.md` | cited (surface authority) | `901271478e8bec29177d379fadbbf3d4701a90fe` |
-| 6 | **Consumed contract** — Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 `theo_get_conversation` → `messages[].media`) | `Grep` this turn | `c99a66f39b4ec03644701c266e49aaf2bf52c2ed` |
+| 6 | **Consumed contract** — Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 `theo_get_conversation` → `messages[].media` — LANDED: the §2.1 Role-C is applied at this blob) | `Grep` this turn | `a667f4174659b0d7b6e7aa54709047249627420a` |
 | 7 | ACTIVE (modify) — `src/theo/types.ts` (`PersistedMessage`) | `Read(full)` this turn | `9bd13e72eac5c783eb395d9a08a7fa0291d10f08` |
 | 8 | ACTIVE (modify) — `src/theo/useTheoState.ts` (state owner: `selectRecent` reload) | `Read(full)` this turn | `bcc17944281bc75c38899abd7dfc4b8dfc0aed0f` |
 | 9 | **VA-T1 artifact** (registered §4B) — `frontend/theo-frontend-reference.jsx` (chat message surface; inline image/video) | `Grep`/read this turn | `433f6236344f6e8bdbc49db85a53036427610fed` |

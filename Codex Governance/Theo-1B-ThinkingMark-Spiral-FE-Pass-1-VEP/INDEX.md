@@ -13,4 +13,4 @@ Adds an animated Vault mark (Spiral of Theodorus logo + continued nautilus tail,
 `tsc --noEmit` exit 0 · `eslint` exit 0 (no warnings) · `vite build` exit 0 (TheoSurface 316.35 kB / 91.69 kB gzip).
 
 ## On APPROVAL (Pass 3)
-Copy both files from `proposed-src/` into `src/`, remove the unused `SpiralLine.tsx` scratch file, re-verify green, commit to `development`; Walter accepts on the Theo dev SWA.
+Copy both files from `proposed-src/` into `src/`, re-verify green, commit to `development`; Walter accepts on the Theo dev SWA. (No deletions: `SpiralLine.tsx` was untracked and is absent at the reviewed commit.)

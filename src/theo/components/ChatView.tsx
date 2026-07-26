@@ -6,6 +6,7 @@
 // assistant reply gains a read-aloud control (idle "Read aloud" / playing equalizer). Backends:
 // theo_transcribe_audio + theo_synthesize_speech (API §2.11). Inline-style, no browser storage.
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ChangeEvent, ClipboardEvent, DragEvent, ReactNode } from "react";
 import { C, SANS, SERIF } from "../theme";
 import { Burst, IcMic, IcSpeaker, IcClose } from "./icons";
@@ -399,14 +400,21 @@ function BirthdayBanner() {
 // matching the PWA manifest splash the user sees on app open), held over the whole surface until the
 // last-chat restore resolves. Full-cover so there is no new-chat greeting flash before the restore.
 function RestoringSplash() {
-  return (
+  if (typeof document === "undefined") return null;
+  // Full-viewport branded splash. PORTALED to document.body + position:fixed so it covers the ENTIRE
+  // screen (over the mobile top bar / behind the safe-area strip), matching the OS/Origin PWA boot
+  // splash rather than being clipped to the ChatView box. The spiral is sized to the manifest splash's
+  // on-screen proportion (~36% of viewport width, capped) so its size matches the boot-splash logo.
+  const spiral = Math.min(Math.round((typeof window !== "undefined" ? window.innerWidth : 400) * 0.36), 200);
+  return createPortal(
     <div
       role="status"
       aria-label="Loading"
-      style={{ position: "absolute", inset: 0, zIndex: 40, background: "#E9D6B6", display: "flex", alignItems: "center", justifyContent: "center" }}
+      style={{ position: "fixed", inset: 0, zIndex: 2147483000, background: "#E9D6B6", display: "flex", alignItems: "center", justifyContent: "center" }}
     >
-      <SpiralMark size={112} />
-    </div>
+      <SpiralMark size={spiral} />
+    </div>,
+    document.body
   );
 }
 

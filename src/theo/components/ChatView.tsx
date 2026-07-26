@@ -12,6 +12,7 @@ import { Burst, IcMic, IcSpeaker, IcClose } from "./icons";
 import { CitedText } from "./CitedText";
 import { AgentActivity } from "./AgentActivity";
 import { DownloadCard } from "./DownloadCard";
+import { SpiralMark } from "./SpiralMark";
 import type { ComposerAttachment, InlineImageItem, Message, Project, SentAttachment } from "../types";
 
 export interface ChatViewProps {
@@ -56,6 +57,10 @@ export interface ChatViewProps {
   // In Sigma (with or without a review armed) → app-level review-assistant landing (#5 v2). Distinct
   // from reviewMode (a specific fund) and generic Theo. false everywhere outside Sigma.
   sigmaMode?: boolean;
+  // Cold-open restore gate: true from mount until useTheoState resolves whether to reopen the last
+  // chat. While true, the branded splash (warm sand + Spiral of Theodorus) covers the surface so the
+  // app opens splash → last chat instead of flashing the new-chat greeting first. Absent → false.
+  restoring?: boolean;
 }
 
 // VA-T8: the "listening" waveform + read-aloud equalizer share one keyframe, injected once (the
@@ -390,13 +395,28 @@ function BirthdayBanner() {
   );
 }
 
+// Cold-open restore gate: the branded boot-splash look (warm sand #E9D6B6 + the Spiral of Theodorus,
+// matching the PWA manifest splash the user sees on app open), held over the whole surface until the
+// last-chat restore resolves. Full-cover so there is no new-chat greeting flash before the restore.
+function RestoringSplash() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading"
+      style={{ position: "absolute", inset: 0, zIndex: 40, background: "#E9D6B6", display: "flex", alignItems: "center", justifyContent: "center" }}
+    >
+      <SpiralMark size={112} />
+    </div>
+  );
+}
+
 export function ChatView(props: ChatViewProps) {
   const {
     messages, loading, error, draft, attachments, attachmentsAvailable,
     onDraftChange, onSend, onStop, queuedText, onCancelQueued, onAddFiles, onAddPastedText, onRemoveAttachment,
     chatProject, assistantName, greeting, starters, renderAssistant, reviewFund, reviewMode, sigmaMode,
     voiceAvailable, recording, transcribing, recordingSeconds, onStartDictation, onStopDictation, onCancelDictation,
-    playingIdx, synthesizingIdx, onReadAloud, onStopReadAloud,
+    playingIdx, synthesizingIdx, onReadAloud, onStopReadAloud, restoring,
   } = props;
   const scroller = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -474,6 +494,9 @@ export function ChatView(props: ChatViewProps) {
       onDrop={onDrop}
     >
       <style>{VOICE_KEYFRAMES}</style>
+      {/* Cold-open restore gate: branded splash over the whole surface until the last-chat restore
+          resolves (no new-chat greeting flash on app open). */}
+      {restoring && <RestoringSplash />}
       {/* VA-T10: mobile "Add to chat" sheet — each card routes into the existing onAddFiles pipeline. */}
       <AddToChatSheet
         open={attachOpen}

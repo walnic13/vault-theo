@@ -90,6 +90,11 @@ export function useTheoState() {
   const reviewArmRef = useRef<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [recentsList, setRecentsList] = useState<ConversationSummary[]>([]);
+  // Cold-open restore gate: `recentsLoaded` marks the first Recents settle (loaded, possibly empty);
+  // `restoring` holds the UI on the branded splash from mount until the restore decision resolves, so
+  // the app opens splash → last chat (or greeting) instead of flashing the new-chat greeting first.
+  const [recentsLoaded, setRecentsLoaded] = useState(false);
+  const [restoring, setRestoring] = useState(true);
   // B4e: the open project's chats, KEYED by projectId so a slow/stale async load can neither show
   // nor overwrite another project's list (Codex B4e finding). A request ref guards the async setter;
   // the derived `projectChats` (below) only surfaces chats whose projectId matches the open detail.
@@ -203,7 +208,9 @@ export function useTheoState() {
       const touched = (c: ConversationSummary) => Math.max(Date.parse(c.last_opened_at || "") || 0, Date.parse(c.updated_at || "") || 0);
       list.sort((a, b) => touched(b) - touched(a));
       setRecentsList(list);
-    } catch { /* keep current list */ }
+    } catch { /* keep current list */ } finally {
+      setRecentsLoaded(true);   // first settle done (success or failure) → the restore gate can resolve
+    }
   }, []);
 
   // Restore-on-reopen: on the first settle after Recents load, open the LAST-OPENED conversation
@@ -219,11 +226,17 @@ export function useTheoState() {
   const didRestoreRef = useRef(false);
   useEffect(() => {
     if (didRestoreRef.current) return;
-    if (recentsList.length === 0) return;                 // wait for Recents to load (or none exist)
+    if (!recentsLoaded) return;                           // wait for the first Recents settle (loaded, possibly empty)
     didRestoreRef.current = true;                         // decide once, at the first recents-settle
-    if (conversationId !== null || messages.length > 0 || draft.trim() !== "" || attachments.length > 0) return; // already in / composing → don't move
-    void selectRecent(recentsList[0].id);
-  }, [recentsList, conversationId, messages.length, draft, attachments.length]);
+    // already in a chat / composing, or nothing to restore → drop the gate now (show current/greeting)
+    if (conversationId !== null || messages.length > 0 || draft.trim() !== "" || attachments.length > 0 || recentsList.length === 0) {
+      setRestoring(false);
+      return;
+    }
+    // restore the last-touched chat, THEN drop the gate → the splash lands directly on that chat (no
+    // greeting flash). `finally` so a failed restore still clears the gate rather than hanging on splash.
+    void selectRecent(recentsList[0].id).finally(() => setRestoring(false));
+  }, [recentsLoaded, recentsList, conversationId, messages.length, draft, attachments.length]);
 
   // B4c: load the signed-in user's projects (live → theo_list_projects; mock fallback). Called by
   // TheoSurface's mount effect right after configureGateway (same reason as loadRecents — so the
@@ -949,7 +962,7 @@ export function useTheoState() {
 
   return {
     // state
-    view, collapsed, search, projects, projectChats, artifacts, galleryArtifacts, detail, chatProject, art, openArt, messages, draft, attachments, attachmentsAvailable, loading, error, queued,
+    view, collapsed, search, projects, projectChats, artifacts, galleryArtifacts, detail, chatProject, art, openArt, messages, draft, attachments, attachmentsAvailable, loading, restoring, error, queued,
     conversationId, currentConversation: recentsList.find((c) => c.id === conversationId) ?? null,
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
     reviewMode: hasReviewContext(appContext), // Sigma review context armed → review-assistant landing/chip

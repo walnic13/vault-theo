@@ -79,7 +79,7 @@ export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           {t.view === "chats" && (
             <ChatView
-              messages={t.messages} loading={t.loading} error={t.error} draft={t.draft}
+              messages={t.messages} loading={t.loading} restoring={t.restoring} error={t.error} draft={t.draft}
               attachments={t.attachments} attachmentsAvailable={t.attachmentsAvailable}
               onDraftChange={t.setDraft} onSend={t.send} onStop={t.stop}
               queuedText={t.queued} onCancelQueued={t.cancelQueued}

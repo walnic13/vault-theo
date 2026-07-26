@@ -198,23 +198,38 @@ async function getUserDelegationKey(accountName, startTime, expiryTime) {
 }
 
 function computeUserDelegationSignature(params, userDelegationKey) {
-  const stringToSign =
-    `${params.sp}\n` +
-    `${params.st}\n` +
-    `${params.se}\n` +
-    `${params.canonicalizedResource}\n` +
-    `${userDelegationKey.signedOid}\n` +
-    `${userDelegationKey.signedTid}\n` +
-    `${userDelegationKey.signedStart}\n` +
-    `${userDelegationKey.signedExpiry}\n` +
-    `${userDelegationKey.signedService}\n` +
-    `${userDelegationKey.signedVersion}\n` +
-    `\n\n\n\n` +
-    `${params.spr}\n` +
-    `${params.sv}\n` +
-    `${params.sr}\n` +
-    `\n\n\n\n\n` +
-    `${params.rsct || ""}`;
+  // User-delegation SAS canonical string-to-sign for service version >= 2020-12-06
+  // (we sign with sv = 2022-11-02). Field order is exact and positional — every field is
+  // present (empty string when unused). The block after `sr` is:
+  //   sst, ses (signedEncryptionScope, added in 2020-12-06), rscc, rscd, rsce, rscl, rsct.
+  // Built as an explicit array (not hand-counted newlines) so the field positions are provable
+  // against Azure's canonical (which Azure echoes verbatim in any AuthenticationFailed detail).
+  const stringToSign = [
+    params.sp,
+    params.st,
+    params.se,
+    params.canonicalizedResource,
+    userDelegationKey.signedOid,
+    userDelegationKey.signedTid,
+    userDelegationKey.signedStart,
+    userDelegationKey.signedExpiry,
+    userDelegationKey.signedService,
+    userDelegationKey.signedVersion,
+    "", // signedAuthorizedUserObjectId (saoid)
+    "", // signedUnauthorizedUserObjectId (suoid)
+    "", // signedCorrelationId (scid)
+    "", // signedIP (sip)
+    params.spr,
+    params.sv,
+    params.sr,
+    "", // signedSnapshotTime (sst)
+    "", // signedEncryptionScope (ses)
+    "", // rscc (Cache-Control)
+    "", // rscd (Content-Disposition)
+    "", // rsce (Content-Encoding)
+    "", // rscl (Content-Language)
+    params.rsct || "", // rsct (Content-Type)
+  ].join("\n");
   const key = Buffer.from(userDelegationKey.value, "base64");
   return crypto.createHmac("sha256", key).update(stringToSign, "utf8").digest("base64");
 }

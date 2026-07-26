@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import type { ChangeEvent, ClipboardEvent, DragEvent, ReactNode } from "react";
 import { C, SANS, SERIF } from "../theme";
 import { Burst, IcMic, IcSpeaker, IcClose } from "./icons";
+import { SpiralAssemble } from "./SpiralAssemble";
 import { CitedText } from "./CitedText";
 import { AgentActivity } from "./AgentActivity";
 import { DownloadCard } from "./DownloadCard";
@@ -332,6 +333,7 @@ function StatusLine() {
   }, []);
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 9, color: C.ink3, fontFamily: SANS, fontSize: 14 }}>
+      <SpiralAssemble size={20} />
       <span style={{ fontStyle: "italic" }}>{STATUS_WORDS[i]}…</span>
       <span style={{ display: "inline-flex", gap: 4 }}>{[0, 1, 2].map((d) => <span key={d} style={{ width: 6, height: 6, borderRadius: "50%", background: C.ink3, display: "inline-block", animation: `vo-bounce 1.2s ${d * 0.16}s infinite ease-in-out` }} />)}</span>
     </span>

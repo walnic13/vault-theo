@@ -233,6 +233,15 @@ export function useTheoState() {
       setRestoring(false);
       return;
     }
+    // Staleness cap (Walter-set, 4h): only auto-restore if the last chat was touched within the window
+    // (max of last_opened_at / updated_at). If too long has passed, land on the fresh Theo greeting
+    // rather than a stale chat — "resume within a working session, else start fresh".
+    const RESTORE_MAX_AGE_MS = 4 * 60 * 60 * 1000; // 4 hours
+    const lastTouched = Math.max(Date.parse(recentsList[0].last_opened_at || "") || 0, Date.parse(recentsList[0].updated_at || "") || 0);
+    if (!lastTouched || Date.now() - lastTouched > RESTORE_MAX_AGE_MS) {
+      setRestoring(false); // stale → drop the gate, show the greeting (no restore)
+      return;
+    }
     // restore the last-touched chat, THEN drop the gate → the splash lands directly on that chat (no
     // greeting flash). `finally` so a failed restore still clears the gate rather than hanging on splash.
     void selectRecent(recentsList[0].id).finally(() => setRestoring(false));

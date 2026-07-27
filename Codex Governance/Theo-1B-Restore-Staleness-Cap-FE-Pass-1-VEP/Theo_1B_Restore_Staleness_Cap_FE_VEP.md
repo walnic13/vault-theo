@@ -16,7 +16,7 @@ Currency anchors: blob SHA (captured this turn via `git rev-parse HEAD:<path>` /
 
 | # | Document (name + path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
 | - | ---------------------- | ------------------------------ | --------------------------------- |
-| 1 | Theo FE Grounding Conformance Standard — `governance/THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md` (§3–§5; §4 matrix; §4B; §6 classification) | `Read`/`Grep` this turn | `c614d51c49a0870bb7a4903e63f96ce2dbef314d` |
+| 1 | Theo FE Grounding Conformance Standard — `governance/THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md` (§3–§5; §4 matrix; §4B; §6 classification) | `Read`/`Grep` this turn | `aca008660566997795a991a5816f4011d757c942` (current HEAD — post VA-T11 landing `a206e5d`) |
 | 2 | Theo Golden Component Pack Standard — `governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` (§3 CCT) | `Grep` this turn | `0035a1d9fed103d07bf420b957c3727ec47fcc6b` |
 | 3 | Claude Code Theo FE Governor Standard — `governance/CLAUDE_CODE_THEO_FRONTEND_GOVERNOR_STANDARD.md` (§6.3 no browser storage; §2 plan-only) | `Grep` this turn | `b9c0e11d6e52aace2f97caec845a70e66372b713` |
 | 4 | Codex Theo FE Review Standard — `governance/CODEX_THEO_FRONTEND_REVIEW_STANDARD.md` | cited (regime reviewer) | `e2b7e0ba91486371414da688ae3697f02a11e252` |
@@ -48,7 +48,7 @@ No ChatGPT advisory cited (§6 T18). No `corporate-reporting`/`reporting_*` chan
 - if `!lastTouched` OR `Date.now() - lastTouched > 4h`, call `setRestoring(false)` and `return` (drop the gate → the app shows the fresh Theo greeting, VA-T1);
 - otherwise restore as before.
 
-**Out of scope / unchanged:** the last-touched ordering in `loadRecents`; the "already-in-a-chat / composing / empty-user" guards; the `restoring` branded splash; `selectRecent`; the returned state object shape; every other surface. No new state variable (a module-local `const` + `Date.now()`), no browser storage, no backend/contract change.
+**Out of scope / unchanged:** the last-touched ordering in `loadRecents`; the "already-in-a-chat / composing / empty-user" guards; the `restoring` branded splash; `selectRecent`; the returned state object shape; every other surface. No new state variable (a effect-local `const` (declared inside the restore `useEffect`) + `Date.now()`), no browser storage, no backend/contract change.
 
 ## F-P2 — UI Authority Reconciliation
 | VA-id (registered §4B) | Reconciliation | Classification (anchored) |
@@ -71,7 +71,7 @@ No other gaps. No `localStorage`/`sessionStorage`; no Tailwind/CSS-in-JS; no `re
 - **No backend, contract, API Spec, or schema change.** `theo_list_conversations` is already consumed and already returns `last_opened_at` / `updated_at` (used for the last-touched ordering); this VEP only reads those existing fields at the restore decision. No gateway/model call added (Governor §6.1 preserved).
 
 ## F-P4 — Component reference grounding
-**PRIMARY REFERENCE:** the existing `useTheoState.ts` restore effect (the structural mirror is its current form; the change is a guard inserted before the existing `selectRecent` call). No new state (Governor §6.3 — a module-local `const` + `Date.now()`, no storage). Ordering/guards/`restoring` splash/`selectRecent`/returned state **unchanged**.
+**PRIMARY REFERENCE:** the existing `useTheoState.ts` restore effect (the structural mirror is its current form; the change is a guard inserted before the existing `selectRecent` call). No new state (Governor §6.3 — a effect-local `const` (declared inside the restore `useEffect`) + `Date.now()`, no storage). Ordering/guards/`restoring` splash/`selectRecent`/returned state **unchanged**.
 
 ## F-P5 — Component Contract Table
 Format: Golden Pack §3. `no any`; the row: interface + VA-id + contract dependency.

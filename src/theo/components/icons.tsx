@@ -1,5 +1,5 @@
-// Icons + Burst mark — ported verbatim from VA-T1 (theo-frontend-reference.jsx L39–57).
-import { C } from "../theme";
+// Icons — ported verbatim from VA-T1 (theo-frontend-reference.jsx L39–57). The Burst mark
+// (VA-T1 L39–57) is retired: Theo's identity is now the Vault logo (VaultMark / SpiralAssemble).
 
 const SV = {
   viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
@@ -23,9 +23,3 @@ export const IcTrash = ({ s = 16 }: { s?: number }) => (<svg {...SV} width={s} h
 // Voice controls (VA-T8): dictation mic + read-aloud speaker, in the SV idiom.
 export const IcMic = ({ s = 18 }: { s?: number }) => (<svg {...SV} width={s} height={s}><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10a7 7 0 0 0 14 0" /><path d="M12 19v3" /></svg>);
 export const IcSpeaker = ({ s = 16 }: { s?: number }) => (<svg {...SV} width={s} height={s}><path d="M11 5 6 9H3v6h3l5 4z" /><path d="M16 9a4 4 0 0 1 0 6" /><path d="M19 6.5a8 8 0 0 1 0 11" /></svg>);
-
-export function Burst({ size = 22, color = C.coral }: { size?: number; color?: string }) {
-  return (<svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true"><g fill={color}>
-    {Array.from({ length: 12 }).map((_, i) => (<rect key={i} x="46.5" y="7" width="7" height="36" rx="3.5" transform={`rotate(${i * 30} 50 50)`} />))}
-  </g></svg>);
-}

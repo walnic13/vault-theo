@@ -66,9 +66,14 @@ export interface TheoSurfaceProps {
   // button) starts a fresh chat via the existing useTheoState newChat().
   suppressNarrowHeader?: boolean;
   newChatNonce?: number;
+  // Fired when the user picks a NAV DESTINATION from the portaled nav (a recent, New chat, or a nav
+  // view). The host uses this to dismiss its mobile ☰ drawer on selection (VO1 §10B "selecting a Theo
+  // destination … dismisses the drawer"). Management-only actions (rename/delete/star/add-to-project),
+  // search, and section toggles deliberately do NOT fire it. No-op when absent (standalone).
+  onNavigate?: () => void;
 }
 
-export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessToken, suppressNarrowHeader, newChatNonce }: TheoSurfaceProps) {
+export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessToken, suppressNarrowHeader, newChatNonce, onNavigate }: TheoSurfaceProps) {
   const t = useTheoState();
   const { ingestAppContext, loadRecents, loadProjects, loadGalleryArtifacts, loadPeople } = t;
 
@@ -102,13 +107,17 @@ export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessTo
     newChatRef.current();
   }, [newChatNonce]);
 
+  // A nav DESTINATION was chosen — run Theo's handler, then signal the host so it can dismiss its
+  // mobile drawer (VO1 §10B). Only destinations are wrapped; management/search/toggles are not.
   const nav = (
     <Sidebar
-      collapsed={t.collapsed} onToggleCollapse={t.toggleCollapse} view={t.view} onNavigate={t.go} nav={NAV}
-      search={t.search} onSearch={t.setSearch} recents={t.recents} onSelectRecent={t.selectRecent}
+      collapsed={t.collapsed} onToggleCollapse={t.toggleCollapse} view={t.view}
+      onNavigate={(k) => { t.go(k); onNavigate?.(); }} nav={NAV}
+      search={t.search} onSearch={t.setSearch} recents={t.recents}
+      onSelectRecent={(id) => { t.selectRecent(id); onNavigate?.(); }}
       onRenameRecent={t.renameConversation} onDeleteRecent={t.deleteConversation}
       projects={t.projects} onToggleStar={t.setConversationStarred} onAddToProject={t.addConversationToProject}
-      onNewChat={t.newChat} workspaceName={WORKSPACE_NAME} productName={PRODUCT_NAME}
+      onNewChat={() => { t.newChat(); onNavigate?.(); }} workspaceName={WORKSPACE_NAME} productName={PRODUCT_NAME}
       fluid={!!(navSlot && mainSlot)}
     />
   );

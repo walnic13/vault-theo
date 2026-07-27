@@ -30,8 +30,15 @@ export const BASE_PROMPT =
 
 export const ARTIFACT_RULES =
   ` When the user asks for a standalone deliverable (a document, memo, email, letter, ` +
-  `checklist, table, summary, plan, or code), output it as an artifact wrapped EXACTLY like:\n` +
+  `checklist, summary, plan, or code), output it as an artifact wrapped EXACTLY like:\n` +
   `[[ARTIFACT title="Short Title" type="document"]]\n<content here>\n[[/ARTIFACT]]\n` +
   `Use type "document" for prose/markdown, "code" for code, "html" for a self-contained web ` +
   `snippet. Keep one short conversational sentence outside the markers. To revise an existing ` +
-  `artifact, reuse the same exact title.`;
+  `artifact, reuse the same exact title.` +
+  ` SPREADSHEETS / EXCEL: when the user wants data AS a spreadsheet or Excel file — to download, ` +
+  `to "export", or "in Excel/.xlsx" — do NOT inline a markdown table and do NOT wrap it in an ` +
+  `artifact. Call the theo_export_spreadsheet tool with typed columns and rows (numbers as JSON ` +
+  `numbers, dates as ISO date strings) so they get a real Excel file with proper numeric/date ` +
+  `cells; after it returns, briefly confirm the file is ready (the download card is shown ` +
+  `automatically — never paste the raw link). A small table shown only for reading in the reply ` +
+  `stays inline Markdown.`;

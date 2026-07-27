@@ -9,9 +9,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ChangeEvent, ClipboardEvent, DragEvent, ReactNode } from "react";
 import { C, SANS, SERIF } from "../theme";
-import { IcMic, IcSpeaker, IcClose } from "./icons";
+import { Burst, IcMic, IcSpeaker, IcClose } from "./icons";
 import { SpiralAssemble } from "./SpiralAssemble";
-import { VaultMark } from "./VaultMark";
 import { CitedText } from "./CitedText";
 import { AgentActivity } from "./AgentActivity";
 import { DownloadCard } from "./DownloadCard";
@@ -334,6 +333,7 @@ function StatusLine() {
   }, []);
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 9, color: C.ink3, fontFamily: SANS, fontSize: 14 }}>
+      <SpiralAssemble size={20} />
       <span style={{ fontStyle: "italic" }}>{STATUS_WORDS[i]}…</span>
       <span style={{ display: "inline-flex", gap: 4 }}>{[0, 1, 2].map((d) => <span key={d} style={{ width: 6, height: 6, borderRadius: "50%", background: C.ink3, display: "inline-block", animation: `vo-bounce 1.2s ${d * 0.16}s infinite ease-in-out` }} />)}</span>
     </span>
@@ -520,7 +520,7 @@ export function ChatView(props: ChatViewProps) {
       <div ref={scroller} className="vo-scroll" style={{ flex: 1, overflowY: "auto" }}>
         {messages.length === 0 ? (
           <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px", textAlign: "center" }}>
-            <VaultMark size={40} variant="building" />
+            <Burst size={40} />
             <h1 style={{ fontFamily: SERIF, fontWeight: 500, fontSize: 32, margin: "18px 0 6px", letterSpacing: -0.2 }}>{greeting}</h1>
             <p style={{ color: C.ink2, fontSize: 15, margin: "0 0 22px" }}>{reviewMode ? `I've loaded ${reviewFund ?? "this fund"}'s workpapers — pick where to start, or ask me anything about this review.` : sigmaMode ? "I'm your K-1 review assistant. Open a fund from the worklist to start a review — I'll walk you through the exceptions, explain the controls, and help you sign off. Or ask me how reviews work." : chatProject ? `Working in ${chatProject.name}.` : "How can I help with your work today?"}</p>
             {(!reviewMode && !sigmaMode)
@@ -546,7 +546,7 @@ export function ChatView(props: ChatViewProps) {
               </div>
             ) : (
               <div key={i} style={{ display: "flex", gap: 13, margin: "0 0 26px" }}>
-                <div style={{ marginTop: 2, flexShrink: 0 }}>{loading && i === messages.length - 1 ? <SpiralAssemble size={22} /> : <VaultMark size={22} />}</div>
+                <div style={{ marginTop: 2, flexShrink: 0 }}><Burst size={22} /></div>
                 <div style={{ fontSize: 15, paddingTop: 1, minWidth: 0, flex: 1 }}>
                   {/* VA-T7: review-agent activity (live reasoning + tool calls) above the answer. Only
                       sigma review turns carry reasoning/tools; general chat turns render neither. */}
@@ -641,7 +641,7 @@ export function ChatView(props: ChatViewProps) {
               </div>
             ))}
             {loading && messages.length > 0 && messages[messages.length - 1].role !== "assistant" && (<div style={{ display: "flex", gap: 13, margin: "0 0 26px" }}>
-              <div style={{ marginTop: 2 }}><SpiralAssemble size={22} /></div>
+              <div style={{ marginTop: 2 }}><Burst size={22} /></div>
               <div style={{ display: "flex", gap: 5, paddingTop: 9 }}>{[0, 1, 2].map((d) => <span key={d} style={{ width: 7, height: 7, borderRadius: "50%", background: C.ink3, display: "inline-block", animation: `vo-bounce 1.2s ${d * 0.16}s infinite ease-in-out` }} />)}</div>
             </div>)}
           </div>

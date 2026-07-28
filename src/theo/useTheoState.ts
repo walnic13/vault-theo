@@ -91,8 +91,8 @@ export function useTheoState() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [recentsList, setRecentsList] = useState<ConversationSummary[]>([]);
   // Cold-open restore gate: `recentsLoaded` marks the first Recents settle (loaded, possibly empty);
-  // `restoring` holds the UI on the branded splash from mount until the restore decision resolves, so
-  // the app opens splash → last chat (or greeting) instead of flashing the new-chat greeting first.
+  // `restoring` holds the UI on a quiet neutral cover from mount until the restore decision resolves,
+  // so the app opens → last chat (or greeting) instead of flashing the new-chat greeting first.
   const [recentsLoaded, setRecentsLoaded] = useState(false);
   const [restoring, setRestoring] = useState(true);
   // B4e: the open project's chats, KEYED by projectId so a slow/stale async load can neither show
@@ -233,13 +233,16 @@ export function useTheoState() {
       setRestoring(false);
       return;
     }
-    // Staleness cap (Walter-set, 4h): only auto-restore if the last chat was touched within the window
-    // (max of last_opened_at / updated_at). If too long has passed, land on the fresh Theo greeting
-    // rather than a stale chat — "resume within a working session, else start fresh".
-    const RESTORE_MAX_AGE_MS = 4 * 60 * 60 * 1000; // 4 hours
+    // Staleness cap (Walter 2026-07-28): the >4h "start fresh on the greeting" reset is MOBILE-ONLY.
+    // On DESKTOP the workspace never expires — always restore the last chat regardless of how long has
+    // passed, so the user comes back to exactly where they left off (Walter: on desktop the space
+    // "should never update/refresh"). On NARROW (mobile) keep the 4h cap: a gap beyond the window
+    // (max of last_opened_at / updated_at) lands on the fresh Theo greeting instead of a stale chat.
+    const RESTORE_MAX_AGE_MS = 4 * 60 * 60 * 1000; // 4 hours (mobile only)
+    const isNarrow = typeof window !== "undefined" && window.matchMedia("(max-width: 767.98px)").matches;
     const lastTouched = Math.max(Date.parse(recentsList[0].last_opened_at || "") || 0, Date.parse(recentsList[0].updated_at || "") || 0);
-    if (!lastTouched || Date.now() - lastTouched > RESTORE_MAX_AGE_MS) {
-      setRestoring(false); // stale → drop the gate, show the greeting (no restore)
+    if (isNarrow && (!lastTouched || Date.now() - lastTouched > RESTORE_MAX_AGE_MS)) {
+      setRestoring(false); // mobile + stale → drop the gate, show the greeting (no restore)
       return;
     }
     // restore the last-touched chat, THEN drop the gate → the splash lands directly on that chat (no

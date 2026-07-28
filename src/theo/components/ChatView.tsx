@@ -15,7 +15,6 @@ import { VaultMark } from "./VaultMark";
 import { CitedText } from "./CitedText";
 import { AgentActivity } from "./AgentActivity";
 import { DownloadCard } from "./DownloadCard";
-import { SpiralMark } from "./SpiralMark";
 import type { ComposerAttachment, InlineImageItem, Message, Project, SentAttachment } from "../types";
 
 export interface ChatViewProps {
@@ -61,8 +60,9 @@ export interface ChatViewProps {
   // from reviewMode (a specific fund) and generic Theo. false everywhere outside Sigma.
   sigmaMode?: boolean;
   // Cold-open restore gate: true from mount until useTheoState resolves whether to reopen the last
-  // chat. While true, the branded splash (warm sand + Spiral of Theodorus) covers the surface so the
-  // app opens splash → last chat instead of flashing the new-chat greeting first. Absent → false.
+  // chat. While true, a QUIET neutral hold (the app surface + a small static Vault mark — not a
+  // branded splash) covers the surface so the new-chat greeting does not flash before a restore
+  // resolves. Absent → false.
   restoring?: boolean;
 }
 
@@ -398,23 +398,26 @@ function BirthdayBanner() {
   );
 }
 
-// Cold-open restore gate: the branded boot-splash look (warm sand #E9D6B6 + the Spiral of Theodorus,
-// matching the PWA manifest splash the user sees on app open), held over the whole surface until the
-// last-chat restore resolves. Full-cover so there is no new-chat greeting flash before the restore.
+// Cold-open restore hold: a QUIET neutral cover (the app surface `C.bg` + a small STATIC Vault mark)
+// held over the whole surface only until the restore decision resolves, so there is no new-chat
+// greeting flash before a restore lands. Deliberately NOT a branded splash (Walter 2026-07-28 — "the
+// app should just open ... without any interference"): no warm-sand backdrop, no large spiral. On a
+// COLD decision (a >4h gap on mobile) it lifts to the greeting, whose `variant="building"` mark then
+// animates — that is where the one branded building-logo moment lives; on a WARM/desktop decision it
+// lifts to the restored last chat.
 function RestoringSplash() {
   if (typeof document === "undefined") return null;
-  // Full-viewport branded splash. PORTALED to document.body + position:fixed so it covers the ENTIRE
-  // screen (over the mobile top bar / behind the safe-area strip), matching the OS/Origin PWA boot
-  // splash rather than being clipped to the ChatView box. The spiral is sized to the manifest splash's
-  // on-screen proportion (~36% of viewport width, capped) so its size matches the boot-splash logo.
-  const spiral = Math.min(Math.round((typeof window !== "undefined" ? window.innerWidth : 400) * 0.36), 200);
+  // PORTALED to document.body + position:fixed so the quiet hold covers the ENTIRE surface (over the
+  // mobile top bar / behind the safe-area strip) rather than being clipped to the ChatView box. The
+  // background is the app surface (`C.bg`) and the mark is a small static Vault mark sized to match the
+  // greeting's mark, so lifting the hold does not flash a different colour or jump the logo size.
   return createPortal(
     <div
       role="status"
       aria-label="Loading"
-      style={{ position: "fixed", inset: 0, zIndex: 2147483000, background: "#E9D6B6", display: "flex", alignItems: "center", justifyContent: "center" }}
+      style={{ position: "fixed", inset: 0, zIndex: 2147483000, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}
     >
-      <SpiralMark size={spiral} />
+      <VaultMark size={40} variant="static" />
     </div>,
     document.body
   );
@@ -504,8 +507,8 @@ export function ChatView(props: ChatViewProps) {
       onDrop={onDrop}
     >
       <style>{VOICE_KEYFRAMES}</style>
-      {/* Cold-open restore gate: branded splash over the whole surface until the last-chat restore
-          resolves (no new-chat greeting flash on app open). */}
+      {/* Cold-open restore hold: a quiet neutral cover over the whole surface until the restore
+          decision resolves (no new-chat greeting flash on app open). */}
       {restoring && <RestoringSplash />}
       {/* VA-T10: mobile "Add to chat" sheet — each card routes into the existing onAddFiles pipeline. */}
       <AddToChatSheet

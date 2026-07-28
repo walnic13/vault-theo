@@ -10,6 +10,10 @@ Two changes, both in vault-theo (the paired vault-origin quiet-boot is **VEP-W**
 
 **Two files, FE only. No gateway/API/schema/tool change.** Supersedes the *visual look* of `Theo-1B-ColdOpen-RestoreSplash-FE` (the cover) while preserving the *logic* of `Theo-1B-Restore-Staleness-Cap-FE` (now platform-split).
 
+### Pass-1 revision (post-Codex REJECT: T23)
+- **T23 (hard-gated §4B anchor not applied):** the Rule Anchor Table now carries an explicit **Theo FE Conformance §4B** row (quote "build-once greeting hero") grounding the VA-T11 visual-authority claim the CCT depends on. VA-T11 is verified registered and CURRENT in §4B at HEAD (registry line 161, landed via Role-C 2026-07-27), so the citation is valid — it was previously only described in the GCR, now an applied row.
+- **No code change:** the diff is unchanged; proposed blobs still ChatView `401c3d2f00ed379126711a42e06ede0d79dcdc80`, useTheoState `18389a7b13a7a421336a5fd26724dbf3aca1e333`. tsc + build + eslint remain exit 0; mjs lint PASS.
+
 ## Grounding Conformance Receipt
 
 Role: Claude Code
@@ -32,6 +36,7 @@ Documents read this turn (Full Baseline Grounding — the Theo FE baseline set),
 
 | governance/THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md | §5 | "MUST be backed by at least one Rule Anchor" | §2 classification (VISUAL-AUTHORITY-DEVIATION + behavioral) is anchored |
 | governance/THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md | §6 T20 | "Component Contract Table row missing prop interface, VA-id citation, or contract dependency" | §3 CCT locks the full prop interface + VA-id + dependency |
+| governance/THEO_FRONTEND_GROUNDING_CONFORMANCE_STANDARD.md | §4B | "build-once greeting hero" | §2/§3 the cold greeting's building mark + the cover's static mark are the registered §4B VA-T11 surface (CURRENT, line 161); the quiet-cover treatment is the VISUAL-AUTHORITY-DEVIATION against it |
 | governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md | §5 | "Any visual change to the rendered surface must be classified VISUAL-AUTHORITY-DEVIATION with a Rule Anchor." | §2 the cover look change is classified VISUAL-AUTHORITY-DEVIATION |
 | governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md | §4 | "TypeScript types for every prop" | §3 CCT prop interface pastes the full typed `ChatViewProps` literal |
 | C:/Users/WalterMansfield/Vault Group LLP/Innovate - Documents/Tax Workpapers Project/2026/corporate-reporting/frontend/governance/reference-artifacts/visiondocs/VO1-vault-origin-platform-shell.md | §2B | "directly into a Theo chat" | §1 mobile opens into Theo → the mobile >4h path lands on the Theo greeting |

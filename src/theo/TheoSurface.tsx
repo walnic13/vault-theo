@@ -15,6 +15,7 @@ import { TheoMain } from "./components/TheoMain";
 import { DevContextInjector } from "./components/DevContextInjector";
 import { useTheoState } from "./useTheoState";
 import { theoClient } from "./services/theoClient";
+import { resolvePrincipal } from "./services/theoSnapshot";
 import type { AppContext } from "./types";
 
 const STYLE_BLOCK = `
@@ -84,10 +85,16 @@ export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessTo
   // (mock fallback otherwise). All loaders are useCallback-stable. loadPeople is best-effort.
   useEffect(() => {
     theoClient.configureGateway({ getAccessToken: getAccessToken ?? null });
-    void loadRecents();
+    // Confirm the current principal from the live token (bind + purge foreign namespaces) BEFORE the
+    // two CACHE-SEEDING loaders run — no prior-principal snapshot may be read before confirmation
+    // (Theo Snapshot Storage Exception §2). The non-caching loaders need no gate.
+    void (async () => {
+      await resolvePrincipal(getAccessToken ?? null);
+      void loadRecents();
+      void loadPeople();
+    })();
     void loadProjects();
     void loadGalleryArtifacts();
-    void loadPeople();
   }, [getAccessToken, loadRecents, loadProjects, loadGalleryArtifacts, loadPeople]);
 
   // Sync inbound app-context into state (context-only; no fetch — VA-T3 §2.4).

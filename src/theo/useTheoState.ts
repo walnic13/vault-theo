@@ -1,8 +1,10 @@
 // App state + handlers for the Theo shell — ports VaultOriginShell's state/logic (VA-T1
 // L155–237) but routes every backend-bound call through `theoClient` (the single service
-// boundary). No browser storage; React/in-memory only.
+// boundary). Browser storage only via the Theo Snapshot Storage Exception (Governor item 3) — the
+// per-principal instant-paint snapshot in ./services/theoSnapshot; everything else React/in-memory.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { theoClient } from "./services/theoClient";
+import { getCachedRecents, setCachedRecents, getCachedConversation, setCachedConversation, getCachedSelf, setCachedSelf, isPrincipalBound, bindPrincipal } from "./services/theoSnapshot";
 import { stripArtifactRefs } from "./lib/artifacts";
 import { buildSystemPrompt, greeting } from "./lib/prompt";
 import { MODEL } from "./swapBlock";
@@ -198,6 +200,12 @@ export function useTheoState() {
   // Load the signed-in user's conversations for Recents (live → theo_list_conversations; mock fallback
   // in the standalone harness). useCallback-stable so TheoSurface's mount effect runs it once.
   const loadRecents = useCallback(async () => {
+    // Instant paint from the CONFIRMED-principal cache (the mount flow binds the principal before this
+    // runs). Seed recents + resolve the restore gate on the cached last chat, then revalidate below.
+    if (isPrincipalBound()) {
+      const seed = getCachedRecents();
+      if (seed && seed.length) { setRecentsList(seed); setRecentsLoaded(true); }
+    }
     try {
       const list = await theoClient.listConversations(50);
       // Order Recents (and the restore-on-reopen target) by LAST TOUCHED — the more recent of
@@ -208,6 +216,7 @@ export function useTheoState() {
       const touched = (c: ConversationSummary) => Math.max(Date.parse(c.last_opened_at || "") || 0, Date.parse(c.updated_at || "") || 0);
       list.sort((a, b) => touched(b) - touched(a));
       setRecentsList(list);
+      setCachedRecents(list);   // persist the revalidated list (Theo Snapshot Storage Exception)
     } catch { /* keep current list */ } finally {
       setRecentsLoaded(true);   // first settle done (success or failure) → the restore gate can resolve
     }
@@ -221,8 +230,9 @@ export function useTheoState() {
   // change (a New chat, a manual open, a cleared draft). Suppressed if the user is already in a chat
   // OR composing — `selectRecent`→`clearComposer()` clears attachments, and the typed `draft` would
   // otherwise be carried into the restored (wrong) conversation. Empty-user (no recents) → stays on
-  // the greeting/new-chat home. No browser storage (VA-T3 §2.5) — the ordering is server-sourced then
-  // re-sorted client-side by last-touched in loadRecents (no persistence).
+  // the greeting/new-chat home. The recents ordering is server-sourced then re-sorted client-side by
+  // last-touched in loadRecents; it is also instant-painted from the per-principal Theo Snapshot
+  // Storage Exception cache (theoSnapshot) once the principal is confirmed, and always revalidated.
   const didRestoreRef = useRef(false);
   useEffect(() => {
     if (didRestoreRef.current) return;
@@ -273,7 +283,19 @@ export function useTheoState() {
   // B5c: load the Vault Staff roster for the invite picker (theo_list_people; §2.9). Best-effort —
   // an unconfigured harness / failure yields an empty picker (no invite candidates).
   const loadPeople = useCallback(async () => {
-    try { setPeople(await theoClient.listPeople()); } catch { setPeople([]); }
+    // Instant greeting: seed the self row from the confirmed-principal cache (no name-flash), then fetch.
+    if (isPrincipalBound()) {
+      const cachedSelf = getCachedSelf();
+      if (cachedSelf) setPeople((cur) => (cur.length ? cur : [cachedSelf]));
+    }
+    try {
+      const list = await theoClient.listPeople();
+      setPeople(list);
+      const self = list.find((p) => p.isSelf);
+      // Persist the self row + reconcile the cache namespace to the authoritative roster OID (a
+      // defensive no-op when it matches the token-derived OID; re-keys + re-purges if it ever differs).
+      if (self) { setCachedSelf(self); bindPrincipal(self.id); }
+    } catch { setPeople([]); }
   }, []);
 
   // B4h: load the cross-chat Artifacts gallery (live → theo_list_artifacts; mock → empty). Called by
@@ -420,11 +442,43 @@ export function useTheoState() {
   // chips reuse the existing B8e SentAttachment rendering; previewText is omitted on reload (the
   // extracted text lives server-side). Attachment fetch is best-effort: a failure just omits the chips,
   // never blocks the thread from loading.
+  // Map a loaded ConversationDetail into the thread's Message[] and paint it. Shared by the instant-
+  // paint cache seed (bySeq empty — attachments arrive on revalidate) and the authoritative fetch path.
+  // B4h: rebuild this thread's artifacts from its persisted assistant turns — the raw [[ARTIFACT]]
+  // blocks are retained in theo_messages.content, so re-running the ingest pipeline (in seq order)
+  // reconstructs the in-memory artifacts AND swaps the markers for artifact-card placeholders.
+  // resetArtifacts() first so the working set is exactly this thread's (not a prior thread's).
+  function paintConversation(id: string, d: ConversationDetail, bySeq: Map<number, SentAttachment[]>) {
+    theoClient.resetArtifacts();
+    const msgs: Message[] = d.messages.map((m) => {
+      const atts = m.role === "user" ? bySeq.get(m.seq) : undefined;
+      const cites = Array.isArray(m.citations) ? m.citations : [];
+      if (m.role === "assistant") {
+        const { display } = theoClient.ingestReply(m.content);   // parse+upsert artifacts; markers → placeholders
+        const media = m.media && typeof m.media === "object" ? m.media : null;   // Chat Media Persistence: restore fetched images/videos on reload
+        return {
+          role: "assistant", content: display,
+          ...(cites.length ? { runs: [{ text: display, citations: cites.map((c) => ({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text })) }] } : {}),
+          ...(media && media.image ? { image: media.image } : {}),
+          ...(media && media.video ? { video: media.video } : {}),
+        };
+      }
+      return { role: m.role, content: m.content, ...(atts && atts.length ? { attachments: atts } : {}) };
+    });
+    setArtifacts(theoClient.listArtifacts());
+    setMessages(msgs); setConversationId(id);
+  }
+
   async function selectRecent(id: string) {
     abortRef.current?.abort();  // stop-generating: opening another chat aborts any in-flight stream (discard path; this fn resets the thread inline, not via newChat())
     setError(""); setChatProject(null); setOpenArt(null); setView("chats"); setDetailId(null); clearComposer();
+    // Instant paint from the CONFIRMED-principal cache (the mount flow bound the principal first). The
+    // fetch below revalidates and overwrites (with attachments + project context the seed omits).
+    const cached = getCachedConversation(id);
+    if (cached) paintConversation(id, cached, new Map());
     try {
       const d = await theoClient.getConversation(id);
+      setCachedConversation(id, d);   // persist the revalidated first page (Theo Snapshot Storage Exception)
       // B4d: restore the project when reopening a chat that belongs to one (the reloaded conversation
       // carries project_id). loadChatProject fetches the project's metadata + knowledge into the
       // self-contained `chatProject` (NOT the `projects` list), and is AWAITed, so the restored chat's
@@ -446,29 +500,7 @@ export function useTheoState() {
           bySeq.set(a.message_seq, list);
         }
       } catch { /* attachments are best-effort on reload — never block the thread */ }
-      // B4h: rebuild this thread's artifacts from its persisted assistant turns. The raw [[ARTIFACT]]
-      // blocks are retained in theo_messages.content, so re-running the ingest pipeline (in seq order)
-      // reconstructs the in-memory artifacts AND swaps the markers for artifact-card placeholders — the
-      // same result as when the turns first streamed. resetArtifacts() first so the working set is
-      // exactly this thread's (not a prior thread's).
-      theoClient.resetArtifacts();
-      const msgs: Message[] = d.messages.map((m) => {
-        const atts = m.role === "user" ? bySeq.get(m.seq) : undefined;
-        const cites = Array.isArray(m.citations) ? m.citations : [];
-        if (m.role === "assistant") {
-          const { display } = theoClient.ingestReply(m.content);   // parse+upsert artifacts; markers → placeholders
-          const media = m.media && typeof m.media === "object" ? m.media : null;   // Chat Media Persistence: restore fetched images/videos on reload
-          return {
-            role: "assistant", content: display,
-            ...(cites.length ? { runs: [{ text: display, citations: cites.map((c) => ({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text })) }] } : {}),
-            ...(media && media.image ? { image: media.image } : {}),
-            ...(media && media.video ? { video: media.video } : {}),
-          };
-        }
-        return { role: m.role, content: m.content, ...(atts && atts.length ? { attachments: atts } : {}) };
-      });
-      setArtifacts(theoClient.listArtifacts());
-      setMessages(msgs); setConversationId(id);
+      paintConversation(id, d, bySeq);   // revalidate/overwrite (now with attachments + project context)
     } catch {
       setError("Couldn't load that conversation.");
     }

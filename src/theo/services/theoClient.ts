@@ -2,7 +2,8 @@
 // Every backend-bound call routes through here. Chat → gateway (mock in the standalone harness,
 // live model gateway when a token/base is configured). B4c: projects + project-knowledge are now
 // live `theo_*` calls (with the same mock fallback), replacing the 1A in-memory store; artifacts /
-// settings stay in-memory pending their own tiers. NO browser storage (1A handover §2.5).
+// settings stay in-memory pending their own tiers. Browser storage only via the Theo Snapshot Storage
+// Exception (Governor item 3): the per-principal instant-paint snapshot in ./theoSnapshot.
 import type {
   AppContext, Artifact, ArtifactBlock, ArtifactSummary, ConversationAttachment, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
   KDraft, Knowledge, NpDraft, Person, Project, ProjectMember, Settings,

@@ -20,6 +20,7 @@ import type { ComposerAttachment, InlineImageItem, Message, Project, SentAttachm
 export interface ChatViewProps {
   messages: Message[];
   loading: boolean;
+  conversationId: string | null;   // thread-change reset signal (from useTheoState.conversationId)
   error: string;
   draft: string;
   attachments: ComposerAttachment[];
@@ -425,7 +426,7 @@ function RestoringSplash() {
 
 export function ChatView(props: ChatViewProps) {
   const {
-    messages, loading, error, draft, attachments, attachmentsAvailable,
+    messages, loading, conversationId, error, draft, attachments, attachmentsAvailable,
     onDraftChange, onSend, onStop, queuedText, onCancelQueued, onAddFiles, onAddPastedText, onRemoveAttachment,
     chatProject, assistantName, greeting, starters, renderAssistant, reviewFund, reviewMode, sigmaMode,
     voiceAvailable, recording, transcribing, recordingSeconds, onStartDictation, onStopDictation, onCancelDictation,
@@ -443,7 +444,43 @@ export function ChatView(props: ChatViewProps) {
   const [lightboxImage, setLightboxImage] = useState<InlineImageItem | null>(null);
   const isNarrow = () => typeof window !== "undefined" && window.matchMedia("(max-width: 767.98px)").matches;
 
-  useEffect(() => { if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [messages, loading]);
+  // Scroll-to-bottom affordance (Theo-FE-Chat-ScrollToBottom VEP). `stickRef` is the auto-snap GATE (a
+  // ref so updating it never re-triggers the snap effect); `atBottom` drives the ↓ button visibility;
+  // `newBelow` shows a cue when content grows while scrolled up.
+  const stickRef = useRef(true);
+  const [atBottom, setAtBottom] = useState(true);
+  const [newBelow, setNewBelow] = useState(false);
+  const growRef = useRef(0);
+  const onScroll = () => {
+    const el = scroller.current; if (!el) return;
+    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    stickRef.current = bottom;
+    setAtBottom(bottom);
+    if (bottom) setNewBelow(false);
+  };
+  const scrollToLatest = () => {
+    const el = scroller.current; if (!el) return;
+    const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollTo({ top: el.scrollHeight, behavior: reduce ? "auto" : "smooth" });
+    stickRef.current = true; setAtBottom(true); setNewBelow(false);
+  };
+
+  // Auto-snap on new content — ONLY when stuck (stickRef). Deps stay [messages, loading] so a later
+  // setAtBottom (the ↓ click) never re-triggers this into an instant jump.
+  useEffect(() => { if (scroller.current && stickRef.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [messages, loading]);
+  // Thread-change reset: opening/restoring/new-chatting a different conversation always lands at its latest.
+  useEffect(() => {
+    const el = scroller.current; if (el) el.scrollTop = el.scrollHeight;
+    stickRef.current = true; setAtBottom(true); setNewBelow(false);
+  }, [conversationId]);
+  // New-message cue: content grew (a message appended or the last assistant reply streamed) while the
+  // user was scrolled up → flag it on the ↓ button.
+  useEffect(() => {
+    const sig = messages.length * 1e7 + (messages.length ? (messages[messages.length - 1].content?.length ?? 0) : 0);
+    const grew = sig > growRef.current;
+    growRef.current = sig;
+    if (grew && !stickRef.current) setNewBelow(true);
+  }, [messages]);
   useEffect(() => { const ta = taRef.current; if (ta) { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 200) + "px"; } }, [draft]);
 
   const uploading = attachments.some((a) => a.status === "uploading");
@@ -520,7 +557,7 @@ export function ChatView(props: ChatViewProps) {
       />
       {/* FindImage: full-screen viewer for a tapped gallery thumbnail (mobile crop → full frame). */}
       <ImageLightbox item={lightboxImage} onClose={() => setLightboxImage(null)} />
-      <div ref={scroller} className="vo-scroll" style={{ flex: 1, overflowY: "auto" }}>
+      <div ref={scroller} onScroll={onScroll} className="vo-scroll" style={{ flex: 1, overflowY: "auto" }}>
         {messages.length === 0 ? (
           <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px", textAlign: "center" }}>
             <VaultMark size={40} variant="building" />
@@ -650,6 +687,21 @@ export function ChatView(props: ChatViewProps) {
           </div>
         )}
       </div>
+
+      {/* Scroll-to-latest ↓ (Theo-FE-Chat-ScrollToBottom VEP). Shown only when scrolled up; smooth-scrolls
+          to the latest on tap; a coral cue appears when content grew while scrolled up. Absolute within the
+          §502 relative wrapper, just above the composer. */}
+      {!atBottom && (
+        <button
+          type="button"
+          onClick={scrollToLatest}
+          aria-label="Scroll to latest"
+          style={{ position: "absolute", right: 20, bottom: 96, zIndex: 20, width: 40, height: 40, borderRadius: "50%", background: C.card, border: `1px solid ${C.line2}`, color: C.ink2, boxShadow: "0 4px 20px rgba(40,38,31,0.10)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+          {newBelow && <span style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: C.coral, border: `2px solid ${C.card}` }} />}
+        </button>
+      )}
 
       <div style={{ padding: "8px 24px 16px", flexShrink: 0 }}>
         <div style={{ maxWidth: 740, margin: "0 auto" }}>

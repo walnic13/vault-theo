@@ -1,12 +1,9 @@
 const { Pool } = require("pg");
-const { WebPubSubServiceClient } = require("@azure/web-pubsub");
 
 const pool = new Pool({
   connectionString: process.env.POSTGRES_CONNECTION_STRING,
   ssl: { rejectUnauthorized: false },
 });
-
-const HUB = "vaultchat";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -125,24 +122,11 @@ module.exports = async function (context, req) {
     );
     threadState = upd.rows[0];
 
-    // Best-effort, post-commit: publish a transient `thread_state` event to the caller's OTHER clients (same
-    // thread group) so a hide/mute toggle syncs live across their tabs/devices. The durable state is already
-    // persisted; a publish failure must not fail the request (clients reconcile from list_threads on next fetch).
-    if (process.env.WebPubSubConnectionString) {
-      try {
-        const serviceClient = new WebPubSubServiceClient(process.env.WebPubSubConnectionString, HUB);
-        await serviceClient.group(threadId).sendToAll({
-          type: "thread_state",
-          thread_id: threadState.thread_id,
-          member_oid: threadState.member_oid,
-          hidden: threadState.hidden === true,
-          muted: threadState.muted === true,
-        });
-      } catch (pubErr) {
-        context.log.error("theo_chat_set_thread_state publish (non-fatal) failed", pubErr);
-      }
-    }
-
+    // NO realtime publish. hidden/muted are PRIVATE per-user state — unlike read receipts, they must not be
+    // disclosed to other thread participants. The deployed chat realtime contract auto-joins every participant
+    // to the thread group, so a group publish would leak "member X hid/muted this" to everyone (T13 / backend
+    // hard gate). The durable write is authoritative; the caller's OTHER sessions reconcile on their next
+    // list_threads fetch. A user-scoped realtime channel (caller-only) is a separate, future concern.
     return send(context, 200, successBody({ thread_state: threadState }));
   } catch (err) {
     context.log.error("theo_chat_set_thread_state failed", err);

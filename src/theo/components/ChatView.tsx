@@ -684,26 +684,28 @@ export function ChatView(props: ChatViewProps) {
               <div style={{ marginTop: 2 }}><SpiralAssemble size={22} /></div>
               <div style={{ display: "flex", gap: 5, paddingTop: 9 }}>{[0, 1, 2].map((d) => <span key={d} style={{ width: 7, height: 7, borderRadius: "50%", background: C.ink3, display: "inline-block", animation: `vo-bounce 1.2s ${d * 0.16}s infinite ease-in-out` }} />)}</div>
             </div>)}
+            {/* Disclaimer at the END of the chat chain (Walter 2026-07-29): not permanent under the
+                composer, not per-message — once at the bottom of the message string, after the last message. */}
+            <div style={{ textAlign: "center", fontSize: 11.5, color: C.ink3, margin: "18px 0 4px" }}>{assistantName} can make mistakes. Verify tax conclusions before relying on them.</div>
           </div>
         )}
       </div>
 
-      {/* Scroll-to-latest ↓ (Theo-FE-Chat-ScrollToBottom VEP). Shown only when scrolled up; smooth-scrolls
-          to the latest on tap; a coral cue appears when content grew while scrolled up. Absolute within the
-          §502 relative wrapper, just above the composer. */}
-      {!atBottom && (
-        <button
-          type="button"
-          onClick={scrollToLatest}
-          aria-label="Scroll to latest"
-          style={{ position: "absolute", right: 20, bottom: 96, zIndex: 20, width: 40, height: 40, borderRadius: "50%", background: C.card, border: `1px solid ${C.line2}`, color: C.ink2, boxShadow: "0 4px 20px rgba(40,38,31,0.10)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
-          {newBelow && <span style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: C.coral, border: `2px solid ${C.card}` }} />}
-        </button>
-      )}
-
-      <div style={{ padding: "8px 24px 16px", flexShrink: 0 }}>
+      <div style={{ padding: "8px 24px 16px", flexShrink: 0, position: "relative" }}>
+        {/* Scroll-to-latest ↓ (Theo-FE-Chat-ScrollToBottom VEP). Shown only when scrolled up; smooth-scrolls
+            to the latest on tap; a coral cue appears when content grew while scrolled up. Absolute within the
+            composer wrapper (position:relative), centered just above the composer (not touching). */}
+        {!atBottom && (
+          <button
+            type="button"
+            onClick={scrollToLatest}
+            aria-label="Scroll to latest"
+            style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: "calc(100% + 10px)", zIndex: 20, width: 40, height: 40, borderRadius: "50%", background: C.card, border: `1px solid ${C.line2}`, color: C.ink2, boxShadow: "0 4px 20px rgba(40,38,31,0.10)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+            {newBelow && <span style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: C.coral, border: `2px solid ${C.card}` }} />}
+          </button>
+        )}
         <div style={{ maxWidth: 740, margin: "0 auto" }}>
           {error && <div style={{ color: C.coralDk, fontSize: 13, marginBottom: 8, textAlign: "center" }}>{error}</div>}
           <div style={{ background: "#fff", border: `1px solid ${C.line2}`, borderRadius: 18, padding: "12px 14px", boxShadow: "0 2px 14px rgba(40,38,31,0.05)" }}>
@@ -763,7 +765,6 @@ export function ChatView(props: ChatViewProps) {
               </div>
             </div>
           </div>
-          <div style={{ textAlign: "center", fontSize: 11.5, color: C.ink3, marginTop: 9 }}>{assistantName} can make mistakes. Verify tax conclusions before relying on them.</div>
         </div>
       </div>
 

@@ -22,7 +22,7 @@ Currency anchors: blob SHA via `git rev-parse HEAD:<path>`; verifiable via `git 
 | 4 | Theo Golden Handler Standard — `governance/THEO_GOLDEN_HANDLER_STANDARD.md` (§2 primary reference; §4 allowed deltas; §5.5 deploy + curl) | carried grounding (this program; blob-anchored) | `f8f0e5ea36447502e35fb87b373c94e376f05cbb` |
 | 5 | Theo API Spec — `spec/THEO_API_SPEC.md` (§2.1 `theo_get_conversation` message shape being extended) | `Grep("theo_get_conversation")` this turn | `9291b9eecade963514a9f3854bd7cbeb862d9e2f` |
 | 6 | Theo Azure Postgres Schema — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` (§11 publish substrate; `theo_messages.created_by` = the author) | carried grounding (this program; blob-anchored) | `abe14dc5d45b8a78b4d2b7303f0bd1257da120ec` |
-| 7 | **Primary Reference (LIVE deployed handler + function.json)** — func-premium `theo_get_conversation` (2b-3b-deployed; pulled from Kudu VFS this turn) | `curl`(Kudu VFS GET) + `Read`(messages SELECT) + `node --check` this turn | `610bb3ed2ea5579082a153bbe7b8bd6116f3ccd2` |
+| 7 | **Primary Reference (LIVE deployed handler + function.json)** — func-premium `theo_get_conversation` (2b-3b-deployed; both pulled from Kudu VFS this turn) | `curl`(Kudu VFS GET, index.js + function.json) + `Read`(messages SELECT) + `node --check` this turn | `610bb3ed2ea5579082a153bbe7b8bd6116f3ccd2` (index.js; function.json `11257bb1733f0f351b04fc58e2355119c754902b`) |
 
 No ChatGPT advisory cited (§4D / T18). No `reporting_*`/`corporate-reporting` change. No write SQL / no migration. No FE change.
 
@@ -585,6 +585,27 @@ module.exports = async function (context, req) {
     client.release();
   }
 };
+```
+
+LIVE `theo_get_conversation/function.json` (verbatim; unchanged by this microstep):
+```json
+{
+  "bindings": [
+    {
+      "authLevel": "anonymous",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "req",
+      "methods": ["get", "options"],
+      "route": "theo_get_conversation"
+    },
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "res"
+    }
+  ]
+}
 ```
 
 ## P6 — Repository & active-surface grounding

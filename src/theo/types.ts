@@ -141,6 +141,19 @@ export interface ConversationSummary {
   last_opened_at: string | null;   // restore-on-reopen: theo_list_conversations orders last-opened-first
   starred?: boolean;               // per-conversation star — theo_list_conversations returns it; theo_get_conversation does NOT, so OPTIONAL on the shared summary type (ConversationDetail.conversation reuses it). The chat-header menu sources starred from the list (recentsList).
 }
+// SPW Phase 2: a conversation PUBLISHED to a project (theo_list_project_conversations; §2.2) — visible
+// to any participant. Distinct from ConversationSummary (the caller's own recents shape): it carries
+// created_by (the author's Entra OID — the FE resolves it to a display name via the People roster) and
+// the publish provenance (published_at / published_by), which ConversationSummary lacks.
+export interface PublishedConversation {
+  id: string;
+  title: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  published_at: string | null;
+  published_by: string | null;
+}
 export interface PersistedMessage {
   id: string; seq: number; role: Role; content: string;
   model: string | null;

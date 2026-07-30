@@ -6,7 +6,7 @@
 // Exception (Governor item 3): the per-principal instant-paint snapshot in ./theoSnapshot.
 import type {
   AppContext, Artifact, ArtifactBlock, ArtifactSummary, ConversationAttachment, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
-  KDraft, Knowledge, NpDraft, Person, Project, ProjectMember, Settings,
+  KDraft, Knowledge, NpDraft, Person, Project, ProjectMember, PublishedConversation, Settings,
 } from "../types";
 import { parseArtifacts, remapToIds, upsert } from "../lib/artifacts";
 import {
@@ -33,6 +33,8 @@ import {
   setProjectVisibility as gatewaySetProjectVisibility,
   shareProject as gatewayShareProject, unshareProject as gatewayUnshareProject,
   listProjectMembers as gatewayListProjectMembers, listPeople as gatewayListPeople,
+  publishConversation as gatewayPublishConversation, unpublishConversation as gatewayUnpublishConversation,
+  listPublishedProjectConversations as gatewayListPublishedProjectConversations,
   voiceAvailable as gatewayVoiceAvailable, transcribeAudio as gatewayTranscribeAudio, synthesizeSpeech as gatewaySynthesizeSpeech,
   type StreamHandlers,
 } from "./gateway.live";
@@ -160,6 +162,13 @@ export const theoClient = {
   // project chat's first turn returns a conversation_id (theo_conversations.project_id).
   setConversationProject(conversationId: string, projectId: string): Promise<void> {
     return gatewaySetConversationProject(conversationId, projectId);
+  },
+  // SPW Phase 2: publish/unpublish a conversation to its project + list a project's published
+  // conversations (theo_publish/unpublish_conversation, theo_list_project_conversations; API §2.2).
+  publishConversation(conversationId: string): Promise<void> { return gatewayPublishConversation(conversationId); },
+  unpublishConversation(conversationId: string): Promise<void> { return gatewayUnpublishConversation(conversationId); },
+  listPublishedProjectConversations(projectId: string): Promise<PublishedConversation[]> {
+    return gatewayListPublishedProjectConversations(projectId);
   },
   // Conversation-Star: owner-scoped star toggle (theo_set_conversation_starred; deployed 2026-07-23).
   setConversationStarred(conversationId: string, starred: boolean): Promise<void> {

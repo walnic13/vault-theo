@@ -5,7 +5,7 @@
 // endpoint (e.g. POST /api/theo/message) holding Foundry creds via Entra managed identity.
 import type {
   Artifact, ArtifactSummary, ConversationDetail, ConversationSummary, GatewayRequest, GatewayResponse,
-  KDraft, Knowledge, NpDraft, Person, Project, ProjectMember,
+  KDraft, Knowledge, NpDraft, Person, Project, ProjectMember, PublishedConversation,
 } from "../types";
 import { INIT_PROJECTS, RECENTS } from "../data";
 
@@ -175,6 +175,21 @@ export async function removeProjectKnowledge(knowledgeId: string): Promise<void>
 export async function setConversationProject(conversationId: string, projectId: string): Promise<void> {
   void conversationId; void projectId;   // no persistent conversations to tag in the standalone harness
   return;
+}
+
+// SPW Phase 2: publish/unpublish + list published conversations. The standalone harness has no
+// persistent/published conversations, so publish/unpublish are no-ops and the list returns empty.
+export async function publishConversation(conversationId: string): Promise<void> {
+  void conversationId;
+  return;
+}
+export async function unpublishConversation(conversationId: string): Promise<void> {
+  void conversationId;
+  return;
+}
+export async function listPublishedProjectConversations(projectId: string): Promise<PublishedConversation[]> {
+  void projectId;
+  return [];
 }
 
 export async function setConversationStarred(conversationId: string, starred: boolean): Promise<void> {

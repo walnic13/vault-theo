@@ -429,9 +429,10 @@ module.exports = async function (context, req) {
       return send(context, 404, errorBody("NOT_FOUND", "Conversation not found.", 404));
     }
 
-    // Restore-on-reopen: stamp last_opened_at now that ownership is confirmed. Owner-scoped
-    // (created_by = the signed-in OID; the deployed theo_conversation_update_own policy permits it).
-    // Best-effort — a stamp failure MUST NOT fail the read, so it is caught and logged only. The
+    // Restore-on-reopen: stamp last_opened_at now that read access is confirmed. The stamp stays
+    // owner-scoped (created_by = the signed-in OID; the deployed theo_conversation_update_own policy
+    // permits it), so a member open updates 0 rows — a correct no-op that never touches the owner's
+    // Recents ordering. Best-effort — a stamp failure MUST NOT fail the read, so it is caught and logged only. The
     // returned conversation row above reflects the pre-stamp value; the frontend does not depend on
     // the stamp being reflected in this response (it reorders via theo_list_conversations).
     try {

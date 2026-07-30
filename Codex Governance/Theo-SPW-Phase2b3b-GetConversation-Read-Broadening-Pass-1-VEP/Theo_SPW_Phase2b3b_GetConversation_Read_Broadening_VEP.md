@@ -168,7 +168,7 @@ Unified diff (LIVE → staged), the complete change set:
      const convResult = await client.query(
        `
        SELECT
-@@ -392,20 +419,14 @@
+@@ -392,25 +419,20 @@
          updated_at,
          last_opened_at
        FROM public.theo_conversations
@@ -192,8 +192,17 @@ Unified diff (LIVE → staged), the complete change set:
 +      return send(context, 404, errorBody("NOT_FOUND", "Conversation not found.", 404));
      }
  
-     // Restore-on-reopen: stamp last_opened_at now that ownership is confirmed. Owner-scoped
-@@ -422,6 +443,9 @@
+-    // Restore-on-reopen: stamp last_opened_at now that ownership is confirmed. Owner-scoped
+-    // (created_by = the signed-in OID; the deployed theo_conversation_update_own policy permits it).
+-    // Best-effort — a stamp failure MUST NOT fail the read, so it is caught and logged only. The
++    // Restore-on-reopen: stamp last_opened_at now that read access is confirmed. The stamp stays
++    // owner-scoped (created_by = the signed-in OID; the deployed theo_conversation_update_own policy
++    // permits it), so a member open updates 0 rows — a correct no-op that never touches the owner's
++    // Recents ordering. Best-effort — a stamp failure MUST NOT fail the read, so it is caught and logged only. The
+     // returned conversation row above reflects the pre-stamp value; the frontend does not depend on
+     // the stamp being reflected in this response (it reorders via theo_list_conversations).
+     try {
+@@ -422,6 +444,9 @@
        context.log.error("theo_get_conversation last_opened_at stamp failed (non-fatal)", stampErr);
      }
  
@@ -203,7 +212,7 @@ Unified diff (LIVE → staged), the complete change set:
      const messagesResult = await client.query(
        `
        SELECT
-@@ -434,10 +458,10 @@
+@@ -434,10 +459,10 @@
          media,
          created_at
        FROM public.theo_messages
@@ -216,7 +225,7 @@ Unified diff (LIVE → staged), the complete change set:
      );
  
      const messages = messagesResult.rows;
-@@ -445,7 +469,7 @@
+@@ -445,7 +470,7 @@
      // (their stored SAS token has expired though the blob is durable). Best-effort: a signing
      // failure MUST NOT fail the read; the stored URLs are left intact and logged.
      try {

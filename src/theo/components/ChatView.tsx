@@ -15,7 +15,7 @@ import { VaultMark } from "./VaultMark";
 import { CitedText } from "./CitedText";
 import { AgentActivity } from "./AgentActivity";
 import { DownloadCard } from "./DownloadCard";
-import type { ComposerAttachment, InlineImageItem, Message, Project, SentAttachment } from "../types";
+import type { ComposerAttachment, InlineImageItem, Message, Person, Project, SentAttachment } from "../types";
 
 export interface ChatViewProps {
   messages: Message[];
@@ -51,6 +51,10 @@ export interface ChatViewProps {
   synthesizingIdx: number | null;
   onReadAloud: (idx: number, text: string) => void;
   onStopReadAloud: () => void;
+  // SPW 2c-ii (VA-T12 surface A): the People roster (theo_list_people). Resolves each user turn's
+  // Message.created_by → Person for the multi-party byline (photo/name); bylines show only in a
+  // multi-author thread, so a private single-author conversation is unchanged (VA-T1).
+  people: Person[];
   // VA-T7: fund label for the review-agent activity panel (from the conversation's app_context; the
   // panel falls back to a generic label when absent). Only sigma review turns carry reasoning/tools.
   reviewFund?: string;
@@ -424,14 +428,45 @@ function RestoringSplash() {
   );
 }
 
+// SPW 2c-ii: initials from a display name — the fallback avatar when a roster person has no photo.
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+
+// SPW 2c-ii (VA-T12 surface A): the per-turn author byline in a shared multi-party thread — the
+// author's roster photo (Person.photo) or tinted initials fallback + display name + an "Owner / You"
+// tag. `createdBy` is optional (an unseeded local turn before the roster loads → "(unknown)").
+function AuthorByline({ person, createdBy, owner, self }: { person: Person | null; createdBy?: string; owner: boolean; self: boolean }) {
+  const name = person?.displayName || (createdBy ? `${createdBy.slice(0, 8)}…` : "(unknown)");
+  const tag = owner && self ? "Owner · you" : self ? "You" : owner ? "Owner" : "";
+  const tagCoral = self;   // your own turns get the coral tag; an owner-only co-participant gets a neutral tag
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+      {person?.photo
+        ? <img src={person.photo} alt="" width={26} height={26} style={{ borderRadius: 999, objectFit: "cover", flexShrink: 0, border: "1px solid rgba(40,38,31,.08)" }} />
+        : <span style={{ width: 26, height: 26, borderRadius: 999, background: "#7A6A55", color: "#fff", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, letterSpacing: ".02em" }}>{initialsOf(name)}</span>}
+      <span style={{ fontSize: 13, fontWeight: 650, color: C.ink }}>{name}</span>
+      {tag ? <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: ".03em", textTransform: "uppercase", padding: "1.5px 6px", borderRadius: 5, background: tagCoral ? C.coralSoft : C.bubble, color: tagCoral ? C.coralDk : C.ink3 }}>{tag}</span> : null}
+    </div>
+  );
+}
+
 export function ChatView(props: ChatViewProps) {
   const {
     messages, loading, conversationId, error, draft, attachments, attachmentsAvailable,
     onDraftChange, onSend, onStop, queuedText, onCancelQueued, onAddFiles, onAddPastedText, onRemoveAttachment,
-    chatProject, assistantName, greeting, starters, renderAssistant, reviewFund, reviewMode, sigmaMode,
+    chatProject, people, assistantName, greeting, starters, renderAssistant, reviewFund, reviewMode, sigmaMode,
     voiceAvailable, recording, transcribing, recordingSeconds, onStartDictation, onStopDictation, onCancelDictation,
     playingIdx, synthesizingIdx, onReadAloud, onStopReadAloud, restoring,
   } = props;
+  // SPW 2c-ii: a thread is "shared" (multi-party) when it has ≥2 distinct message authors. Only then do
+  // per-turn author bylines appear (VA-T12 surface A); a private single-author thread is unchanged (VA-T1).
+  const multiParty = new Set(messages.map((m) => m.created_by).filter(Boolean)).size > 1;
+  const ownerOid = messages[0]?.created_by;   // the seq-0 author = the thread starter → "Owner"
+  const selfPerson = people.find((p) => p.isSelf) ?? null;
+  const selfName = selfPerson?.displayName ?? "";
   const scroller = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -580,10 +615,25 @@ export function ChatView(props: ChatViewProps) {
         ) : (
           <div style={{ maxWidth: 740, margin: "0 auto", padding: "28px 24px 8px" }}>
             {messages.map((m, i) => m.role === "user" ? (
-              <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", margin: "0 0 22px" }}>
-                {m.attachments && m.attachments.length > 0 && <SentAttachments items={m.attachments} />}
-                <div style={{ background: C.bubble, borderRadius: 16, padding: "11px 16px", maxWidth: "82%", fontSize: 15, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.content}</div>
-              </div>
+              multiParty ? (
+                // SPW 2c-ii (VA-T12 surface A): a shared thread reads as a group conversation — the user
+                // turn is LEFT-aligned with an author byline (photo + name + Owner/You tag) above the body.
+                <div key={i} style={{ display: "flex", flexDirection: "column", gap: 7, margin: "0 0 22px" }}>
+                  <AuthorByline
+                    person={m.created_by ? (people.find((p) => p.id === m.created_by) ?? null) : null}
+                    createdBy={m.created_by}
+                    owner={!!m.created_by && m.created_by === ownerOid}
+                    self={!!m.created_by && (people.find((p) => p.id === m.created_by)?.isSelf ?? false)}
+                  />
+                  {m.attachments && m.attachments.length > 0 && <div style={{ paddingLeft: 35 }}><SentAttachments items={m.attachments} /></div>}
+                  <div style={{ fontSize: 15, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word", paddingLeft: 35, color: C.ink }}>{m.content}</div>
+                </div>
+              ) : (
+                <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", margin: "0 0 22px" }}>
+                  {m.attachments && m.attachments.length > 0 && <SentAttachments items={m.attachments} />}
+                  <div style={{ background: C.bubble, borderRadius: 16, padding: "11px 16px", maxWidth: "82%", fontSize: 15, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.content}</div>
+                </div>
+              )
             ) : (
               <div key={i} style={{ display: "flex", gap: 13, margin: "0 0 26px" }}>
                 <div style={{ marginTop: 2, flexShrink: 0 }}>{loading && i === messages.length - 1 ? <SpiralAssemble size={22} /> : <VaultMark size={22} />}</div>
@@ -707,6 +757,12 @@ export function ChatView(props: ChatViewProps) {
           </button>
         )}
         <div style={{ maxWidth: 740, margin: "0 auto" }}>
+          {/* SPW 2c-ii (VA-T12 surface A): in a shared thread, remind the sender their reply is attributed. */}
+          {multiParty && (
+            <div style={{ fontSize: 12, color: C.ink3, marginBottom: 8, paddingLeft: 4 }}>
+              You&rsquo;re continuing a shared thread — your reply posts as <span style={{ color: C.ink2, fontWeight: 600 }}>{selfName || "you"}</span>.
+            </div>
+          )}
           {error && <div style={{ color: C.coralDk, fontSize: 13, marginBottom: 8, textAlign: "center" }}>{error}</div>}
           <div style={{ background: "#fff", border: `1px solid ${C.line2}`, borderRadius: 18, padding: "12px 14px", boxShadow: "0 2px 14px rgba(40,38,31,0.05)" }}>
             {queuedText && (

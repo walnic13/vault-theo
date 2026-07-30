@@ -39,7 +39,7 @@ export interface FileDownload {
 export interface InlineImageItem { imageUrl: string; title?: string; source?: string; pageUrl?: string; license?: string; creator?: string }
 export interface InlineImage { url: string; title?: string; source?: string; pageUrl?: string; license?: string; creator?: string; images?: InlineImageItem[] }
 export interface InlineVideo { videoUrl: string; embedUrl?: string; title?: string; thumbnail?: string; source?: string; duration?: string; date?: string }
-export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string; reasoning?: string; tools?: AgentToolCall[]; download?: FileDownload; image?: InlineImage; video?: InlineVideo; tokens?: number; streaming?: boolean }
+export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string; reasoning?: string; tools?: AgentToolCall[]; download?: FileDownload; image?: InlineImage; video?: InlineVideo; tokens?: number; streaming?: boolean; created_by?: string /* SPW 2c-ii: the author's Entra OID — reload maps it from PersistedMessage; send() seeds the self OID on the local turn. Resolved to a Person for the multi-party byline. */ }
 
 export interface Knowledge { id: string; title: string; content: string; source_type?: "text" | "file" }
 export type ProjectVisibility = "private" | "group";
@@ -156,6 +156,7 @@ export interface PublishedConversation {
 }
 export interface PersistedMessage {
   id: string; seq: number; role: Role; content: string;
+  created_by: string;   // SPW 2c-ii: the author's Entra OID (theo_get_conversation, §2.1) — resolved to a Person for the multi-party byline
   model: string | null;
   citations: { url?: string; title?: string; cited_text?: string }[] | null;
   media?: { image?: InlineImage; video?: InlineVideo } | null;   // Chat Media Persistence: persisted inline media (theo_get_conversation returns it)

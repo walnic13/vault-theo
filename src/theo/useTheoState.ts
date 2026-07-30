@@ -453,17 +453,19 @@ export function useTheoState() {
     const msgs: Message[] = d.messages.map((m) => {
       const atts = m.role === "user" ? bySeq.get(m.seq) : undefined;
       const cites = Array.isArray(m.citations) ? m.citations : [];
+      // SPW 2c-ii: carry the author OID onto each painted message for the multi-party byline.
+      const author = typeof m.created_by === "string" && m.created_by ? { created_by: m.created_by } : {};
       if (m.role === "assistant") {
         const { display } = theoClient.ingestReply(m.content);   // parse+upsert artifacts; markers → placeholders
         const media = m.media && typeof m.media === "object" ? m.media : null;   // Chat Media Persistence: restore fetched images/videos on reload
         return {
-          role: "assistant", content: display,
+          role: "assistant", content: display, ...author,
           ...(cites.length ? { runs: [{ text: display, citations: cites.map((c) => ({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text })) }] } : {}),
           ...(media && media.image ? { image: media.image } : {}),
           ...(media && media.video ? { video: media.video } : {}),
         };
       }
-      return { role: m.role, content: m.content, ...(atts && atts.length ? { attachments: atts } : {}) };
+      return { role: m.role, content: m.content, ...author, ...(atts && atts.length ? { attachments: atts } : {}) };
     });
     setArtifacts(theoClient.listArtifacts());
     setMessages(msgs); setConversationId(id);
@@ -522,7 +524,10 @@ export function useTheoState() {
     setError("");
     const userContent = text || "Please review the attached file(s).";
     const sentAtts: SentAttachment[] = ready.map((a) => ({ name: a.name, kind: a.kind, contentType: a.contentType, byteSize: a.byteSize, previewText: a.previewText }));
-    const next: Message[] = [...messages, { role: "user", content: userContent, ...(sentAtts.length ? { attachments: sentAtts } : {}) }];
+    // SPW 2c-ii: seed the optimistic local user turn with the confirmed self OID so a just-sent turn in
+    // a shared thread is attributed immediately (byline + multiParty) without waiting for a reload.
+    const selfOid = people.find((p) => p.isSelf)?.id;
+    const next: Message[] = [...messages, { role: "user", content: userContent, ...(selfOid ? { created_by: selfOid } : {}), ...(sentAtts.length ? { attachments: sentAtts } : {}) }];
     const keptAttachments = attachments;              // restore on error so the user can retry
     // B9 streaming: append an empty assistant placeholder; tokens stream into it live. The composer
     // clears immediately; ChatView shows the rotating status word until the first token lands.

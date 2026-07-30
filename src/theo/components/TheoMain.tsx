@@ -84,7 +84,7 @@ export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
               onDraftChange={t.setDraft} onSend={t.send} onStop={t.stop}
               queuedText={t.queued} onCancelQueued={t.cancelQueued}
               onAddFiles={t.addFiles} onAddPastedText={t.addPastedText} onRemoveAttachment={t.removeAttachment}
-              chatProject={t.chatProject}
+              chatProject={t.chatProject} people={t.people}
               assistantName={ASSISTANT_NAME} greeting={t.greeting} starters={t.reviewMode ? REVIEW_STARTERS : (t.sigmaMode ? REVIEW_APP_STARTERS : STARTERS)} renderAssistant={renderAssistant}
               reviewMode={t.reviewMode}
               sigmaMode={t.sigmaMode}

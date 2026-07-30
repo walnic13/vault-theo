@@ -485,7 +485,7 @@ function toKnowledge(r: RawKnowledge): Knowledge {
 export async function listProjects(): Promise<Project[]> {
   if (!apiBase && !tokenProvider) return mockListProjects();
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_list_projects`, { method: "GET", credentials: "same-origin", headers });
+  const res = await fetch(`${projectsBase}/api/theo_list_projects`, { method: "GET", credentials: "same-origin", headers });
   let json: { data?: { projects?: RawProject[] }; error?: { message?: string } } | null = null;
   try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
   if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
@@ -498,7 +498,7 @@ export async function listProjects(): Promise<Project[]> {
 export async function setProjectVisibility(id: string, visibility: string): Promise<{ id: string; visibility: string }> {
   if (!apiBase && !tokenProvider) return mockSetProjectVisibility(id, visibility);
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_set_project_visibility`, {
+  const res = await fetch(`${projectsBase}/api/theo_set_project_visibility`, {
     method: "POST",
     credentials: "same-origin",
     headers,
@@ -517,7 +517,7 @@ export async function setProjectVisibility(id: string, visibility: string): Prom
 export async function shareProject(projectId: string, memberOid: string): Promise<void> {
   if (!apiBase && !tokenProvider) return mockShareProject(projectId, memberOid);
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_share_project`, {
+  const res = await fetch(`${projectsBase}/api/theo_share_project`, {
     method: "POST",
     credentials: "same-origin",
     headers,
@@ -532,7 +532,7 @@ export async function shareProject(projectId: string, memberOid: string): Promis
 export async function unshareProject(projectId: string, memberOid: string): Promise<void> {
   if (!apiBase && !tokenProvider) return mockUnshareProject(projectId, memberOid);
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_unshare_project`, {
+  const res = await fetch(`${projectsBase}/api/theo_unshare_project`, {
     method: "POST",
     credentials: "same-origin",
     headers,
@@ -552,7 +552,7 @@ function toMember(r: RawMember): ProjectMember {
 export async function listProjectMembers(projectId: string): Promise<ProjectMember[]> {
   if (!apiBase && !tokenProvider) return mockListProjectMembers(projectId);
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_list_project_members?projectId=${encodeURIComponent(projectId)}`, {
+  const res = await fetch(`${projectsBase}/api/theo_list_project_members?projectId=${encodeURIComponent(projectId)}`, {
     method: "GET",
     credentials: "same-origin",
     headers,
@@ -597,7 +597,7 @@ export async function listPeople(): Promise<Person[]> {
 export async function createProject(d: NpDraft): Promise<Project> {
   if (!apiBase && !tokenProvider) return mockCreateProject(d);
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_create_project`, {
+  const res = await fetch(`${projectsBase}/api/theo_create_project`, {
     method: "POST",
     credentials: "same-origin",
     headers,
@@ -616,7 +616,7 @@ export async function createProject(d: NpDraft): Promise<Project> {
 // fetch/toProject idiom. Used to map a Sigma review (source_ref = sigma_review_id) to one Theo project.
 export async function getOrCreateReviewProject(appKey: string, sourceRef: string, name: string): Promise<Project> {
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_get_or_create_review_project`, {
+  const res = await fetch(`${projectsBase}/api/theo_get_or_create_review_project`, {
     method: "POST",
     credentials: "same-origin",
     headers,
@@ -633,7 +633,7 @@ export async function getOrCreateReviewProject(appKey: string, sourceRef: string
 export async function updateProjectInstructions(id: string, instructions: string): Promise<Project> {
   if (!apiBase && !tokenProvider) return mockUpdateProjectInstructions(id, instructions);
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_update_project`, {
+  const res = await fetch(`${projectsBase}/api/theo_update_project`, {
     method: "POST",
     credentials: "same-origin",
     headers,
@@ -652,7 +652,7 @@ export async function updateProjectInstructions(id: string, instructions: string
 export async function updateProjectDescription(id: string, description: string): Promise<Project> {
   if (!apiBase && !tokenProvider) return mockUpdateProjectDescription(id, description);
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_update_project`, {
+  const res = await fetch(`${projectsBase}/api/theo_update_project`, {
     method: "POST",
     credentials: "same-origin",
     headers,
@@ -671,7 +671,7 @@ export async function updateProjectDescription(id: string, description: string):
 export async function renameProject(id: string, name: string): Promise<Project> {
   if (!apiBase && !tokenProvider) return mockRenameProject(id, name);
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_update_project`, {
+  const res = await fetch(`${projectsBase}/api/theo_update_project`, {
     method: "POST",
     credentials: "same-origin",
     headers,
@@ -688,7 +688,7 @@ export async function renameProject(id: string, name: string): Promise<Project> 
 export async function deleteProject(id: string): Promise<void> {
   if (!apiBase && !tokenProvider) return mockDeleteProject(id);
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_delete_project`, {
+  const res = await fetch(`${projectsBase}/api/theo_delete_project`, {
     method: "POST",
     credentials: "same-origin",
     headers,
@@ -704,7 +704,7 @@ export async function deleteProject(id: string): Promise<void> {
 export async function listProjectKnowledge(projectId: string): Promise<Knowledge[]> {
   if (!apiBase && !tokenProvider) return mockListProjectKnowledge(projectId);
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_list_project_knowledge?projectId=${encodeURIComponent(projectId)}`, {
+  const res = await fetch(`${projectsBase}/api/theo_list_project_knowledge?projectId=${encodeURIComponent(projectId)}`, {
     method: "GET",
     credentials: "same-origin",
     headers,
@@ -719,7 +719,7 @@ export async function listProjectKnowledge(projectId: string): Promise<Knowledge
 export async function addProjectKnowledge(projectId: string, k: KDraft): Promise<Knowledge> {
   if (!apiBase && !tokenProvider) return mockAddProjectKnowledge(projectId, k);
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_add_project_knowledge`, {
+  const res = await fetch(`${projectsBase}/api/theo_add_project_knowledge`, {
     method: "POST",
     credentials: "same-origin",
     headers,
@@ -757,7 +757,7 @@ export async function addProjectKnowledgeFile(projectId: string, attachmentId: s
 export async function removeProjectKnowledge(knowledgeId: string): Promise<void> {
   if (!apiBase && !tokenProvider) return mockRemoveProjectKnowledge(knowledgeId);
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_remove_project_knowledge`, {
+  const res = await fetch(`${projectsBase}/api/theo_remove_project_knowledge`, {
     method: "POST",
     credentials: "same-origin",
     headers,
@@ -776,7 +776,7 @@ export async function removeProjectKnowledge(knowledgeId: string): Promise<void>
 export async function setConversationProject(conversationId: string, projectId: string): Promise<void> {
   if (!apiBase && !tokenProvider) return mockSetConversationProject(conversationId, projectId);
   const headers = await authHeaders();
-  const res = await fetch(`${apiBase}/api/theo_set_conversation_project`, {
+  const res = await fetch(`${projectsBase}/api/theo_set_conversation_project`, {
     method: "POST",
     credentials: "same-origin",
     headers,

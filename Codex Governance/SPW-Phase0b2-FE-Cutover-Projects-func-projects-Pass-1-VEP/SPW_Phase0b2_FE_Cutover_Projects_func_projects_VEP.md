@@ -7,7 +7,7 @@
 ## GROUNDING CONFORMANCE RECEIPT
 Role: Claude Code
 Turn Type: Verified Evidence Pack (frontend plan)
-Turn issued against HEAD: `072d10d549b09c587f38abd173a739685e4c7573` (vault-theo, `development`)
+Grounding parent (the vault-theo FE + spec source this cutover builds on): `072d10d549b09c587f38abd173a739685e4c7573` (`development`). This package's controlling directory is carried by a later `development` commit — the branch tip at review, named in the Codex forward note, NOT baked here (avoids a stale self-referential HEAD SHA). Grounding doc currency anchors below are git blob SHAs (tip-independent, verifiable via `git cat-file`).
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: N/A

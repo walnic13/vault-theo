@@ -230,7 +230,17 @@ Render: a "Shared in this project" block (mirroring the "Chats in this project" 
 
 ### CCT-5 · `TheoMain` — ACTIVE (`src/theo/components/TheoMain.tsx`), modified · VA-T12 B (header "Shared in {project}" chip) · wires the new state/handlers · **PROCEED**
 
-`TheoMain` takes the single `t = useTheoState()` prop (unchanged signature). Modifications (wiring only, no new interface):
+Complete `TheoMainProps` interface — **UNCHANGED** by this microstep (pasted in full for T20; the modifications are wiring-only inside the body, no prop added/removed):
+
+```ts
+export interface TheoMainProps {
+  t: ReturnType<typeof useTheoState>;
+  mode: "full" | "panel";              // "full" = 9/10 landing; "panel" = in-app right-docked panel (Origin host)
+  suppressNarrowHeader?: boolean;      // Apps Phase B / B1 (VA-T6 §4.1): hide this view's 54px header on narrow viewports
+}
+```
+
+Modifications (wiring only inside the body; the prop surface above is unchanged):
 - The chat header gains a "Shared in {`t.chatProject.name`}" chip (VA-T12 B idiom = the existing `chatProject` chip) rendered when `t.chatPublished`.
 - The `<ChatMenu … />` invocation gains `published={t.chatPublished} canPublish={t.chatCanPublish} onTogglePublish={t.togglePublishConversation}`.
 - The `<ChatView … />` invocation gains `sharedProjectName={t.chatPublished ? (t.chatProject?.name ?? null) : null}`.

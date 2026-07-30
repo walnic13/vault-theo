@@ -1,6 +1,8 @@
 # Theo Frontend — SPW Phase 2c-ii: attributed multi-party render: Pass-1 Frontend Verified Evidence Pack
 
-Plan-only Frontend VEP (no component code lands this turn; implementation is Pass 3 against the approved Component Contract Table). Renders **who wrote each message** in a shared conversation — a per-turn BYLINE (the author's roster photo + display name + an "Owner / You" tag) — drawn per the Walter-approved **VA-T12** (surface A). Each message now carries `created_by` (deployed backend, API §2.1, 2b-3d) resolved to a person via the People roster (`theo_list_people`, §2.9). Bylines appear ONLY in a MULTI-AUTHOR thread; a private single-author conversation is unchanged (VA-T1). Plus the composer's "your reply posts as <you>" note in a shared thread. **Scope boundary:** the "Shared in this project" banner + the publish state ride with 2c-iii (which owns the published flag); this microstep is the attribution render only.
+Plan-only Frontend VEP (no component code lands this turn; implementation is Pass 3 against the approved Component Contract Table). Renders **who wrote each message** in a shared conversation — a per-turn BYLINE (the author's roster photo + display name + an "Owner / You" tag) — drawn per the Walter-approved **VA-T12** (surface A). Each message carries `created_by` (deployed backend, API §2.1, 2b-3d) resolved to a person via the People roster (`theo_list_people`, §2.9). Bylines appear ONLY in a MULTI-AUTHOR thread; a private single-author conversation is unchanged (VA-T1). Plus the composer's "your reply posts as <you>" note in a shared thread. **Scope boundary:** the "Shared in this project" banner + the publish state ride with 2c-iii (which owns the published flag); this microstep is the attribution render only.
+
+**Re-issue (v2) — addresses Codex Pass-2 REJECT (T13, runtime/byline contract mismatch for locally-created turns):** the rejected plan drove the byline off `Message.created_by` but the live send path (`useTheoState.send`, line 525) appends the local user turn WITHOUT `created_by`, so a just-sent turn had no author until reload and `multiParty` could stay false on the first member reply. **Fix:** (1) CCT-4 now **seeds the local user turn with the confirmed self OID** (`people.find(p => p.isSelf)?.id`) at send time, so live continuation is attributed immediately and the multi-author derivation flips correctly; (2) CCT-2 `AuthorByline` now takes `createdBy?: string` (optional — matches `Message.created_by?: string`), and the render passes the value type-safely with owner/self computed under `!!m.created_by` guards.
 
 ## Grounding Conformance Receipt
 
@@ -23,7 +25,7 @@ Sub-phase Track: N/A
 | 6 | Theo Golden Component Pack Standard — `governance/THEO_GOLDEN_COMPONENT_PACK_STANDARD.md` (§2 Primary Reference/greenfield; §3 CCT; §4 prop conventions; §5 allowed deltas; §7 visual parity) | `Grep("A row missing any of the three locked surfaces is invalid")` + `Grep("declare \`PRIMARY REFERENCE: GREENFIELD\`")` this turn | `0035a1d9fed103d07bf420b957c3727ec47fcc6b` |
 | 7 | **VA-T12 reference surface** — `artifacts/theo-spw-surfaces-reference.jsx` (§4B VA-T12; surface A = the attributed byline + tags + "reply posts as you" note) | `Read`(this session — authored) + registered §4B entry this turn | `188061f9c043acf222f6f610903869438b30b8ba` (sha256 `03c2970c9e0f13b7fdc6d8868578a94c3db561a5d0a3fdd054bcb06f21d52c59`) |
 | 8 | ACTIVE surface — `src/theo/components/ChatView.tsx` (message render + composer; complete `ChatViewProps` pasted in F-P5) | `Read(src/theo/components/ChatView.tsx, offset=20, limit=49)` this turn | `d165e6cfeb73f2760d6c1bf1cbe811febc746326` |
-| 9 | ACTIVE state — `src/theo/useTheoState.ts` (`paintConversation` builds `Message[]` from `d.messages`; owns the `people` roster) | `Read(src/theo/useTheoState.ts, offset=448, limit=30)` this turn | `9e0da180a6d23ac64b3cc6fe4fde7593e0567389` |
+| 9 | ACTIVE state — `src/theo/useTheoState.ts` (`paintConversation` builds `Message[]` from `d.messages`; `send()` appends the local user turn at L525; owns the `people` roster + the self row L197/L294) | `Read(offset=448, limit=30)` + `Grep('role: "user"')`→L525 this turn | `9e0da180a6d23ac64b3cc6fe4fde7593e0567389` |
 | 10 | ACTIVE wiring — `src/theo/components/TheoMain.tsx` (passes `people` to `ProjectDetail`; adds the same pass to `ChatView`) | `Grep("people=\|<ChatView")` this turn | `2a31c550655bba7407430099fdd104548e50dded` |
 | 11 | Shared types — `src/theo/types.ts` (`Message`, `PersistedMessage`, `Person`) | `Read(src/theo/types.ts)` this turn | `07847946594d2162fa5f9c964ebf96dd973dff65` |
 
@@ -75,6 +77,7 @@ Vocabulary closed (`PROCEED` / `PRE-LAND` / `ESCALATE` / `NO-GAPS`) per Governor
 | G-1A-PLAN | SPW is not a 1A-Plan feature entry. | **PROCEED** | Walter-directed extension; backends DEPLOYED; VA-T12 registered. |
 | G-SHARED-SIGNAL | "Is this thread shared?" — the FE derives it as **multi-author** (`new Set(messages.map(m => m.created_by)).size > 1`), NOT from a published flag (`theo_get_conversation` does not yet return `published_to_project`). | **PROCEED** | Correct + self-contained for the ATTRIBUTION render: bylines are meaningful exactly when ≥2 authors exist. The "Shared in this project" BANNER (which needs the published flag even before a second author posts) is deferred to **2c-iii**, which exposes + owns the publish state. |
 | G-OWNER-DERIV | The "Owner" tag = the author of the seq-0 message (the thread starter). | **PROCEED** | `theo_get_conversation` returns messages ordered by seq; message[0].created_by is the conversation's owner (the creator's first turn). Self is `Person.isSelf`. Both → "Owner · you". No new backend. |
+| G-LOCAL-SEED | A just-SENT local user turn (before reload) must carry an author or the byline/multiParty is wrong for live continuation (Codex T13). | **PROCEED** | `send()` seeds the local user turn with the confirmed self OID (`people.find(p => p.isSelf)?.id`; the hook already binds this principal at mount) — CCT-4. So live continuation is attributed instantly; the reload path (`paintConversation`) supplies the persisted `created_by`. If the roster hasn't loaded yet (`selfOid` undefined), the turn is unseeded and the byline degrades to "(unknown)" under the `!!m.created_by` guards — no crash, no mistag. |
 | G-UNKNOWN-PERSON | A `created_by` OID not in the loaded roster. | **PROCEED** | Falls back to initials from a shortened OID / "(unknown)" — the roster resolution is best-effort (mirrors `ProjectDetail`'s `people.find(...) ?? memberOid`). |
 | G-BANNER-NOTE | The "Shared in this project" banner is NOT in this microstep. | **PROCEED (future-trigger)** | 2c-iii (publish control) adds the banner + publish state. |
 
@@ -147,14 +150,14 @@ export interface ChatViewProps {
 }
 ```
 
-Render behaviour (VA-T12 surface A): compute `multiParty = new Set(messages.map(m => m.created_by).filter(Boolean)).size > 1`. If NOT multiParty → no bylines (VA-T1 unchanged). If multiParty: above each USER turn render `<AuthorByline person={people.find(p => p.id === m.created_by) ?? null} rawOid={m.created_by} owner={m.created_by === messages[0]?.created_by} self={people.find(p => p.id === m.created_by)?.isSelf ?? false} />`; ASSISTANT turns render the existing Theo byline. In a multiParty thread the composer shows a muted note "You're continuing a shared thread — your reply posts as `{people.find(p => p.isSelf)?.displayName}`".
+Render behaviour (VA-T12 surface A): compute `multiParty = new Set(messages.map(m => m.created_by).filter(Boolean)).size > 1` — because the send path now SEEDS the local user turn with the self OID (CCT-4), this flips true the instant a second author posts, without a reload. If NOT multiParty → no bylines (VA-T1 unchanged). If multiParty: above each USER turn render `<AuthorByline person={m.created_by ? (people.find(p => p.id === m.created_by) ?? null) : null} createdBy={m.created_by} owner={!!m.created_by && m.created_by === messages[0]?.created_by} self={!!m.created_by && (people.find(p => p.id === m.created_by)?.isSelf ?? false)} />` (all guards under `!!m.created_by`, so an unseeded turn degrades gracefully rather than mis-tagging); ASSISTANT turns render the existing Theo byline. In a multiParty thread the composer shows a muted note "You're continuing a shared thread — your reply posts as `{people.find(p => p.isSelf)?.displayName}`".
 
 ### CCT-2 · `AuthorByline` — NEW/GREENFIELD (inline in ChatView) · VA-T12 (surface A: 26px roster-photo avatar [initials fallback] + name + "Owner / You" tag) · presentational (no contract) · **PROCEED**
 
 ```ts
 interface AuthorBylineProps {
-  person: Person | null;   // resolved roster person (null → not in the loaded roster → initials/(unknown) fallback)
-  rawOid: string;          // the message.created_by, for the fallback initials/label when person is null
+  person: Person | null;   // resolved roster person (null → not in the loaded roster, or an unseeded local turn → initials/(unknown) fallback)
+  createdBy?: string;      // the message.created_by (OPTIONAL — matches Message.created_by?: string; drives the fallback label when person is null; a still-unseeded local turn → "(unknown)")
   owner: boolean;          // author of the seq-0 turn (the thread starter) → "Owner" tag
   self: boolean;           // Person.isSelf → "You" tag (both owner+self → "Owner · you")
 }
@@ -176,9 +179,13 @@ export interface PersistedMessage {
 }
 ```
 
-### CCT-4 · `useTheoState` — ACTIVE (state hook), modified · n/a (state, not a rendered surface) · maps `PersistedMessage.created_by` → `Message.created_by` in `paintConversation`; already owns `people` · **PROCEED**
+### CCT-4 · `useTheoState` — ACTIVE (state hook), modified · n/a (state, not a rendered surface) · maps `PersistedMessage.created_by` → `Message.created_by` in `paintConversation`; SEEDS the local send turn with the self OID; already owns `people` · **PROCEED**
 
-The hook takes no arguments; its public return contract is UNCHANGED (both `messages: Message[]` and `people: Person[]` already exist on it). The only change is internal: `paintConversation` (which builds `Message[]` from `d.messages`) additionally maps `created_by: m.created_by` onto each message (both the assistant and user branches). No new return member; the existing `people` is threaded to `ChatView` by `TheoMain` (F-P6).
+The hook takes no arguments; its public return contract is UNCHANGED (both `messages: Message[]` and `people: Person[]` already exist on it). Two internal-only changes, both to attribution plumbing:
+1. **Reload path** — `paintConversation` (which builds `Message[]` from `d.messages`) additionally maps `created_by: m.created_by` onto each message (both the assistant and user branches).
+2. **Live send path (T13 fix)** — `send()` seeds the appended local user turn with the confirmed self OID so a just-sent turn is attributed immediately (no reload) and `multiParty` flips true on the first member reply. Deployed line (blob `9e0da18`, line 525): `const next: Message[] = [...messages, { role: "user", content: userContent, ...(sentAtts.length ? { attachments: sentAtts } : {}) }];` → seed `created_by`: compute `const selfOid = people.find((p) => p.isSelf)?.id;` (the same self row the hook already uses at lines 197/294–297 + `bindPrincipal(self.id)`) and add `...(selfOid ? { created_by: selfOid } : {})` to that user-turn object. The appended assistant placeholder (`{ role: "assistant", content: "" }`) is unchanged (assistant turns render the Theo byline, not `created_by`).
+
+No new return member; the existing `people` is threaded to `ChatView` by `TheoMain` (F-P6).
 
 Every entry locks the three surfaces (complete literal interface, VA-id [VA-T12 or n/a for type/state], contract dependency) + impl eligibility. No `any`.
 

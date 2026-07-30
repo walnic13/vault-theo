@@ -1,4 +1,4 @@
-// VA-T10 — Theo Shared Project Workspace (SPW) Surfaces Rendering Reference (canonical surface;
+// VA-T12 — Theo Shared Project Workspace (SPW) Surfaces Rendering Reference (canonical surface;
 // reproduce faithfully, do not redesign). Three additions to the existing Theo chat + projects
 // surface (VA-T1) that make a PUBLISHED project conversation usable by a project's participants.
 // Everything else on the surface is unchanged. Zero-dependency, inline-style, no Tailwind, no browser

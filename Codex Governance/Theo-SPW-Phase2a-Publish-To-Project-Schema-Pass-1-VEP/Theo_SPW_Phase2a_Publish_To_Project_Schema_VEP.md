@@ -11,7 +11,7 @@ Grounding parent (schema + governance state this migration applies against): vau
 Grounding Mode: Full Baseline Grounding
 Pass: Pass 1
 Sub-phase Track: P8
-Detail: Pass 1 backend VEP; P1–P8 walked. Schema + RLS-broadening microstep (no handler, no model call — handlers are 2b). Additive column + a partial index + a drop/recreate of THREE existing policies (theo_conversation_select_own, theo_message_select_own, theo_message_insert_own) to add the published-project-member branch; the six other conversation/message policies (INSERT/UPDATE/DELETE own) are unchanged (owner-only). RLS non-recursion preserved: theo_conversations.SELECT → theo_projects.SELECT + theo_project_members.SELECT (both self-contained per B5c; neither references conversations/messages back), theo_messages.SELECT/INSERT → theo_conversations.SELECT → … → terminates. Attribution is the existing per-message created_by. Full Baseline per Conformance §4.
+Detail: Pass 1 backend VEP; P1–P8 walked. Schema + RLS-broadening microstep (no handler, no model call — handlers are 2b). Additive column + a partial index + a drop/recreate of THREE existing policies (theo_conversation_select_own, theo_message_select_own, theo_message_insert_own) to add the published-project-member branch; the five other conversation/message policies (conversation INSERT/UPDATE/DELETE + message UPDATE/DELETE) are unchanged (owner-only). RLS non-recursion preserved: theo_conversations.SELECT → theo_projects.SELECT + theo_project_members.SELECT (both self-contained per B5c; neither references conversations/messages back), theo_messages.SELECT/INSERT → theo_conversations.SELECT → … → terminates. Attribution is the existing per-message created_by. Full Baseline per Conformance §4.
 Currency anchors: blob SHA via `git rev-parse HEAD:<path>`.
 
 | # | Document (name + path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
@@ -50,7 +50,7 @@ SPW **Phase 2a**: the schema/RLS substrate for publish-to-project (the Jared-fac
 - **Read + write broadening.** SELECT (conversations + messages) and INSERT (messages) gain a branch: the conversation is published to a project the caller belongs to (creator ∪ owner/member via a `theo_project_members` row). INSERT keeps `created_by = auth.uid()` so a member continues a thread only as themselves (attribution). UPDATE/DELETE on both tables stay strictly owner-only — a member cannot rename/unpublish/delete a shared conversation or edit/delete others' messages.
 - **Attribution (no new column).** `theo_messages.created_by` is already set to `auth.uid()` per insert, so each turn records its author; multi-party threads attribute automatically (Architecture §5.2 — ownership baseline; here `created_by` doubles as per-message author).
 - **Non-recursion (mirrors B5c).** `theo_conversations.SELECT` references `theo_projects` + `theo_project_members`; `theo_messages.SELECT/INSERT` reference `theo_conversations`. `theo_projects.SELECT` → `theo_project_members` (self-contained), `theo_project_members.SELECT` self-contained, and neither references conversations/messages back — no cycle. Defense-in-depth: the connection role enforces RLS AND the 2b handlers set the OID session context + carry explicit predicates.
-- **Boundary.** Additive column + index + 3 policy redefinitions on existing `theo_*` tables in the shared `vaultgpt` instance; no `reporting_*`; no new table; no function; the 6 owner-only policies untouched.
+- **Boundary.** Additive column + index + 3 policy redefinitions on existing `theo_*` tables in the shared `vaultgpt` instance; no `reporting_*`; no new table; no function; the 5 owner-only policies untouched.
 
 ## P2.5 / GR — Gap Register
 Grounded against Governor §8 (`PROCEED`/`PRE-LAND`/`ESCALATE`/`NO-GAPS`).
@@ -67,13 +67,13 @@ No write SQL in this pack (plan only). No `reporting_*` change.
 No HTTP contract here (no handler). The substrate the 2b handlers consume: a conversation is shared when `published_to_project=true AND project_id` set; RLS then exposes it (read + member-continue) to the project's creator/owner/members. The schema doc gains its §11 record post-deploy (G-2). 2b will add `theo_publish_conversation`/`theo_unpublish_conversation`/`theo_list_project_conversations` and broaden the read/post handlers.
 
 ## P4 — Schema definition
-See §DDL (complete idempotent migration): additive `published_to_project`/`published_at`/`published_by` columns + a partial index + drop/recreate of the 3 broadened policies. The 6 owner-only policies (conversation INSERT/UPDATE/DELETE; message UPDATE/DELETE) are untouched.
+See §DDL (complete idempotent migration): additive `published_to_project`/`published_at`/`published_by` columns + a partial index + drop/recreate of the 3 broadened policies. The 5 owner-only policies (conversation INSERT/UPDATE/DELETE; message UPDATE/DELETE) are untouched.
 
 ## P5 — Component reference grounding
 Broadened baseline = the deployed B2 migration (blob `2f2b6ddf` — doc 8): the strict `theo_conversation_select_own`/`theo_message_select_own`/`theo_message_insert_own` policies (`created_by = auth.uid()`) that this VEP extends with the published-project-member OR-branch. The project-access subquery (`creator ∪ theo_project_members`) reproduces the deployed B5c membership-RLS predicate (schema §… B5c) verbatim in shape, preserving non-recursion.
 
 ## P6 — Repository & active-surface grounding
-New artifacts (this package): `spw_phase2a_migration.sql` (== §DDL), `spw_phase2a_verify.sql` (== §VERIFY). No source/handler/active-surface file changed. Guardrails: no `reporting_*`; additive column/index; only the 3 named policies redefined (owner access preserved as an OR branch); non-recursive; the 6 owner-only policies untouched. Verified via §VERIFY post-deploy.
+New artifacts (this package): `spw_phase2a_migration.sql` (== §DDL), `spw_phase2a_verify.sql` (== §VERIFY). No source/handler/active-surface file changed. Guardrails: no `reporting_*`; additive column/index; only the 3 named policies redefined (owner access preserved as an OR branch); non-recursive; the 5 owner-only policies untouched. Verified via §VERIFY post-deploy.
 
 ## P7 — Risk / regression
 - **Additive + reversible.** `ADD COLUMN IF NOT EXISTS` (existing rows default unpublished/private → no conversation becomes visible until an owner explicitly publishes) + `CREATE INDEX IF NOT EXISTS` + guarded `DROP/CREATE POLICY`. The reversal block (restore strict `created_by=auth.uid()`) is in the migration footer.
@@ -247,7 +247,7 @@ WHERE relnamespace='public'::regnamespace AND relname IN ('theo_conversations','
 
 ## §DEPLOY — Walter deploy steps
 1. Run `spw_phase2a_migration.sql` against the shared `vaultgpt` Postgres **as `pgadmin_vault`** (the owner; same as every prior theo migration — NOT via the RO tool).
-2. Reply "SPW Phase 2a deployed" → Claude Code runs §VERIFY (publish columns + the 3 broadened policy predicates + the 6 owner-only policies intact + RLS enabled), then prepares the schema-doc §11 Role-C (G-2) and the Phase-2b handler VEP (G-3).
+2. Reply "SPW Phase 2a deployed" → Claude Code runs §VERIFY (publish columns + the 3 broadened policy predicates + the 5 owner-only policies intact + RLS enabled), then prepares the schema-doc §11 Role-C (G-2) and the Phase-2b handler VEP (G-3).
 
 **Requested Pass 2 verdict:** Codex APPROVED or REJECTED.
 

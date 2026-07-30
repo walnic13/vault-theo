@@ -76,7 +76,17 @@ None. The `theo_conversation_access` helper + publish columns are already deploy
 
 Unified diff (LIVE → staged), the complete change set:
 ```diff
-@@ -549,11 +549,15 @@
+@@ -528,7 +528,8 @@
+ // relayTurnRaw (which both relays verbatim AND parses); the standalone parseSseForPersistence used by
+ // the old single-call relay was removed with the DR-T11 tool-loop conversion.
+ 
+-// Persist the completed turn (HF-T2; explicit created_by ownership; shared vaultgpt instance).
++// Persist the completed turn (HF-T2; access-gated via theo_conversation_access — owner OR
++// published-project member; message INSERTs keep created_by = caller; shared vaultgpt instance).
+ // Mirrors theo_message's persistence EXACTLY (incl. B8i message_seq linkage). Returns conversationId.
+ async function persistTurn(opts) {
+   const { oid, requestedConversationId, appKey, appContext, userText, attachmentIds, acc } = opts;
+@@ -549,11 +550,15 @@
  
      let conversationId = requestedConversationId;
      if (conversationId) {
@@ -96,7 +106,7 @@ Unified diff (LIVE → staged), the complete change set:
          const existsResult = await client.query(
            `SELECT public.theo_conversation_exists_unscoped($1::uuid) AS e`,
            [conversationId]
-@@ -576,9 +580,19 @@
+@@ -576,9 +581,19 @@
        conversationId = created.rows[0].id;
      }
  
@@ -118,7 +128,7 @@ Unified diff (LIVE → staged), the complete change set:
      );
      const baseSeq = seqResult.rows[0].n;
  
-@@ -619,9 +633,11 @@
+@@ -619,9 +634,11 @@
        ]
      );
  
@@ -132,7 +142,7 @@ Unified diff (LIVE → staged), the complete change set:
      );
  
      await client.query("COMMIT");
-@@ -1060,8 +1076,10 @@
+@@ -1060,8 +1077,10 @@
        return jsonErr(500, "INTERNAL_SERVER_ERROR", "Failed to load attachments.");
      }
  
@@ -145,7 +155,7 @@ Unified diff (LIVE → staged), the complete change set:
      if (requestedConversationId) {
        let chkClient = null;
        try {
-@@ -1075,11 +1093,11 @@
+@@ -1075,11 +1094,11 @@
            `,
            [oid]
          );
@@ -161,6 +171,15 @@ Unified diff (LIVE → staged), the complete change set:
            const existsResult = await chkClient.query(
              `SELECT public.theo_conversation_exists_unscoped($1::uuid) AS e`,
              [requestedConversationId]
+@@ -1090,7 +1109,7 @@
+             : jsonErr(404, "NOT_FOUND", "Conversation not found.");
+         }
+       } catch (chkErr) {
+-        context.error("theo_message_stream: conversation ownership check failed", chkErr);
++        context.error("theo_message_stream: conversation access check failed", chkErr);
+         return jsonErr(500, "INTERNAL_SERVER_ERROR", "Failed to verify the conversation.");
+       } finally {
+         if (chkClient) chkClient.release();
 ```
 
 LIVE `theo_message_stream.js` (Primary Reference, verbatim — the deployed bytes):

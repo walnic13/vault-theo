@@ -528,7 +528,8 @@ async function buildAttachmentBlocks(context, rows) {
 // relayTurnRaw (which both relays verbatim AND parses); the standalone parseSseForPersistence used by
 // the old single-call relay was removed with the DR-T11 tool-loop conversion.
 
-// Persist the completed turn (HF-T2; explicit created_by ownership; shared vaultgpt instance).
+// Persist the completed turn (HF-T2; access-gated via theo_conversation_access — owner OR
+// published-project member; message INSERTs keep created_by = caller; shared vaultgpt instance).
 // Mirrors theo_message's persistence EXACTLY (incl. B8i message_seq linkage). Returns conversationId.
 async function persistTurn(opts) {
   const { oid, requestedConversationId, appKey, appContext, userText, attachmentIds, acc } = opts;
@@ -1108,7 +1109,7 @@ app.http("theo_message_stream", {
             : jsonErr(404, "NOT_FOUND", "Conversation not found.");
         }
       } catch (chkErr) {
-        context.error("theo_message_stream: conversation ownership check failed", chkErr);
+        context.error("theo_message_stream: conversation access check failed", chkErr);
         return jsonErr(500, "INTERNAL_SERVER_ERROR", "Failed to verify the conversation.");
       } finally {
         if (chkClient) chkClient.release();

@@ -18,9 +18,10 @@ Sub-phase Track: N/A
 | 4 | Backend Governor — `governance/CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md` (§3 Never-Guess; §4 Schema Reality Lock; §8 VEP format) | `Grep("Never-Guess")` this turn | `e44cdd85d3d0e5df332dc754cdec731e2e68022e` |
 | 5 | Grounding Conformance — `governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md` (§3 GCR; §5 Rule Anchor) | `Grep("MUST open with a Grounding Conformance Receipt")` this turn | `7c0d902bdff3b6c0af475b483e31ed796214e57b` |
 | 6 | Execution Orchestration — `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md` (§1C Walter-runs-config/migrations; §1D pass order; §1E Claude-deploy-to-dedicated-func-apps) | `Grep("ordered, non-skippable")` this turn | `565559b699c1309f8e750b0dbbac859c13d807c8` |
-| 7 | **PRIMARY REFERENCE (DEPLOYED)** — `theo_list_people` handler + function.json (OBO→Graph pattern + env, structural mirror) | `Read`(theo_list_people.index.js full) this turn; byte-faithful copies in-package | `5ae78419dd7dd7b0873c6a97c197a09744ee508a` (index.js) |
-| 8 | DEPLOYED FACT — `func-theo-tools` app settings (no AAD OBO env present) | `az functionapp config appsettings list` (names only) this turn | live Azure state (§3 precondition) |
-| 9 | DEPLOYED FACT — Vault Staff jobTitles (mapping ground truth) | `az rest` Graph group-members `$select=jobTitle` this turn | live Azure state (§2) |
+| 7 | **PRIMARY REFERENCE (DEPLOYED)** — `theo_list_people` handler + function.json (OBO→Graph pattern + env, structural mirror; Golden Handler §2 requires BOTH files) | `Read`(theo_list_people.index.js + function.json, full) this turn; byte-faithful copies in-package | index.js `5ae78419dd7dd7b0873c6a97c197a09744ee508a`; function.json `fca156d9ba172f4eedb35b1d7f1c99abf51a2283` |
+| 8 | CONTRACT TRUTH — `spec/THEO_API_SPEC.md` (§2 Contract Surface — the handler-route contract owner; `theo_get_my_role` NOT yet present → the §5 Role-C gap) | `Grep("theo_get_my_role")` (0 hits — absent) + `Grep("## §2 Contract Surface")` this turn | `ccab715b326ab365551e2e13db7292a1ba1d7dd4` |
+| 9 | DEPLOYED FACT — `func-theo-tools` app settings (no AAD OBO env present) | `az functionapp config appsettings list` (names only) this turn | live Azure state (§3 precondition) |
+| 10 | DEPLOYED FACT — Vault Staff jobTitles (mapping ground truth) | `az rest` Graph group-members `$select=jobTitle` this turn | live Azure state (§2) |
 
 ## Rule Anchor Table
 
@@ -33,6 +34,8 @@ Sub-phase Track: N/A
 | governance/THEO_GOLDEN_HANDLER_STANDARD.md | Golden SQL | "SECURITY DEFINER" | N/A — this handler has NO DB/SQL (code-only OBO read) |
 | governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1D | "ordered, non-skippable" | §3 pass order (Walter config → Codex → Claude deploy) |
 | governance/VAULT_MEMORY_ARCHITECTURE.md | §A-7 | "partner > director > senior manager > manager > associate > preparer" | §2 the mapping's rank order |
+| spec/THEO_API_SPEC.md | §2 | "## §2 Contract Surface (1A) → Deployed Endpoints (1B)" | §5 Gap G-APISPEC — the new route's contract row lands here via Role-C post-deploy |
+| governance/THEO_GOLDEN_HANDLER_STANDARD.md | §2 | "SECURITY DEFINER" | §6 primary reference = the deployed handler index.js AND function.json (both anchored, row 7) |
 
 ---
 
@@ -86,7 +89,8 @@ Auth: `az account get-access-token --resource api://4e1a1e31-5c20-4480-99e4-0989
 
 ## §5 — Gap Register
 
-**PROCEED.** No missing CURRENT authority (the Codex-APPROVED design + the amended vision doc fully ground this); no ESCALATE.
+**PROCEED.** No ESCALATE conditions. The design authority, amended vision doc, and API-Spec contract owner are all CURRENT and grounded; the one contract gap below is a standard PRE-LAND Role-C (deploy → API-Spec documentation), not a missing authority.
+- **G-APISPEC — the `theo_get_my_role` route contract row is not yet in `spec/THEO_API_SPEC.md` §2: PRE-LAND (Role-C, post-deploy).** Confirmed this turn (`Grep` → 0 hits). Per the deployed Theo backend pattern (a route is documented in API-Spec §2 AFTER it is deployed + golden-curl-verified, via a Pass-4 Role-C — exactly as `theo_publish_conversation`/`theo_get_conversation` landed), this VEP authors the handler now and adds the §2 contract row (`GET /api/theo_get_my_role` → `{ oid, job_title, firm_role }`, 401/204/500 edges, `func-theo-tools`) via a Role-C handoff **after** the Pass-3 deploy + golden curls pass. This is the disclosed contract gap; it does NOT block Pass-2 (the deploy-then-document ordering is the standard).
 - **Director / Administrative Assistant mappings — RESOLVED (Walter-directed).** Director = its own rank `director` (Amendment 7); Administrative Assistant = `null`/least-privileged. Both baked into the mapping + the vision doc.
 - **AAD OBO env on func-theo-tools — PRE-LAND (Walter config).** The one Walter-run precondition (§3); the deploy + curls assume it. Not a code gap.
 - **Firm-role dimension consumer — PROCEED.** The engine (`theo_can_read`, §7.3) consumes `resolveFirmRole`; until then firm role degrades to `null` ⇒ least-privileged ⇒ SPW unaffected (the design's safe-degradation, Codex-confirmed).

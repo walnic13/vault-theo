@@ -21,7 +21,9 @@ Sub-phase Track: N/A
 | 7 | SCHEMA TRUTH — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` (theo_projects/theo_project_members/theo_conversations §; theo_user_memory §6; SPW gates §10/§11 — the §5 Role-C target) | `Grep("theo_project_members")` + `Grep("theo_user_memory")` this turn | `abe14dc5d45b8a78b4d2b7303f0bd1257da120ec` |
 | 8 | **PRIMARY REFERENCE (DEPLOYED)** — `theo_publish_conversation` handler + function.json on `vaultgpt-func-projects` (definer-call write + SQLSTATE map; pg + isUuid; structural mirror) | `curl` Kudu VFS GET (live bytes) this turn; byte-identical copies in-package | index.js `4f0d1bf6c51d9566bdb8fef841216694f3b06552`; function.json `0a0b4ce3f88155ee275605bb0d5489976d0497da` |
 | 9 | OBO-MIRROR SOURCE (DEPLOYED) — `theo_get_my_role.index.js` (§7.1; the ALLOWED-DELTA OBO→Graph→`resolveFirmRole` block is byte-faithfully mirrored from it) | `Read`(theo_get_my_role.index.js, full) this turn | `b6a85d64acf2fc5227bc16c626a032e42d832a40` |
-| 10 | DEPLOYED IDIOM — SPW gates + substrate (`theo_publish_conversation` SQL, `theo_project_effective_role`, `theo_user_memory` DDL, RLS/`_exists_unscoped`) | governed migrations, catalog-verified: spw_phase2b1 `321d368a`, spw_phase1 `75659097`, b7a `bbb66f45`, b2 `2f2b6ddf`, b5c `ddc7f01d`, spw_phase2a `25cdb7d0` | tracked packages (DDL mirrored §3/§4) |
+| 10a | DEPLOYED IDIOM — `theo_publish_conversation` SQL gate + `theo_project_effective_role` — `Codex Governance/Theo-SPW-Phase2b1-Publish-Gates-Schema-Pass-1-VEP/spw_phase2b1_migration.sql`; `.../Theo-SPW-Phase1-Roles-Substrate-Pass-1-VEP/spw_phase1_migration.sql` | catalog-verified; `git rev-parse HEAD:<path>` this turn | spw_phase2b1 `321d368aa3f53f6c2ffb2da13efd66733f0cd450`; spw_phase1 `75659097d611ba833741b2fb8383f7050c534334` |
+| 10b | DEPLOYED IDIOM — `theo_user_memory` DDL + RLS/`_exists_unscoped` + base substrate — `.../Theo-1B-B7a-Memory-Substrate-Schema-Pass-1-VEP/b7a_migration.sql`; `.../Theo-1B-B2-Persistence-Substrate-Pass-1-VEP/b2_migration.sql` | catalog-verified; `git rev-parse HEAD:<path>` this turn | b7a `bbb66f45d5b598bf104499f32b3812af41c64e26`; b2 `2f2b6ddf8bf87525bc1a43e34bb7f82351a54b7c` |
+| 10c | DEPLOYED IDIOM — `theo_project_members` + membership RLS + publish-broadening subquery — `.../Theo-1B-B5c-Per-Member-Invite-Backend-Pass-1-VEP/b5c_migration.sql`; `.../Theo-SPW-Phase2a-Publish-To-Project-Schema-Pass-1-VEP/spw_phase2a_migration.sql` | catalog-verified; `git rev-parse HEAD:<path>` this turn | b5c `ddc7f01da299c3d57973b0b67ba7c41c8db06e83`; spw_phase2a `25cdb7d08553bc3ef2c52ec996e496a20c84ece5` |
 | 11 | DEPLOYED FACT — `vaultgpt-func-projects` has BOTH Postgres (`PG*`) AND OBO env (`AAD_*` = KV ref) + MI holds Key Vault Secrets User on `kv-vaultgpt-uks`; run-from-package | `az functionapp config appsettings list` (names/KV-shape) + `az rest` role-assignment GET this turn | live Azure state (§3/§9) |
 
 ## Rule Anchor Table
@@ -94,8 +96,8 @@ Runnable file: `l1_5_migration.sql` (in this package). Additive only; wrapped in
 --   theo_project_add_member (spw_phase2b1 / spw_phase1) SECURITY DEFINER gate; theo_project_effective_role (spw_phase1).
 -- SQLSTATE vocabulary (matches SPW gates): 28000 = unauthenticated (401); 42501 = insufficient privilege (403);
 --   22023 = invalid argument (400); P0002 = not found (404).
-
-BEGIN;
+-- NO top-level transaction control (Golden Handler §5.2): Walter runs this migration; every statement is
+-- idempotent (IF NOT EXISTS / CREATE OR REPLACE) and safely re-runnable on its own.
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────────
 -- 1) L1.5 Project Context items (net-new; L1.5 information-typing is greenfield per design §6 G-1)
@@ -247,8 +249,6 @@ RETURNS boolean LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
 $$;
 REVOKE ALL ON FUNCTION public.theo_project_context_item_exists_unscoped(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.theo_project_context_item_exists_unscoped(uuid) TO authenticated;
-
-COMMIT;
 ```
 
 ## §5 — Primary Reference (DEPLOYED) + Structural Mirror Table
@@ -852,9 +852,9 @@ Deterministic, run as authenticated `az` bearer (audience `api://4e1a1e31-5c20-4
 | C7 | partner | `{project_id:P, info_type:"nonsense", content:"…"}` | **400** INVALID_REQUEST (handler enum gate) |
 | C8 | partner | `{project_id:"not-a-uuid", …}` | **400** INVALID_REQUEST |
 | C9 | (unauth) | any | **401** UNAUTHORIZED |
-| C10 | partner | `{project_id:<absent uuid>, info_type:"factual", content:"…"}` | **404** NOT_FOUND (membership NULL → 42501 → 403 if the project exists but caller not a member; a non-existent project also 403 via the guard — see note) |
+| C10 | partner | `{project_id:<absent uuid>, info_type:"factual", content:"…"}` | **403** FORBIDDEN (absent project → `theo_project_effective_role` NULL → guard `42501`; indistinguishable from non-member by design — fail-closed, no existence leak) |
 
-Note on C10: the guard raises `42501` (→403) when `theo_project_effective_role` returns NULL, which covers both "project absent" and "member absent" without leaking existence (fail-closed). A `23503` FK path (→404) is only reachable if a member-scoped row references a vanished project mid-write; membership resolution precedes the insert, so the normal not-a-member outcome is **403**. Verification will confirm the observed status and the note will be reconciled in the Role-C schema-doc landing if needed. (An associate test caller — commercial/governance/personnel → **403** — will be run if an associate OID is available; otherwise the partner-authorised + non-member cases above bound the matrix.)
+Note on C10: `theo_project_effective_role` returns NULL for BOTH an absent project AND a non-member caller, so the guard raises `42501` → **403** before any FK path — deliberately not leaking project existence (fail-closed). The handler's `23503`/404 branch exists only as defence-in-depth (a project vanishing between membership resolution and insert); it is NOT the C10 path. (An associate test caller — commercial/governance/personnel → **403** — runs if an associate OID is available; otherwise C1–C5 bound the authority matrix.)
 
 ## §8 — Gap Register
 

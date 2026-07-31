@@ -8,8 +8,8 @@
 --   theo_project_add_member (spw_phase2b1 / spw_phase1) SECURITY DEFINER gate; theo_project_effective_role (spw_phase1).
 -- SQLSTATE vocabulary (matches SPW gates): 28000 = unauthenticated (401); 42501 = insufficient privilege (403);
 --   22023 = invalid argument (400); P0002 = not found (404).
-
-BEGIN;
+-- NO top-level transaction control (Golden Handler §5.2): Walter runs this migration; every statement is
+-- idempotent (IF NOT EXISTS / CREATE OR REPLACE) and safely re-runnable on its own.
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────────
 -- 1) L1.5 Project Context items (net-new; L1.5 information-typing is greenfield per design §6 G-1)
@@ -161,5 +161,3 @@ RETURNS boolean LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
 $$;
 REVOKE ALL ON FUNCTION public.theo_project_context_item_exists_unscoped(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.theo_project_context_item_exists_unscoped(uuid) TO authenticated;
-
-COMMIT;

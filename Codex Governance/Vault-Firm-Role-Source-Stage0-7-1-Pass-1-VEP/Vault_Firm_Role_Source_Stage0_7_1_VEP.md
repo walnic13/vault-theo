@@ -35,7 +35,7 @@ Sub-phase Track: N/A
 | governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md | §1D | "ordered, non-skippable" | §3 pass order (Walter config → Codex → Claude deploy) |
 | governance/VAULT_MEMORY_ARCHITECTURE.md | §A-7 | "partner > director > senior manager > manager > associate > preparer" | §2 the mapping's rank order |
 | spec/THEO_API_SPEC.md | §2 | "## §2 Contract Surface (1A) → Deployed Endpoints (1B)" | §5 Gap G-APISPEC — the new route's contract row lands here via Role-C post-deploy |
-| governance/THEO_GOLDEN_HANDLER_STANDARD.md | §2 | "SECURITY DEFINER" | §6 primary reference = the deployed handler index.js AND function.json (both anchored, row 7) |
+| governance/THEO_GOLDEN_HANDLER_STANDARD.md | §2 | "deployed `function.json` file as the canonical Primary Reference" | §6/row 7 — primary reference = the deployed `theo_list_people` index.js AND function.json (both anchored) |
 
 ---
 

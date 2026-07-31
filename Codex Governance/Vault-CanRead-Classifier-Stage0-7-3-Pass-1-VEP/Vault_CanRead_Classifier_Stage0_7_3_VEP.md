@@ -19,7 +19,7 @@ Sub-phase Track: N/A
 | 5 | Golden Handler — `governance/THEO_GOLDEN_HANDLER_STANDARD.md` (Golden SQL: SECURITY DEFINER, pinned search_path, REVOKE/GRANT, SQLSTATE; §5.2 no top-level txn) | `Grep("SECURITY DEFINER")` this turn | `f8f0e5ea36447502e35fb87b373c94e376f05cbb` |
 | 6 | Execution Orchestration — `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md` (§1C Walter-runs-migrations; §1D ordered pass) | `Grep("migrations/merges remain Walter-only")` this turn | `565559b699c1309f8e750b0dbbac859c13d807c8` |
 | 7 | SCHEMA TRUTH — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` (§10 `theo_project_effective_role`; §11 `theo_conversation_access`; §12 `theo_project_context_items` + Tag Guard; §6 `theo_user_memory` — the §7 Role-C target) | `Read`(§10/§11/§12) this turn | `feed798726983da4def5400ace806a885aa83469` |
-| 8 | DEPLOYED IDIOM (SQL mirror — absorbed as helpers) — `theo_project_effective_role` (spw_phase1) + `theo_conversation_access` (spw_phase2b3a) + Tag Guard authority (l1_5) | governed migrations, catalog-verified; `git rev-parse HEAD:<path>` this turn | spw_phase1 `75659097d611ba833741b2fb8383f7050c534334`; spw_phase2b3a `4d589f83b4954b43196bd7074b1fe29075df0c8f`; l1_5 `bb09e0964528cacdbebbc41198760a08a2e6b03d` |
+| 8 | DEPLOYED IDIOM (SQL mirror — absorbed as helpers) — `theo_project_effective_role` (spw_phase1) + `theo_conversation_access` (spw_phase2b3a) + Tag Guard authority (l1_5) | governed migrations, catalog-verified; each blob resolved by `git rev-parse` at HEAD this turn | spw_phase1 `75659097d611ba833741b2fb8383f7050c534334`; spw_phase2b3a `4d589f83b4954b43196bd7074b1fe29075df0c8f`; l1_5 `bb09e0964528cacdbebbc41198760a08a2e6b03d` |
 
 ## Rule Anchor Table
 

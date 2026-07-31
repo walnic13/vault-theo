@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ChangeEvent, ClipboardEvent, DragEvent, ReactNode } from "react";
 import { C, SANS, SERIF } from "../theme";
-import { IcMic, IcSpeaker, IcClose } from "./icons";
+import { IcMic, IcSpeaker, IcClose, IcShare } from "./icons";
 import { SpiralAssemble } from "./SpiralAssemble";
 import { VaultMark } from "./VaultMark";
 import { CitedText } from "./CitedText";
@@ -69,6 +69,9 @@ export interface ChatViewProps {
   // branded splash) covers the surface so the new-chat greeting does not flash before a restore
   // resolves. Absent → false.
   restoring?: boolean;
+  // SPW 2c-iii-fe (VA-T12 surface A): when the open conversation is published to a project, its name;
+  // the thread then shows a "Shared in {name}" banner at the top. null/undefined on a private thread.
+  sharedProjectName?: string | null;
 }
 
 // VA-T8: the "listening" waveform + read-aloud equalizer share one keyframe, injected once (the
@@ -459,7 +462,7 @@ export function ChatView(props: ChatViewProps) {
     onDraftChange, onSend, onStop, queuedText, onCancelQueued, onAddFiles, onAddPastedText, onRemoveAttachment,
     chatProject, people, assistantName, greeting, starters, renderAssistant, reviewFund, reviewMode, sigmaMode,
     voiceAvailable, recording, transcribing, recordingSeconds, onStartDictation, onStopDictation, onCancelDictation,
-    playingIdx, synthesizingIdx, onReadAloud, onStopReadAloud, restoring,
+    playingIdx, synthesizingIdx, onReadAloud, onStopReadAloud, restoring, sharedProjectName,
   } = props;
   // SPW 2c-ii: a thread is "shared" (multi-party) when it has ≥2 distinct message authors. Only then do
   // per-turn author bylines appear (VA-T12 surface A); a private single-author thread is unchanged (VA-T1).
@@ -614,6 +617,14 @@ export function ChatView(props: ChatViewProps) {
           </div>
         ) : (
           <div style={{ maxWidth: 740, margin: "0 auto", padding: "28px 24px 8px" }}>
+            {/* SPW 2c-iii-fe (VA-T12 surface A): a published thread reads as shared — a soft banner atop
+                the transcript names the project it's shared in. Absent on a private thread (VA-T1). */}
+            {sharedProjectName && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.coralTint, border: `1px solid ${C.coralSoft}`, borderRadius: 12, padding: "10px 14px", marginBottom: 18, fontSize: 13, color: C.ink2 }}>
+                <span style={{ color: C.coralDk, display: "flex", flexShrink: 0 }}><IcShare s={15} /></span>
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>Shared in <strong style={{ color: C.ink, fontWeight: 600 }}>{sharedProjectName}</strong> — everyone on this project can read and continue this chat.</span>
+              </div>
+            )}
             {messages.map((m, i) => m.role === "user" ? (
               multiParty ? (
                 // SPW 2c-ii (VA-T12 surface A): a shared thread reads as a group conversation — the user

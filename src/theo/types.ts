@@ -163,7 +163,12 @@ export interface PersistedMessage {
   created_at: string;
 }
 export interface ConversationDetail {
-  conversation: ConversationSummary & { app_context?: Record<string, unknown> | null };
+  // SPW 2c-iii-be (API §2.1, DEPLOYED): theo_get_conversation's conversation object now also carries
+  // created_by (the owner's Entra OID) + published_to_project (bool). The FE gates the owner-only
+  // publish control on created_by == self and reflects the shared state via published_to_project.
+  // Optional to tolerate any pre-migration/mock rows; the deployed server always returns them and
+  // getConversation passes json.data through unmodified (no mapper change).
+  conversation: ConversationSummary & { app_context?: Record<string, unknown> | null; created_by?: string; published_to_project?: boolean };
   messages: PersistedMessage[];
 }
 

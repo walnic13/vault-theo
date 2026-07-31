@@ -9,7 +9,7 @@ import type { ReactNode } from "react";
 import { C } from "../theme";
 import { ASSISTANT_NAME, PRODUCT_NAME, MODEL_LABEL } from "../swapBlock";
 import { STYLES, STARTERS, REVIEW_STARTERS, REVIEW_APP_STARTERS } from "../data";
-import { IcBack, IcClose } from "./icons";
+import { IcBack, IcClose, IcShare } from "./icons";
 import { Formatted } from "../lib/markdown";
 import { splitAssistant } from "../lib/artifacts";
 import { appContextLabel } from "../lib/appContext";
@@ -56,7 +56,8 @@ export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
             {t.conversationId && t.currentConversation && (
               <ChatMenu conversation={t.currentConversation} projects={t.projects}
                 onRename={t.renameConversation} onDelete={t.deleteConversation}
-                onToggleStar={t.setConversationStarred} onAddToProject={t.addConversationToProject} />
+                onToggleStar={t.setConversationStarred} onAddToProject={t.addConversationToProject}
+                published={t.chatPublished} canPublish={t.chatCanPublish} onTogglePublish={t.togglePublishConversation} />
             )}
             {/* VEP (Theo Header Declutter): the model label is suppressed in the Origin-hosted panel
                 (mode="panel") — clutter there; shown only standalone (mode="full"). VISUAL-AUTHORITY-
@@ -65,6 +66,9 @@ export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
             {t.styleKey !== "normal" && <span style={{ fontSize: 12, color: C.coralDk, background: C.coralSoft, borderRadius: 999, padding: "3px 10px" }}>{t.activeStyle.label}</span>}
             {appLabel && <span style={{ fontSize: 12, color: C.ink2, background: C.coralTint, borderRadius: 999, padding: "3px 10px" }}>{appLabel}</span>}
             {t.chatProject && <span style={{ fontSize: 12, color: C.ink2, background: C.coralTint, borderRadius: 999, padding: "3px 10px", display: "flex", alignItems: "center", gap: 6 }}>{t.chatProject.name}<span onClick={t.clearChatProject} style={{ cursor: "pointer", display: "flex" }}><IcClose s={12} /></span></span>}
+            {/* SPW 2c-iii-fe (VA-T12 B): a published chat shows a "Shared in {project}" chip so the shared
+                state is visible in the header (the publish/unpublish toggle lives in the title menu). */}
+            {t.chatPublished && t.chatProject && <span style={{ fontSize: 12, fontWeight: 600, color: C.coralDk, background: C.coralSoft, borderRadius: 999, padding: "3px 10px", display: "flex", alignItems: "center", gap: 5 }}><IcShare s={12} /> Shared in {t.chatProject.name}</span>}
           </div>
           {/* VEP (Theo Header Declutter): the "Theo in Origin" label is suppressed in the Origin-
               hosted panel (mode="panel") and shown only standalone (mode="full"). */}
@@ -85,6 +89,7 @@ export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
               queuedText={t.queued} onCancelQueued={t.cancelQueued}
               onAddFiles={t.addFiles} onAddPastedText={t.addPastedText} onRemoveAttachment={t.removeAttachment}
               chatProject={t.chatProject} people={t.people}
+              sharedProjectName={t.chatPublished ? (t.chatProject?.name ?? null) : null}
               assistantName={ASSISTANT_NAME} greeting={t.greeting} starters={t.reviewMode ? REVIEW_STARTERS : (t.sigmaMode ? REVIEW_APP_STARTERS : STARTERS)} renderAssistant={renderAssistant}
               reviewMode={t.reviewMode}
               sigmaMode={t.sigmaMode}
@@ -98,7 +103,7 @@ export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
             <ProjectsView projects={t.projects} npOpen={t.npOpen} np={t.np} onNpChange={t.setNp} onToggleNp={t.toggleNp} onCreate={t.createProject} onOpenProject={t.openProject} onRenameProject={t.renameProject} onDeleteProject={t.deleteProject} />
           )}
           {t.view === "project" && t.detail && (
-            <ProjectDetail project={t.detail} chats={t.projectChats} kdraft={t.kdraft} onKdraftChange={t.setKdraft} onAddKnowledge={t.addKnowledge} onAddKnowledgeFile={t.addKnowledgeFile} onRemoveKnowledge={t.removeKnowledge} onPatchInstructions={t.patchInstructions} onStartChat={() => t.startInProject(t.detail!.id)} onSelectChat={t.selectRecent} onRenameChat={t.renameConversation} onDeleteChat={t.deleteConversation} onPatchDescription={t.patchDescription} onSetVisibility={t.setProjectVisibility} visibilityBusy={t.visPending === t.detail.id} members={t.projectMembers} people={t.people} onShareMember={t.shareMember} onUnshareMember={t.unshareMember} memberPendingKey={t.memberPending} />
+            <ProjectDetail project={t.detail} chats={t.projectChats} kdraft={t.kdraft} onKdraftChange={t.setKdraft} onAddKnowledge={t.addKnowledge} onAddKnowledgeFile={t.addKnowledgeFile} onRemoveKnowledge={t.removeKnowledge} onPatchInstructions={t.patchInstructions} onStartChat={() => t.startInProject(t.detail!.id)} onSelectChat={t.selectRecent} onRenameChat={t.renameConversation} onDeleteChat={t.deleteConversation} onPatchDescription={t.patchDescription} onSetVisibility={t.setProjectVisibility} visibilityBusy={t.visPending === t.detail.id} members={t.projectMembers} people={t.people} onShareMember={t.shareMember} onUnshareMember={t.unshareMember} memberPendingKey={t.memberPending} published={t.publishedConvs} />
           )}
           {t.view === "artifacts" && (
             <ArtifactsView artifacts={t.galleryArtifacts} onOpenArtifact={t.openGalleryArtifact} />

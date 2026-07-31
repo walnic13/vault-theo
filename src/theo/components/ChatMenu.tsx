@@ -29,13 +29,19 @@ function RenameInput({ initial, onCommit, onCancel }: { initial: string; onCommi
   );
 }
 
-export function ChatMenu({ conversation, projects, onRename, onDelete, onToggleStar, onAddToProject }: {
+export function ChatMenu({ conversation, projects, onRename, onDelete, onToggleStar, onAddToProject, published, canPublish, onTogglePublish }: {
   conversation: ConversationSummary;
   projects: Project[];
   onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
   onToggleStar: (id: string, starred: boolean) => void;
   onAddToProject: (id: string, projectId: string) => void;
+  // SPW 2c-iii-fe (VA-T12 B): passed straight to ConvMenuItems — the header menu is the only surface
+  // that supplies these (it holds the open conversation's owner/published state), so the publish item
+  // appears here and not in the sidebar row menu.
+  published?: boolean;
+  canPublish?: boolean;
+  onTogglePublish?: (id: string, publish: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -77,6 +83,7 @@ export function ChatMenu({ conversation, projects, onRename, onDelete, onToggleS
             conversation={conversation} projects={projects}
             onToggleStar={onToggleStar} onAddToProject={onAddToProject} onDelete={onDelete}
             onStartRename={() => setEditing(true)} close={() => setOpen(false)}
+            published={published} canPublish={canPublish} onTogglePublish={onTogglePublish}
           />
         </div>
       )}

@@ -13,11 +13,11 @@ Sub-phase Track: N/A
 | # | Document (name + absolute path) | Read tool invocation this turn | Currency anchor (blob SHA @ HEAD) |
 | - | ------------------------------- | ------------------------------ | --------------------------------- |
 | 1 | CONTRACT TRUTH (edit target) — `spec/THEO_API_SPEC.md` (§2 Contract Surface; §2.9 roster + §2.15/§2.16 func-theo-tools entry format mirrored; `## §3 Boundary` = insertion anchor) | `sed`(§2 index + §2.9/§2.16 rows + §3 anchor) this turn | `ccab715b326ab365551e2e13db7292a1ba1d7dd4` |
-| 2 | APPROVED PASS-1 VEP (declares G-APISPEC, defines the row) — `Codex Governance/Vault-Firm-Role-Source-Stage0-7-1-Pass-1-VEP/Vault_Firm_Role_Source_Stage0_7_1_VEP.md` | Codex-APPROVED (`0038403`); §5 Gap G-APISPEC re-read this turn | tip: `0038403` |
+| 2 | APPROVED PASS-1 VEP (declares G-APISPEC, defines the row) — `Codex Governance/Vault-Firm-Role-Source-Stage0-7-1-Pass-1-VEP/Vault_Firm_Role_Source_Stage0_7_1_VEP.md` | Codex-APPROVED (approval commit `0038403`); §5 Gap G-APISPEC re-read this turn | `be1d671a8c08fd82f622375e9a1f2a9c3f8e2a15` |
 | 3 | GOVERNING VISION — `governance/VAULT_MEMORY_ARCHITECTURE.md` (Amendment 7 firm_role rank hierarchy — the documented enum) | `Grep`(Amendment 7 rank order) this turn | `d17ddd0d97887b38e6db3297c56db9d6b3cfe9cf` |
 | 4 | Grounding Conformance — `governance/THEO_GROUNDING_CONFORMANCE_STANDARD.md` (§3 GCR; §5 Rule Anchor) | `Grep("MUST open with a Grounding Conformance Receipt")` this turn | `7c0d902bdff3b6c0af475b483e31ed796214e57b` |
 | 5 | Execution Orchestration — `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md` (§1D ordered pass sequence — deploy precedes API-Spec Role-C) | `Grep("ordered, non-skippable")` this turn | `565559b699c1309f8e750b0dbbac859c13d807c8` |
-| 6 | Golden Handler — `governance/THEO_GOLDEN_HANDLER_STANDARD.md` (§13 Golden Curl = the verification cited in the row) | `Grep`(§13 Golden Curl) this turn | `f8f0e5ea36447502e35fb87b373c94e376f05cbb` |
+| 6 | Golden Handler — `governance/THEO_GOLDEN_HANDLER_STANDARD.md` (§5.3 Golden Curl Standard + §5.5 Deploy/Kudu/curl split = the verification cited in the row) | `Grep`(§5.3 Golden Curl / §5.5 deploy) this turn | `f8f0e5ea36447502e35fb87b373c94e376f05cbb` |
 
 ## Rule Anchor Table
 
@@ -37,7 +37,7 @@ Sub-phase Track: N/A
 
 - **Deployed** to `vaultgpt-func-theo-tools` (classic v4 layout `theo_get_my_role/{index.js,function.json}`) via Kudu VFS on 2026-07-31 — folder + both files `201`, GET-back byte-identical, `syncfunctiontriggers` + restart, function registered.
 - **OBO precondition satisfied** (was the §3 gap): the three OBO app settings now exist on func-theo-tools (`AAD_TENANT_ID`/`AAD_CLIENT_ID` plain; `AAD_CLIENT_SECRET` = the same `@Microsoft.KeyVault(SecretUri=…/kv-vaultgpt-uks/secrets/aad-client-secret/)` reference func-stream/func-premium use), and func-theo-tools' system-assigned managed identity was granted **Key Vault Secrets User** on `kv-vaultgpt-uks` so the reference resolves. No secret bytes were copied or handled.
-- **Golden-curl verified** (Golden Handler §13; `az` bearer, audience `api://4e1a1e31-5c20-4480-99e4-098901707d9e`, as wmansfield@vault-tax.com): own profile → **HTTP 200** `{ "data": { "oid": "225f17d0-18bb-48f1-b4e2-addd4048c2b8", "job_title": "Co-Founder and Partner", "firm_role": "partner" }, "meta": { … } }`; unauthenticated → **401**. The full OBO→Graph→`resolveFirmRole` chain executed end-to-end (KV-referenced secret resolved, most-senior-first substring map returned `partner`).
+- **Golden-curl verified** (Theo Golden Handler §5.3 Golden Curl Standard / §5.5 deploy; `az` bearer, audience `api://4e1a1e31-5c20-4480-99e4-098901707d9e`, as wmansfield@vault-tax.com): own profile → **HTTP 200** `{ "data": { "oid": "225f17d0-18bb-48f1-b4e2-addd4048c2b8", "job_title": "Co-Founder and Partner", "firm_role": "partner" }, "meta": { … } }`; unauthenticated → **401**. The full OBO→Graph→`resolveFirmRole` chain executed end-to-end (KV-referenced secret resolved, most-senior-first substring map returned `partner`).
 
 The row's contract wording is taken verbatim from the deployed handler behaviour (envelope, edges, backing), not invented.
 

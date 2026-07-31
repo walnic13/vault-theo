@@ -50,11 +50,11 @@ export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
       <header style={{ height: 54, flexShrink: 0, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px" }}>
         {t.view === "chats" ? (<>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {/* SPW 2c-iv fix: a chat opened from a project belongs to that project (chatProject held).
-                Give it a back arrow to the project home — otherwise there is no in-app way back and the
-                shell/browser back exits Theo. Only shown when the open chat has a project. */}
-            {t.chatProject && (
-              <button onClick={() => t.openProject(t.chatProject!.id)} title={`Back to ${t.chatProject.name}`}
+            {/* Nav-History (VEP-1): a top-left ← Back that walks Theo's internal nav one step (chat →
+                project → list → …). Shown whenever there is internal history; wired to the same goBack
+                the host's mobile Back/hardware Back drive (VEP-2), so button + system Back are one behavior. */}
+            {t.canGoBack && (
+              <button onClick={t.goBack} title="Back"
                 style={{ background: "none", border: "none", cursor: "pointer", color: C.ink2, display: "flex", padding: 0 }}>
                 <IcBack s={20} />
               </button>

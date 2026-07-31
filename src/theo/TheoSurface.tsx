@@ -16,7 +16,7 @@ import { DevContextInjector } from "./components/DevContextInjector";
 import { useTheoState } from "./useTheoState";
 import { theoClient } from "./services/theoClient";
 import { resolvePrincipal } from "./services/theoSnapshot";
-import type { AppContext } from "./types";
+import type { AppContext, NavState } from "./types";
 
 const STYLE_BLOCK = `
   * { box-sizing: border-box; }
@@ -72,9 +72,15 @@ export interface TheoSurfaceProps {
   // destination … dismisses the drawer"). Management-only actions (rename/delete/star/add-to-project),
   // search, and section toggles deliberately do NOT fire it. No-op when absent (standalone).
   onNavigate?: () => void;
+  // Nav-History seam (VEP-1). onNavState: fired when Theo's internal location changes, reporting
+  // { depth, title } so the host can drive its browser-history sentinel + mobile Back/title (VEP-2).
+  // backNonce: bumping this value (host Back) pops one internal nav level via useTheoState.goBack().
+  // Both optional — a host that does not wire them (or the standalone harness) is unaffected.
+  onNavState?: (s: NavState) => void;
+  backNonce?: number;
 }
 
-export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessToken, suppressNarrowHeader, newChatNonce, onNavigate }: TheoSurfaceProps) {
+export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessToken, suppressNarrowHeader, newChatNonce, onNavigate, onNavState, backNonce }: TheoSurfaceProps) {
   const t = useTheoState();
   const { ingestAppContext, loadRecents, loadProjects, loadGalleryArtifacts, loadPeople } = t;
 
@@ -113,6 +119,27 @@ export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessTo
     lastNonceRef.current = newChatNonce;
     newChatRef.current();
   }, [newChatNonce]);
+
+  // Nav-History seam (VEP-1). Report Theo's internal nav state to the host whenever it changes, so the
+  // host can arm its browser-history sentinel + render the mobile Back/title (VEP-2). A ref holds the
+  // latest callback so the effect keys only on the reported values (not the callback identity).
+  const onNavStateRef = useRef(onNavState);
+  useEffect(() => { onNavStateRef.current = onNavState; });
+  useEffect(() => {
+    onNavStateRef.current?.({ depth: t.navDepth, title: t.navContextTitle });
+  }, [t.navDepth, t.navContextTitle]);
+
+  // Nav-History seam (VEP-1): host-driven Back. When the host bumps `backNonce` (its mobile Back / a
+  // consumed hardware-Back), pop one internal nav level via goBack(). Same nonce-diff idiom as
+  // newChatNonce (ref-held handler; initial mount is a no-op).
+  const goBackRef = useRef(t.goBack);
+  useEffect(() => { goBackRef.current = t.goBack; });
+  const lastBackNonceRef = useRef<number | undefined>(backNonce);
+  useEffect(() => {
+    if (backNonce === undefined || lastBackNonceRef.current === backNonce) return;
+    lastBackNonceRef.current = backNonce;
+    goBackRef.current();
+  }, [backNonce]);
 
   // A nav DESTINATION was chosen — run Theo's handler, then signal the host so it can dismiss its
   // mobile drawer (VO1 §10B). Only destinations are wrapped; management/search/toggles are not.

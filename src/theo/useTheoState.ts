@@ -18,6 +18,20 @@ const PASTE_AS_ATTACHMENT_CHARS = 1500;
 // keystroke updates local state immediately; the network save fires once typing pauses).
 const INSTRUCTIONS_SAVE_DEBOUNCE_MS = 800;
 
+// Nav-History seam (VEP-1): a restorable internal Theo location. The back-stack holds these; goBack()
+// re-navigates to one by re-invoking the matching nav fn (cheap — conversations paint from cache,
+// projects are in state). In-memory only (no browser storage); the host owns window.history (VEP-2).
+type NavLoc =
+  | { k: "view"; view: View }   // a top-level nav view: projects / artifacts / customize
+  | { k: "chat"; id: string }   // an open conversation
+  | { k: "project"; id: string } // a project home
+  | { k: "newchat" };           // a fresh empty chat
+// A comparable key so destination-aware dedupe can compare currentLoc() to a nav target without
+// per-variant narrowing (see pushNavIfDestinationChanges).
+function navLocKey(l: NavLoc): string {
+  return l.k === "view" ? `view:${l.view}` : l.k === "chat" ? `chat:${l.id}` : l.k === "project" ? `project:${l.id}` : "newchat";
+}
+
 // Voice dictation (VA-T8): cap a recording at 7:00 (client-side), and pick the first MediaRecorder
 // mime the browser supports from the §2.11 audio allow-list (Chrome → webm/Opus, Safari → mp4).
 const DICTATION_MAX_MS = 7 * 60 * 1000;
@@ -91,6 +105,11 @@ export function useTheoState() {
   const [reviewProject, setReviewProject] = useState<{ rid: string; id: string } | null>(null);
   const reviewArmRef = useRef<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  // Nav-History seam (VEP-1): an in-memory stack of prior locations so the on-screen ← Back and (via the
+  // host seam, VEP-2) the browser/hardware Back walk chat→project→list→… one step per press. In-memory
+  // only (no browser storage). navRestoringRef suppresses the forward push while goBack re-navigates.
+  const [navStack, setNavStack] = useState<NavLoc[]>([]);
+  const navRestoringRef = useRef(false);
   const [recentsList, setRecentsList] = useState<ConversationSummary[]>([]);
   // Cold-open restore gate: `recentsLoaded` marks the first Recents settle (loaded, possibly empty);
   // `restoring` holds the UI on a quiet neutral cover from mount until the restore decision resolves,
@@ -392,17 +411,55 @@ export function useTheoState() {
     }
   }
 
-  function go(v: View) { setView(v); setDetailId(null); if (v === "artifacts") void loadGalleryArtifacts(); }  // B4h: refresh the gallery on open
+  // Nav-History seam (VEP-1). currentLoc = where we are now; applyView = the NON-pushing view change
+  // (today's go() body). pushNavIfDestinationChanges pushes the LEAVING location only when we are not
+  // already at the target (destination-aware dedupe) and not mid-restore — so re-clicking the current
+  // destination, or goBack's re-navigation, seeds no dead Back step.
+  function currentLoc(): NavLoc {
+    if (view === "project" && detailId) return { k: "project", id: detailId };
+    if (view === "projects" || view === "artifacts" || view === "customize") return { k: "view", view };
+    return conversationId ? { k: "chat", id: conversationId } : { k: "newchat" };  // view === "chats"
+  }
+  function pushNavIfDestinationChanges(target: NavLoc) {
+    if (navRestoringRef.current) return;
+    const from = currentLoc();
+    if (navLocKey(from) === navLocKey(target)) return;
+    setNavStack((s) => [...s, from]);
+  }
+  function applyView(v: View) { setView(v); setDetailId(null); if (v === "artifacts") void loadGalleryArtifacts(); }  // B4h: refresh the gallery on open
+  function go(v: View) {
+    const target: NavLoc = v === "chats" ? (conversationId ? { k: "chat", id: conversationId } : { k: "newchat" }) : { k: "view", view: v };
+    pushNavIfDestinationChanges(target);
+    applyView(v);
+  }
+  // Nav-History (VEP-1): pop one internal location and re-navigate to it. The re-navigation is guarded
+  // (navRestoringRef) so the nav fns' own pushes are suppressed. No-op when the stack is empty (the host
+  // then lets the Back fall through and exit Theo — VEP-2).
+  function goBack() {
+    if (navStack.length === 0) return;
+    const top = navStack[navStack.length - 1];
+    setNavStack((s) => s.slice(0, -1));
+    navRestoringRef.current = true;
+    try {
+      if (top.k === "view") go(top.view);
+      else if (top.k === "chat") void selectRecent(top.id);
+      else if (top.k === "project") openProject(top.id);
+      else newChat();
+    } finally {
+      navRestoringRef.current = false;
+    }
+  }
   function clearComposer() { setAttachments([]); }
   // Stop-generating: abort any in-flight stream first (userStoppedRef stays false → the send() catch
   // takes the DISCARD path, not the keep-partial path — the fresh thread replaces the list anyway).
   // This also covers selectRecent / startInProject / deleteConversation / the host newChatNonce, which
   // all funnel through newChat() to reset the thread.
-  function newChat() { abortRef.current?.abort(); setMessages([]); setConversationId(null); setChatProject(null); setOpenArt(null); theoClient.resetArtifacts(); setArtifacts([]); clearComposer(); go("chats"); }  // B4h: fresh thread = fresh in-memory artifact set
+  function newChat() { pushNavIfDestinationChanges({ k: "newchat" }); abortRef.current?.abort(); setMessages([]); setConversationId(null); setChatProject(null); setOpenArt(null); theoClient.resetArtifacts(); setArtifacts([]); clearComposer(); applyView("chats"); }  // B4h: fresh thread = fresh in-memory artifact set. VEP-1: single-owned history via applyView (not the pushing go)
   // B4c/B4d: AWAIT the project's full load (metadata + knowledge, held in chatProject) before switching
   // to chat, so the first turn's system prompt (buildSystemPrompt(…, chatProject)) always includes it.
   // A fire-and-forget load could otherwise race the first send — the "Start a chat" button stays enabled.
   async function startInProject(id: string) {
+    pushNavIfDestinationChanges({ k: "newchat" });   // VEP-1: record the leaving location (e.g. the project home) for Back
     abortRef.current?.abort();                  // stop-generating: switching chats aborts any in-flight stream (discard path; this fn resets the thread inline, not via newChat())
     setChatProject(null);                       // clear first — never carry a prior project if load fails
     const ok = await loadChatProject(id);
@@ -414,6 +471,7 @@ export function useTheoState() {
   // project-home list. The chat's own project context is loaded separately via loadChatProject
   // (startInProject / reload-restore), so it never depends on this list entry.
   function openProject(id: string) {
+    pushNavIfDestinationChanges({ k: "project", id });   // VEP-1: record the leaving location for Back
     projectChatsReq.current = id;      // mark this as the current chats request
     setProjectChatsState(null);        // clear any prior project's list immediately (no stale flash/rows)
     setDetailId(id); setView("project");
@@ -520,6 +578,7 @@ export function useTheoState() {
   }
 
   async function selectRecent(id: string) {
+    pushNavIfDestinationChanges({ k: "chat", id });   // VEP-1: record the leaving location for Back
     abortRef.current?.abort();  // stop-generating: opening another chat aborts any in-flight stream (discard path; this fn resets the thread inline, not via newChat())
     setError(""); setChatProject(null); setOpenArt(null); setView("chats"); setDetailId(null); clearComposer();
     // Instant paint from the CONFIRMED-principal cache (the mount flow bound the principal first). The
@@ -1093,10 +1152,20 @@ export function useTheoState() {
     }
   }
 
+  // Nav-History seam (VEP-1): the derived nav state consumed by TheoMain (Back button) + reported to the
+  // host (onNavState). navContextTitle = the open chat's title when it is inside a project, else null.
+  const canGoBack = navStack.length > 0;
+  const navDepth = navStack.length;
+  const navContextTitle = (view === "chats" && conversationId && chatProject)
+    ? (recentsList.find((c) => c.id === conversationId)?.title ?? null)
+    : null;
+
   return {
     // state
     view, collapsed, search, projects, projectChats, artifacts, galleryArtifacts, detail, chatProject, art, openArt, messages, draft, attachments, attachmentsAvailable, loading, restoring, error, queued,
     conversationId, currentConversation: recentsList.find((c) => c.id === conversationId) ?? null,
+    // Nav-History seam (VEP-1): back-stack state + goBack (TheoSurface reports depth/title to the host; TheoMain renders the Back button).
+    canGoBack, navDepth, navContextTitle, goBack,
     // SPW 2c-iii-fe/2c-iv: publish state for the open chat + the open project's published-chat list.
     chatPublished, chatCanPublish, publishedConvs,
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,

@@ -85,6 +85,14 @@ export interface Style { key: StyleKey; label: string; desc: string; mod: string
 
 export interface OpenArtifact { id: string; v: number }   // v < 0 ⇒ latest version
 export type View = "chats" | "projects" | "project" | "artifacts" | "customize";
+// Nav-History seam (VEP-1): the nav state Theo reports to the Origin host (onNavState) so the host can
+// drive its browser-history sentinel + mobile Back/title (VEP-2). depth = internal back-steps available
+// (the host keys its per-level sentinel on this); title = the open chat's title when it is inside a
+// project, else null (the mobile top-strip title).
+export interface NavState {
+  depth: number;
+  title: string | null;
+}
 
 export type IconComp = (props: { s?: number }) => JSX.Element;
 export interface NavItem { key: View; label: string; Icon: IconComp }

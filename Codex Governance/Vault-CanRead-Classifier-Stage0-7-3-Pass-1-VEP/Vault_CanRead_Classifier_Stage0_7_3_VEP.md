@@ -19,7 +19,7 @@ Sub-phase Track: N/A
 | 5 | Golden Handler — `governance/THEO_GOLDEN_HANDLER_STANDARD.md` (Golden SQL: SECURITY DEFINER, pinned search_path, REVOKE/GRANT, SQLSTATE; §5.2 no top-level txn) | `Grep("SECURITY DEFINER")` this turn | `f8f0e5ea36447502e35fb87b373c94e376f05cbb` |
 | 6 | Execution Orchestration — `governance/THEO_EXECUTION_ORCHESTRATION_STANDARD.md` (§1C Walter-runs-migrations; §1D ordered pass) | `Grep("migrations/merges remain Walter-only")` this turn | `565559b699c1309f8e750b0dbbac859c13d807c8` |
 | 7 | SCHEMA TRUTH — `spec/THEO_AZURE_POSTGRES_SCHEMA.md` (§10 `theo_project_effective_role`; §11 `theo_conversation_access`; §12 `theo_project_context_items` + Tag Guard; §6 `theo_user_memory` — the §7 Role-C target) | `Read`(§10/§11/§12) this turn | `feed798726983da4def5400ace806a885aa83469` |
-| 8 | DEPLOYED IDIOM (SQL mirror — absorbed as helpers) — `theo_project_effective_role` (spw_phase1) + `theo_conversation_access` (spw_phase2b3a) + Tag Guard authority (l1_5) | governed migrations, catalog-verified: spw_phase1 `75659097d611ba833741b2fb8383f7050c534334`; spw_phase2b3a `4d589f83b4954b43196bd7074b1fe29075df0c8f`; l1_5 `bb09e0964528cacdbebbc41198760a08a2e6b03d` | those blob SHAs @ HEAD |
+| 8 | DEPLOYED IDIOM (SQL mirror — absorbed as helpers) — `theo_project_effective_role` (spw_phase1) + `theo_conversation_access` (spw_phase2b3a) + Tag Guard authority (l1_5) | governed migrations, catalog-verified; `git rev-parse HEAD:<path>` this turn | spw_phase1 `75659097d611ba833741b2fb8383f7050c534334`; spw_phase2b3a `4d589f83b4954b43196bd7074b1fe29075df0c8f`; l1_5 `bb09e0964528cacdbebbc41198760a08a2e6b03d` |
 
 ## Rule Anchor Table
 
@@ -42,7 +42,7 @@ Sub-phase Track: N/A
 
 **Feature.** One net-new SECURITY DEFINER function, `public.theo_can_read(p_item_layer text, p_item_type text, p_item_id uuid, p_project_id uuid, p_firm_role text, p_room_oids text[]) RETURNS boolean` (design §3.1 signature, exact). It is the single audited read decision for the DB-knowable dimensions:
 - **L1 (personal memory):** allow iff `created_by = caller` — inviolable (Rule 1 / vision §7.1). Reads `theo_user_memory` (scope='user').
-- **L1.5 (project context):** for a `theo_project_context_items` row — the owner always reads their own; a non-owner needs project membership (`theo_project_effective_role` non-NULL) AND the item's **info-type firm-role floor** (the same floors as the §7.2 Tag Guard: commercial = partner/director/senior_manager; governance = manager-and-above; personnel = director-and-above; factual/technical/deliberative = membership). If the item is not a context item, it falls back to `theo_conversation_access` (the published-conversation L1.5 kind). Plus the **Rule-3 lowest-participant** filter: with `p_room_oids`, every room participant must also be a project member (the DB-knowable half).
+- **L1.5 (project context):** for a `theo_project_context_items` row — the owner always reads their own; a non-owner needs project membership (`theo_project_effective_role` non-NULL) AND the item's **info-type firm-role floor** (the same floors as the §7.2 Tag Guard: commercial = partner/director/senior_manager; governance = manager-and-above; personnel = director-and-above; factual/technical/deliberative = membership). If the item is not a context item, it falls back to `theo_conversation_access` (the published-conversation L1.5 kind). **Both** L1.5 kinds then converge on the **Rule-3 lowest-participant** filter: with `p_room_oids`, every room participant must also be a project member (the DB-knowable half) — a published conversation is a shared item, so it is lowest-participant-filtered too.
 - **L2 / L3:** reserved — their schemas do not exist yet; **fail-closed (return false)** until they land.
 
 **Fail-closed everywhere (design §5):** NULL caller ⇒ false; item not found ⇒ false; unresolved firm role ⇒ restricted tags denied; no matching allow ⇒ false. Returns **boolean** (false = deny, **no RAISE** — mirrors `theo_conversation_access`'s NULL). Caller from `current_setting('request.jwt.claim.sub', true)` — **never a parameter**. `p_item_type`/`p_project_id` are advisory; the **authoritative** type/project are read from the row (a caller cannot pass a benign type for a sensitive item).
@@ -137,23 +137,26 @@ BEGIN
     IF NOT FOUND THEN
       -- (b) not a context item — the published-conversation L1.5 kind: absorb theo_conversation_access (§11)
       -- as the helper. A published conversation is readable by any project participant (owner/member); untyped,
-      -- so no info-type floor applies (it is the Factual/Technical-dominant shared record, vision §8).
-      RETURN (public.theo_conversation_access(p_item_id) IS NOT NULL);
-    END IF;
-
-    -- owner may always read their OWN context item; a non-owner needs membership + the info-type floor
-    IF v_owner <> v_caller THEN
-      v_role := public.theo_project_effective_role(v_proj);      -- 'creator'|'owner'|'member'|NULL
-      IF v_role IS NULL THEN RETURN false; END IF;               -- not a project member => deny
-      -- info-type firm-role floor — ONE POLICY with the §7.2 Tag Guard write floors (design §4; vision §3):
-      IF v_type = 'commercial' THEN
-        IF v_firm NOT IN ('partner','director','senior_manager') THEN RETURN false; END IF;
-      ELSIF v_type = 'governance' THEN
-        IF v_firm NOT IN ('partner','director','senior_manager','manager') THEN RETURN false; END IF;
-      ELSIF v_type = 'personnel' THEN
-        IF v_firm NOT IN ('partner','director') THEN RETURN false; END IF;
+      -- so no info-type floor applies (Factual/Technical-dominant shared record, vision §8). Deny if no access;
+      -- otherwise adopt the conversation's project and FALL THROUGH to the Rule-3 room filter — a published
+      -- conversation is an L1.5 SHARED item, so it is lowest-participant-filtered too (design §3.1).
+      IF public.theo_conversation_access(p_item_id) IS NULL THEN RETURN false; END IF;
+      SELECT project_id INTO v_proj FROM public.theo_conversations WHERE id = p_item_id;
+    ELSE
+      -- (a) info-typed context item: the owner always reads their OWN; a non-owner needs membership + the floor.
+      IF v_owner <> v_caller THEN
+        v_role := public.theo_project_effective_role(v_proj);      -- 'creator'|'owner'|'member'|NULL
+        IF v_role IS NULL THEN RETURN false; END IF;               -- not a project member => deny
+        -- info-type firm-role floor — ONE POLICY with the §7.2 Tag Guard write floors (design §4; vision §3):
+        IF v_type = 'commercial' THEN
+          IF v_firm NOT IN ('partner','director','senior_manager') THEN RETURN false; END IF;
+        ELSIF v_type = 'governance' THEN
+          IF v_firm NOT IN ('partner','director','senior_manager','manager') THEN RETURN false; END IF;
+        ELSIF v_type = 'personnel' THEN
+          IF v_firm NOT IN ('partner','director') THEN RETURN false; END IF;
+        END IF;
+        -- factual/technical/deliberative: project membership suffices to read.
       END IF;
-      -- factual/technical/deliberative: project membership suffices to read.
     END IF;
 
     -- Rule 3 (lowest-participant) — DB-KNOWABLE half: in a collective-chat context the item is surfaced only

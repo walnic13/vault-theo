@@ -54,23 +54,26 @@ BEGIN
     IF NOT FOUND THEN
       -- (b) not a context item — the published-conversation L1.5 kind: absorb theo_conversation_access (§11)
       -- as the helper. A published conversation is readable by any project participant (owner/member); untyped,
-      -- so no info-type floor applies (it is the Factual/Technical-dominant shared record, vision §8).
-      RETURN (public.theo_conversation_access(p_item_id) IS NOT NULL);
-    END IF;
-
-    -- owner may always read their OWN context item; a non-owner needs membership + the info-type floor
-    IF v_owner <> v_caller THEN
-      v_role := public.theo_project_effective_role(v_proj);      -- 'creator'|'owner'|'member'|NULL
-      IF v_role IS NULL THEN RETURN false; END IF;               -- not a project member => deny
-      -- info-type firm-role floor — ONE POLICY with the §7.2 Tag Guard write floors (design §4; vision §3):
-      IF v_type = 'commercial' THEN
-        IF v_firm NOT IN ('partner','director','senior_manager') THEN RETURN false; END IF;
-      ELSIF v_type = 'governance' THEN
-        IF v_firm NOT IN ('partner','director','senior_manager','manager') THEN RETURN false; END IF;
-      ELSIF v_type = 'personnel' THEN
-        IF v_firm NOT IN ('partner','director') THEN RETURN false; END IF;
+      -- so no info-type floor applies (Factual/Technical-dominant shared record, vision §8). Deny if no access;
+      -- otherwise adopt the conversation's project and FALL THROUGH to the Rule-3 room filter — a published
+      -- conversation is an L1.5 SHARED item, so it is lowest-participant-filtered too (design §3.1).
+      IF public.theo_conversation_access(p_item_id) IS NULL THEN RETURN false; END IF;
+      SELECT project_id INTO v_proj FROM public.theo_conversations WHERE id = p_item_id;
+    ELSE
+      -- (a) info-typed context item: the owner always reads their OWN; a non-owner needs membership + the floor.
+      IF v_owner <> v_caller THEN
+        v_role := public.theo_project_effective_role(v_proj);      -- 'creator'|'owner'|'member'|NULL
+        IF v_role IS NULL THEN RETURN false; END IF;               -- not a project member => deny
+        -- info-type firm-role floor — ONE POLICY with the §7.2 Tag Guard write floors (design §4; vision §3):
+        IF v_type = 'commercial' THEN
+          IF v_firm NOT IN ('partner','director','senior_manager') THEN RETURN false; END IF;
+        ELSIF v_type = 'governance' THEN
+          IF v_firm NOT IN ('partner','director','senior_manager','manager') THEN RETURN false; END IF;
+        ELSIF v_type = 'personnel' THEN
+          IF v_firm NOT IN ('partner','director') THEN RETURN false; END IF;
+        END IF;
+        -- factual/technical/deliberative: project membership suffices to read.
       END IF;
-      -- factual/technical/deliberative: project membership suffices to read.
     END IF;
 
     -- Rule 3 (lowest-participant) — DB-KNOWABLE half: in a collective-chat context the item is surfaced only

@@ -26,6 +26,8 @@ These six decisions from the 2026-07-31 review govern the model below; where the
 
 6. **Reconcile with SPW so we never run two parallel authorization models.** SPW's Creator/Owner/Member → the L1.5 role dimension (clarify how firm role-hierarchy interacts with per-project ownership); SPW **publish** → the Rule-2 promote mechanic; the SPW **Decision Log** → an L1.5 information-type. See §10.
 
+7. **(Amendment, 2026-07-31 — Walter-directed) The firm-role rank hierarchy is `partner > director > senior manager > manager > associate > preparer`.** **`director` is its own rank BETWEEN partner and senior manager** (more access than a senior manager, less than a partner) — not a synonym for either. Access rules that reference "partner + senior manager" therefore include `director` (it sits above SM). Non-fee-earner / unmapped titles (e.g. Administrative Assistant) resolve to NULL = least-privileged (fail-closed). Firm role is sourced by mapping the Entra/Graph `jobTitle` (§9 firm-role source VEP); the deployed Vault Staff titles ground the mapping. See §1 (L2), §3.
+
 ---
 
 ## §1 — The layered memory model
@@ -47,7 +49,7 @@ Vault's memory is layered. Each layer has a distinct purpose, schema, and access
 **Layer 2 — Role & Expectation** *(new)*
 - **What:** level-appropriate standards, templates, guidance, expectations per Vault role ("this is what a senior manager does with an ambiguous position"). Shared by everyone at a level.
 - **Nature (AMENDMENT 4):** **behaviour-shaping** — a prompt-and-policy layer applied on read that shapes how Theo attends to / frames / prioritises shared information for the reading user. NOT content-rewriting; everyone sees the same facts, differently framed.
-- **Schema:** by role (partner, senior manager, manager, associate, India preparer, …) × activity type (review, sign-off, escalation, drafting, …).
+- **Schema:** by role (partner, **director**, senior manager, manager, associate, India preparer, …) × activity type (review, sign-off, escalation, drafting, …). Firm-role rank hierarchy (most → least access; AMENDMENT 7): **partner > director > senior manager > manager > associate > preparer**; unmapped/non-fee-earner (e.g. admin) = NULL = least-privileged.
 - **Home:** firm-wide substrate, applied on read. Six-Plates-literate *only* for opt-in users (§6).
 
 **Layer 3 — Vault Knowledge Graph** *(new)*
@@ -87,7 +89,7 @@ Every L1.5 item is tagged with exactly one type; type determines access alongsid
 | **Technical** | tax analysis, workpaper mechanics, positions taken, calculations | by role |
 | **Deliberative** | review comments, in-progress technical debate, disagreements | participants + levels above |
 | **Governance** | sign-offs, QC checkpoints, risk assessments | sign-off authority only |
-| **Commercial** | fees, margins, client-relationship/BD notes | partner + senior manager only |
+| **Commercial** | fees, margins, client-relationship/BD notes | partner + director + senior manager only |
 | **Personnel** | performance observations, staffing decisions, individual struggles | very restricted, need-to-know |
 
 An associate cannot tag their own commentary as "governance sign-off" (Tag Guard rejects it, §5). Tag drift within an engagement is a governance smell Dottie flags (L4, Stage 6). Per AMENDMENT 5, expect the shared room to be **Factual/Technical-dominant**, with Deliberative/Governance/Commercial living in whispers or level-scoped side-threads (§8).

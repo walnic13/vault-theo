@@ -83,7 +83,7 @@ The new table + functions mirror DEPLOYED idioms (Governor §3 Never-Guess / §4
 
 ## §4 — The migration (Walter runs as `pgadmin_vault`)
 
-Runnable file: `l1_5_migration.sql` (in this package). Additive only; wrapped in `BEGIN`/`COMMIT`; idempotent (`IF NOT EXISTS` / `CREATE OR REPLACE`). Full text:
+Runnable file: `l1_5_migration.sql` (in this package). Additive only; **no top-level transaction control** (Golden Handler §5.2 — Walter runs it); every statement is idempotent (`IF NOT EXISTS` / `CREATE OR REPLACE`) and safely re-runnable on its own. Full text:
 
 ```sql
 -- l1_5_migration.sql

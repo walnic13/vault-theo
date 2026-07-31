@@ -50,6 +50,15 @@ export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
       <header style={{ height: 54, flexShrink: 0, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px" }}>
         {t.view === "chats" ? (<>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* SPW 2c-iv fix: a chat opened from a project belongs to that project (chatProject held).
+                Give it a back arrow to the project home — otherwise there is no in-app way back and the
+                shell/browser back exits Theo. Only shown when the open chat has a project. */}
+            {t.chatProject && (
+              <button onClick={() => t.openProject(t.chatProject!.id)} title={`Back to ${t.chatProject.name}`}
+                style={{ background: "none", border: "none", cursor: "pointer", color: C.ink2, display: "flex", padding: 0 }}>
+                <IcBack s={20} />
+              </button>
+            )}
             {/* Conversation-Star: the active saved conversation shows its title + a dropdown menu
                 (Star / Rename / Add to project / Delete), Claude-style, top-left. Hidden on a new
                 unsaved chat (no conversationId). */}

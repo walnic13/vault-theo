@@ -529,6 +529,19 @@ export function useTheoState() {
     try {
       const d = await theoClient.getConversation(id);
       setCachedConversation(id, d);   // persist the revalidated first page (Theo Snapshot Storage Exception)
+      // SPW 2c-iv fix: a chat opened from a project's list (esp. the "Shared in this project" list, or a
+      // teammate's shared chat) may not be in the mount-loaded Recents window — without a Recents row the
+      // header title menu (currentConversation) is blank. Upsert this opened conversation's summary so the
+      // title/menu render (and it shows in the sidebar). Existing rows are left in place (starred/order
+      // preserved; theo_get_conversation omits `starred`, so never overwrite an existing row's value).
+      if (d.conversation) {
+        const c = d.conversation;
+        const summary: ConversationSummary = {
+          id: c.id, title: c.title, model: c.model, project_id: c.project_id, app_key: c.app_key,
+          created_at: c.created_at, updated_at: c.updated_at, last_opened_at: c.last_opened_at, starred: c.starred,
+        };
+        setRecentsList((prev) => (prev.some((r) => r.id === id) ? prev : [summary, ...prev]));
+      }
       // B4d: restore the project when reopening a chat that belongs to one (the reloaded conversation
       // carries project_id). loadChatProject fetches the project's metadata + knowledge into the
       // self-contained `chatProject` (NOT the `projects` list), and is AWAITed, so the restored chat's

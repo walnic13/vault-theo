@@ -765,7 +765,7 @@ Authenticated `az` bearer (audience `api://4e1a1e31-5c20-4480-99e4-098901707d9e`
 | C4 | get `{item_id:"not-a-uuid"}` | **400** INVALID_REQUEST |
 | C5 | (unauth) get | **401** UNAUTHORIZED |
 | C6 | create item with `sharepoint_ref:"drives/bogusdrive000/items/bogusitem"` → get it | **403** FORBIDDEN (Rule-5 probe: unreachable/denied → deny) |
-| C7 | get factual F with `room_oids:[<random uuid>]` | **403/404** (theo_can_read membership lowest-participant: a non-member in the room ⇒ deny) |
+| C7 | get factual F with `room_oids:[<random uuid>]` | **403** FORBIDDEN (F exists, so the exists-helper returns true; theo_can_read's membership lowest-participant denies because the room participant is not a project member ⇒ deterministic 403) |
 | C8 | get factual F with `room_oids:[<Walter's own oid>]` | **200** (self in room; membership + floor clear) |
 | C9 | get `{item_id:F, room_oids:["not-a-uuid"]}` | **400** INVALID_REQUEST |
 

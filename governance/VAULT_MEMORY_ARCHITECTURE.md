@@ -28,6 +28,8 @@ These six decisions from the 2026-07-31 review govern the model below; where the
 
 7. **(Amendment, 2026-07-31 — Walter-directed) The firm-role rank hierarchy is `partner > director > senior manager > manager > associate > preparer`.** **`director` is its own rank BETWEEN partner and senior manager** (more access than a senior manager, less than a partner) — not a synonym for either. Access rules that reference "partner + senior manager" therefore include `director` (it sits above SM). Non-fee-earner / unmapped titles (e.g. Administrative Assistant) resolve to NULL = least-privileged (fail-closed). Firm role is sourced by mapping the Entra/Graph `jobTitle` (§9 firm-role source VEP); the deployed Vault Staff titles ground the mapping. See §1 (L2), §3.
 
+8. **(Amendment, 2026-08-01 — Walter-directed) Dottie (the L4 governance observer) — implementation model + priority.** Dottie runs on **in-tenant Azure OpenAI** — the existing `Vaultgpt` resource (deployment `gpt-5-mini`; uksouth; RG `Vault-Tax`; endpoint `https://vaultgpt.openai.azure.com/`), reached **keyless via Dottie's managed identity** (`Cognitive Services OpenAI User`). This is a **deliberately different model from Theo's Claude** — governance-observer independence (the QC model is not the model that produced the content, so no correlated blind spots). Dottie is a **first-class separate product**: repo **`vault-dottie`**, function app **`vaultgpt-func-dottie`** (shared EP1 plan, SystemAssigned MI, EasyAuth on the shared audience `api://4e1a1e31-5c20-4480-99e4-098901707d9e`), and a **Theo-derived federated-remote FE mounted in the Vault Origin shell** (like DMS / Sigma). **Priority is pulled FORWARD from Stage 6** — this AMENDS the Stage-6 timing in Amendment 2 / §5 / §10: Dottie's **scaffold** (the Azure OpenAI API connection + the FE frame) is built **now, in parallel with Stage 1** (which produces the L1.5 data Dottie will observe); its **observational ruleset** (tag-drift, review-chain integrity, systemic-pattern detection over L1.5/L2/L3) is **fine-tuned as those layers populate** — frame-first, tune-later. UNCHANGED: the Amendment-2 split holds — the security-critical **Tag Guard is already live** (Stage-0 §7.2); Dottie stays the **OBSERVATIONAL** layer and **NEVER reads L1** (Rule 1 inviolable, §7). See §5 / §10.
+
 ---
 
 ## §1 — The layered memory model
@@ -113,7 +115,7 @@ A single, audited **`canRead(user, context, item) → allow | deny`** through wh
 ## §5 — Tag Guard vs Dottie (AMENDMENT 2)
 
 - **Tag Guard (Stage 1, in the engine write-path, security-critical):** validates tags at write time — enforces that certain tags can only be applied by users with appropriate authority; rejects untagged writes to tag-required fields; fail-closed. Runtime enforcement, not pattern detection.
-- **Dottie (Stage 6, L4, observational):** watches for tag drift, review-chain integrity, appropriate-access anomalies, and systemic governance patterns. Reads L1.5/L2/L3, never L1.
+- **Dottie (L4, observational):** watches for tag drift, review-chain integrity, appropriate-access anomalies, and systemic governance patterns. Reads L1.5/L2/L3, never L1. *(Priority pulled forward from Stage 6 — its Azure-OpenAI scaffold + FE are built now, in parallel with Stage 1; the observational ruleset is tuned as L1.5/L2/L3 populate. See §A Amendment 8.)*
 
 Keeping these separate prevents the "Dottie exists but only partially" confusion and ensures the write-time security control is present from the first shippable stage.
 
@@ -173,7 +175,7 @@ Do not build all layers at once. Each stage delivers standalone value.
 3. **Personal Theo joins collective chats as companion** — the two-Theo model activated.
 4. **Vault Knowledge Graph (L3)** as read-only substrate — cross-project precedent queries, filtered.
 5. **Whisper channels** — level-appropriate private nudges/context in collective chats.
-6. **Dottie (L4)** governance — pattern detection, tag-integrity observation, review-chain enforcement.
+6. **Dottie (L4)** governance — pattern detection, tag-integrity observation, review-chain enforcement. *(Scaffold — Azure-OpenAI API connection + FE frame — pulled forward to build NOW in parallel with Stage 1; observational ruleset tuned as the layers populate. See §A Amendment 8.)*
 
 Stage 1 alone (a project chat with a facilitating agent taking structured, access-controlled notes + tasks) already beats most professional-services workflows.
 

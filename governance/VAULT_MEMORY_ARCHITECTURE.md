@@ -60,7 +60,7 @@ Vault's memory is layered. Each layer has a distinct purpose, schema, and access
 - **Access:** read-only substrate; every query rights-filtered through the engine (§4). From a collective chat, filtered to the **lowest-access participant present** (Rule 3) — Theo surfaces only what all participants can see (AMENDMENT 5 / §8).
 - **Home:** firm-wide, queryable by any Theo (personal or project) with the caller's rights applied.
 
-**Layer 4 — Governance ("Dottie")** *(new; observational part is Stage 6)*
+**Layer 4 — Governance ("Dottie")** *(new; scaffold pulled forward, observational ruleset tuned as layers populate — §A Amendment 8)*
 - **What:** a governance/QC GATE, not knowledge — asks governance questions of information passing through: tag consistency, review chains, appropriate access, systemic patterns.
 - **Split (AMENDMENT 2):** the security-critical **write-time tag enforcement is NOT Dottie** — it ships Stage 1 as "Tag Guard" in the engine's write path (§5). Dottie is the later **observational** pattern-detection layer.
 - **Access:** Dottie reads L1.5, L2, L3 for governance checks. **Dottie NEVER reads L1** — Personal Theos are outside its surveillance surface, on principle.
@@ -94,7 +94,7 @@ Every L1.5 item is tagged with exactly one type; type determines access alongsid
 | **Commercial** | fees, margins, client-relationship/BD notes | partner + director + senior manager only |
 | **Personnel** | performance observations, staffing decisions, individual struggles | very restricted, need-to-know |
 
-An associate cannot tag their own commentary as "governance sign-off" (Tag Guard rejects it, §5). Tag drift within an engagement is a governance smell Dottie flags (L4, Stage 6). Per AMENDMENT 5, expect the shared room to be **Factual/Technical-dominant**, with Deliberative/Governance/Commercial living in whispers or level-scoped side-threads (§8).
+An associate cannot tag their own commentary as "governance sign-off" (Tag Guard rejects it, §5). Tag drift within an engagement is a governance smell Dottie flags (L4; scaffold pulled forward — §A Amendment 8). Per AMENDMENT 5, expect the shared room to be **Factual/Technical-dominant**, with Deliberative/Governance/Commercial living in whispers or level-scoped side-threads (§8).
 
 ---
 
@@ -108,7 +108,7 @@ A single, audited **`canRead(user, context, item) → allow | deny`** through wh
 - **Auditable:** a single decision point makes "why can/can't X see Y?" answerable and testable.
 - **Sequencing:** the engine's read/write **interface is specified before the L1.5 schema** — the schema is shaped by what the engine must evaluate.
 
-**§4B — build sequencing of enforcement vs governance:** the security-critical enforcement (engine + Tag Guard + fail-closed defaults) ships with **Stage 1**; the observational governance (Dottie, L4) is **Stage 6**. There is never a window where the access model relies on an unbacked auto-tagger.
+**§4B — build sequencing of enforcement vs governance:** the security-critical enforcement (engine + Tag Guard + fail-closed defaults) ships with **Stage 1**; the observational governance (Dottie, L4) had been slotted at **Stage 6** but its scaffold is now pulled forward to build in parallel with Stage 1 (§A Amendment 8), with the observational ruleset tuned as the layers populate. There is never a window where the access model relies on an unbacked auto-tagger.
 
 ---
 

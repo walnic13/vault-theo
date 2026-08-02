@@ -39,7 +39,7 @@ export interface FileDownload {
 export interface InlineImageItem { imageUrl: string; title?: string; source?: string; pageUrl?: string; license?: string; creator?: string }
 export interface InlineImage { url: string; title?: string; source?: string; pageUrl?: string; license?: string; creator?: string; images?: InlineImageItem[] }
 export interface InlineVideo { videoUrl: string; embedUrl?: string; title?: string; thumbnail?: string; source?: string; duration?: string; date?: string }
-export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string; reasoning?: string; tools?: AgentToolCall[]; download?: FileDownload; image?: InlineImage; video?: InlineVideo; tokens?: number; streaming?: boolean }
+export interface Message { role: Role; content: string; runs?: CitedRun[]; attachments?: SentAttachment[]; thinking?: string; reasoning?: string; tools?: AgentToolCall[]; download?: FileDownload; image?: InlineImage; video?: InlineVideo; tokens?: number; streaming?: boolean; created_by?: string /* SPW 2c-ii: the author's Entra OID — reload maps it from PersistedMessage; send() seeds the self OID on the local turn. Resolved to a Person for the multi-party byline. */ }
 
 export interface Knowledge { id: string; title: string; content: string; source_type?: "text" | "file" }
 export type ProjectVisibility = "private" | "group";
@@ -85,6 +85,14 @@ export interface Style { key: StyleKey; label: string; desc: string; mod: string
 
 export interface OpenArtifact { id: string; v: number }   // v < 0 ⇒ latest version
 export type View = "chats" | "projects" | "project" | "artifacts" | "customize";
+// Nav-History seam (VEP-1): the nav state Theo reports to the Origin host (onNavState) so the host can
+// drive its browser-history sentinel + mobile Back/title (VEP-2). depth = internal back-steps available
+// (the host keys its per-level sentinel on this); title = the open chat's title when it is inside a
+// project, else null (the mobile top-strip title).
+export interface NavState {
+  depth: number;
+  title: string | null;
+}
 
 export type IconComp = (props: { s?: number }) => JSX.Element;
 export interface NavItem { key: View; label: string; Icon: IconComp }
@@ -141,15 +149,34 @@ export interface ConversationSummary {
   last_opened_at: string | null;   // restore-on-reopen: theo_list_conversations orders last-opened-first
   starred?: boolean;               // per-conversation star — theo_list_conversations returns it; theo_get_conversation does NOT, so OPTIONAL on the shared summary type (ConversationDetail.conversation reuses it). The chat-header menu sources starred from the list (recentsList).
 }
+// SPW Phase 2: a conversation PUBLISHED to a project (theo_list_project_conversations; §2.2) — visible
+// to any participant. Distinct from ConversationSummary (the caller's own recents shape): it carries
+// created_by (the author's Entra OID — the FE resolves it to a display name via the People roster) and
+// the publish provenance (published_at / published_by), which ConversationSummary lacks.
+export interface PublishedConversation {
+  id: string;
+  title: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  published_at: string | null;
+  published_by: string | null;
+}
 export interface PersistedMessage {
   id: string; seq: number; role: Role; content: string;
+  created_by: string;   // SPW 2c-ii: the author's Entra OID (theo_get_conversation, §2.1) — resolved to a Person for the multi-party byline
   model: string | null;
   citations: { url?: string; title?: string; cited_text?: string }[] | null;
   media?: { image?: InlineImage; video?: InlineVideo } | null;   // Chat Media Persistence: persisted inline media (theo_get_conversation returns it)
   created_at: string;
 }
 export interface ConversationDetail {
-  conversation: ConversationSummary & { app_context?: Record<string, unknown> | null };
+  // SPW 2c-iii-be (API §2.1, DEPLOYED): theo_get_conversation's conversation object now also carries
+  // created_by (the owner's Entra OID) + published_to_project (bool). The FE gates the owner-only
+  // publish control on created_by == self and reflects the shared state via published_to_project.
+  // Optional to tolerate any pre-migration/mock rows; the deployed server always returns them and
+  // getConversation passes json.data through unmodified (no mapper change).
+  conversation: ConversationSummary & { app_context?: Record<string, unknown> | null; created_by?: string; published_to_project?: boolean };
   messages: PersistedMessage[];
 }
 

@@ -12,7 +12,7 @@ import { C, SANS } from "../theme";
 import { IcChat, IcCompose, IcDoc, IcTrash } from "./icons";
 import { InputBox } from "./ui";
 import { InlineEdit, RowActions } from "./RowManage";
-import type { ConversationSummary, KDraft, Person, Project, ProjectMember } from "../types";
+import type { ConversationSummary, KDraft, Person, Project, ProjectMember, PublishedConversation } from "../types";
 
 export interface ProjectDetailProps {
   project: Project;
@@ -36,6 +36,9 @@ export interface ProjectDetailProps {
   onShareMember: (projectId: string, memberOid: string) => void;
   onUnshareMember: (projectId: string, memberOid: string) => void;
   memberPendingKey: string | null;   // `${projectId}|${memberOid}` currently in flight → disable that row
+  // SPW 2c-iv (VA-T12 surface C): conversations published to this project (theo_list_project_conversations).
+  // Any participant sees them; a row opens the chat via onSelectChat. Empty → a muted empty state.
+  published: PublishedConversation[];
 }
 
 // A collapsible section header (caret + title) with a conditional body. Local, inline — no new dep.
@@ -55,7 +58,7 @@ function Section({ title, open, onToggle, children }: { title: string; open: boo
   );
 }
 
-export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKnowledge, onAddKnowledgeFile, onRemoveKnowledge, onPatchInstructions, onStartChat, onSelectChat, onRenameChat, onDeleteChat, onPatchDescription, onSetVisibility, visibilityBusy, members, people, onShareMember, onUnshareMember, memberPendingKey }: ProjectDetailProps) {
+export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKnowledge, onAddKnowledgeFile, onRemoveKnowledge, onPatchInstructions, onStartChat, onSelectChat, onRenameChat, onDeleteChat, onPatchDescription, onSetVisibility, visibilityBusy, members, people, onShareMember, onUnshareMember, memberPendingKey, published }: ProjectDetailProps) {
   // B5a: only the owner may edit config (description / knowledge / instructions / sharing). A
   // shared-with-me project (isOwner=false) is read-only + chattable — members see the config but can't
   // change it, and chat with their own conversations.
@@ -222,6 +225,35 @@ export function ProjectDetail({ project, chats, kdraft, onKdraftChange, onAddKno
                       onDelete={() => { if (window.confirm(`Delete chat "${c.title || "Untitled chat"}"? This permanently removes the conversation and its messages.`)) onDeleteChat(c.id); }}
                     />
                   )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* SPW 2c-iv (VA-T12 surface C): chats published to this project — readable/continuable by any
+            participant. The author is resolved to a roster photo/name; a row opens the chat (restoring
+            the project) via the same selectRecent path as the chats list. */}
+        <div style={{ fontWeight: 600, fontSize: 15, margin: "22px 0 12px" }}>Shared in this project</div>
+        {published.length === 0 ? (
+          <div style={{ background: C.card, border: `1px dashed ${C.line2}`, borderRadius: 14, padding: "22px 18px", textAlign: "center", color: C.ink2, fontSize: 13.5 }}>
+            No shared chats yet — publish a chat to this project from its title menu so the team can read and continue it.
+          </div>
+        ) : (
+          <div style={{ background: C.card, border: `1px solid ${C.line2}`, borderRadius: 14, overflow: "hidden" }}>
+            {published.map((pub) => {
+              const author = people.find((p) => p.id === pub.created_by) ?? null;
+              const label = author ? author.displayName : pub.created_by;
+              return (
+                <div
+                  key={pub.id} className="vo-row" onClick={() => onSelectChat(pub.id)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", cursor: "pointer", borderBottom: `1px solid ${C.line}` }}
+                >
+                  {author?.photo
+                    ? <img src={author.photo} alt="" style={{ width: 26, height: 26, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                    : <div style={{ width: 26, height: 26, borderRadius: "50%", background: C.coralSoft, color: C.coralDk, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{label.trim().slice(0, 1).toUpperCase() || "?"}</div>}
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pub.title || "Untitled chat"}</span>
+                  <span style={{ fontSize: 12, color: C.ink3, flexShrink: 0, whiteSpace: "nowrap" }}>{label}</span>
                 </div>
               );
             })}

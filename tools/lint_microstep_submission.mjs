@@ -325,8 +325,12 @@ function check(text, repoRoot) {
     }
   }
 
-  // C9: forbidden phrases
-  const lower = text.toLowerCase();
+  // C9: forbidden phrases — scan PROSE ONLY (strip fenced code blocks first), mirroring C12's
+  // scoping. Fabrication-indicator phrases are an author-prose concern; verbatim-inlined deployed
+  // source (e.g. a handler's own embedded anti-hallucination system prompt, which legitimately
+  // contains "from memory") must not trip this. Stripping ```...``` fences leaves only prose.
+  const prose = text.replace(/```[^\n]*\n[\s\S]*?```/g, "");
+  const lower = prose.toLowerCase();
   for (const phrase of FORBIDDEN_PHRASES) {
     if (lower.includes(phrase)) {
       fail("C9", `Forbidden fabrication-indicator phrase present: "${phrase}".`);

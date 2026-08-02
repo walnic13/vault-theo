@@ -9,7 +9,7 @@ import { stripArtifactRefs } from "./lib/artifacts";
 import { buildSystemPrompt, greeting } from "./lib/prompt";
 import { MODEL } from "./swapBlock";
 import { STYLES } from "./data";
-import type { AgentToolCall, AppContext, Artifact, ArtifactSummary, Citation, ComposerAttachment, ConversationSummary, ConversationDetail, FileDownload, InlineImage, InlineVideo, KDraft, Message, NpDraft, OpenArtifact, Person, Project, ProjectMember, SentAttachment, Settings, StyleKey, View } from "./types";
+import type { AgentToolCall, AppContext, Artifact, ArtifactSummary, Citation, ComposerAttachment, ConversationSummary, ConversationDetail, FileDownload, InlineImage, InlineVideo, KDraft, Message, NpDraft, OpenArtifact, Person, Project, ProjectMember, PublishedConversation, SentAttachment, Settings, StyleKey, View } from "./types";
 
 // B8e: a paste longer than this becomes a "Pasted text" attachment (collapsed, expandable) instead
 // of flooding the composer — the Claude-style behaviour. Tunable; ~a long block, not a sentence.
@@ -17,6 +17,20 @@ const PASTE_AS_ATTACHMENT_CHARS = 1500;
 // B4c: debounce for persisting project-instruction edits (avoids a PATCH per keystroke — the
 // keystroke updates local state immediately; the network save fires once typing pauses).
 const INSTRUCTIONS_SAVE_DEBOUNCE_MS = 800;
+
+// Nav-History seam (VEP-1): a restorable internal Theo location. The back-stack holds these; goBack()
+// re-navigates to one by re-invoking the matching nav fn (cheap — conversations paint from cache,
+// projects are in state). In-memory only (no browser storage); the host owns window.history (VEP-2).
+type NavLoc =
+  | { k: "view"; view: View }   // a top-level nav view: projects / artifacts / customize
+  | { k: "chat"; id: string }   // an open conversation
+  | { k: "project"; id: string } // a project home
+  | { k: "newchat" };           // a fresh empty chat
+// A comparable key so destination-aware dedupe can compare currentLoc() to a nav target without
+// per-variant narrowing (see pushNavIfDestinationChanges).
+function navLocKey(l: NavLoc): string {
+  return l.k === "view" ? `view:${l.view}` : l.k === "chat" ? `chat:${l.id}` : l.k === "project" ? `project:${l.id}` : "newchat";
+}
 
 // Voice dictation (VA-T8): cap a recording at 7:00 (client-side), and pick the first MediaRecorder
 // mime the browser supports from the §2.11 audio allow-list (Chrome → webm/Opus, Safari → mp4).
@@ -91,6 +105,11 @@ export function useTheoState() {
   const [reviewProject, setReviewProject] = useState<{ rid: string; id: string } | null>(null);
   const reviewArmRef = useRef<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  // Nav-History seam (VEP-1): an in-memory stack of prior locations so the on-screen ← Back and (via the
+  // host seam, VEP-2) the browser/hardware Back walk chat→project→list→… one step per press. In-memory
+  // only (no browser storage). navRestoringRef suppresses the forward push while goBack re-navigates.
+  const [navStack, setNavStack] = useState<NavLoc[]>([]);
+  const navRestoringRef = useRef(false);
   const [recentsList, setRecentsList] = useState<ConversationSummary[]>([]);
   // Cold-open restore gate: `recentsLoaded` marks the first Recents settle (loaded, possibly empty);
   // `restoring` holds the UI on a quiet neutral cover from mount until the restore decision resolves,
@@ -103,6 +122,18 @@ export function useTheoState() {
   const [projectChatsState, setProjectChatsState] = useState<{ projectId: string; chats: ConversationSummary[] } | null>(null);
   const instrTimer = useRef<ReturnType<typeof setTimeout> | null>(null);  // B4c: instruction-save debounce
   const projectChatsReq = useRef<string | null>(null);                    // B4e: latest-opened project id (guards the chats load)
+  // SPW 2c-iii-fe: the OPEN conversation's owner + publish state (theo_get_conversation, §2.1), captured
+  // in paintConversation. `id` keys it to the open thread so a stale value from a prior conversation
+  // never gates the current one (derived chatPublished/chatCanPublish below match it against conversationId).
+  const [openConvMeta, setOpenConvMeta] = useState<{ id: string; created_by: string | null; published_to_project: boolean } | null>(null);
+  const publishReq = useRef<Set<string>>(new Set());          // per-conversation in-flight guard (publish/unpublish)
+  const [publishPending, setPublishPending] = useState<string | null>(null);
+  // SPW 2c-iv: the OPEN project's published conversations, KEYED by projectId (same discipline as
+  // projectChatsState) so a slow/stale load can neither render nor be acted on under a different open
+  // project. publishedConvsReq is the latest-opened guard; the derived `publishedConvs` (below) surfaces
+  // only detailId's. Visible to any participant → loaded unconditionally (not owner-gated).
+  const [publishedConvsState, setPublishedConvsState] = useState<{ projectId: string; conversations: PublishedConversation[] } | null>(null);
+  const publishedConvsReq = useRef<string | null>(null);
   // Stop-generating (B9 abort): the in-flight stream's AbortController, plus whether the user pressed
   // Stop (KEEP the partial reply) vs an implicit abort from a chat switch / newChat (DISCARD it). Both
   // are cleared in send()'s finally so the next turn starts fresh. React refs (not state) — no re-render.
@@ -157,6 +188,17 @@ export function useTheoState() {
   // projectMembersState keyed by its own id, so it never renders (nor can be revoked) here unless it
   // matches detailId (Codex B5c-FE keyed-state finding).
   const projectMembers = projectMembersState && projectMembersState.projectId === detailId ? projectMembersState.members : [];
+  // SPW 2c-iv: surface only the OPEN project's published chats (keyed to detailId, like projectChats).
+  const publishedConvs = publishedConvsState && publishedConvsState.projectId === detailId ? publishedConvsState.conversations : [];
+  // SPW 2c-iii-fe: the open conversation's publish state + whether the caller can publish it. openConvMeta
+  // is matched against conversationId so a stale (prior-thread) value never applies — a new/other chat
+  // reads as not-published/not-publishable until its own detail paints. canPublish = owner (created_by ==
+  // self OID) AND project-linked (chatProject held). The server independently enforces owner-only, so
+  // this is UX gating; the publish item is hidden otherwise.
+  const selfOid = people.find((p) => p.isSelf)?.id ?? null;
+  const openMetaMatches = openConvMeta != null && openConvMeta.id === conversationId;
+  const chatPublished = openMetaMatches && openConvMeta!.published_to_project;
+  const chatCanPublish = openMetaMatches && chatProject != null && selfOid != null && openConvMeta!.created_by === selfOid;
   const art = openArt ? (artifacts.find((a) => a.id === openArt.id) ?? null) : null;
 
   // #5.3b: derive the current review id + the project id PROVEN to belong to it (rid-matched). A stale
@@ -325,6 +367,19 @@ export function useTheoState() {
     }
   }, []);
 
+  // SPW 2c-iv: load the open project's PUBLISHED conversations (theo_list_project_conversations; §2.2),
+  // keyed by projectId. Same request-ref discipline as loadProjectChats: a response only lands if its
+  // project is still the latest opened. Any participant may read published chats, so this is unguarded
+  // by ownership (called for every openProject, unlike the owner-only members load).
+  const loadPublishedProjectConversations = useCallback(async (id: string) => {
+    try {
+      const conversations = await theoClient.listPublishedProjectConversations(id);
+      if (publishedConvsReq.current === id) setPublishedConvsState({ projectId: id, conversations });
+    } catch {
+      if (publishedConvsReq.current === id) setPublishedConvsState({ projectId: id, conversations: [] });
+    }
+  }, []);
+
   // B4d: load the chat's active project as a self-contained object (metadata + knowledge) held in
   // `chatProject`, independent of the `projects` list ordering/timing — so neither an empty/late list
   // nor a later loadProjects() (which maps knowledge:[]) can strip the active chat's context.
@@ -356,17 +411,55 @@ export function useTheoState() {
     }
   }
 
-  function go(v: View) { setView(v); setDetailId(null); if (v === "artifacts") void loadGalleryArtifacts(); }  // B4h: refresh the gallery on open
+  // Nav-History seam (VEP-1). currentLoc = where we are now; applyView = the NON-pushing view change
+  // (today's go() body). pushNavIfDestinationChanges pushes the LEAVING location only when we are not
+  // already at the target (destination-aware dedupe) and not mid-restore — so re-clicking the current
+  // destination, or goBack's re-navigation, seeds no dead Back step.
+  function currentLoc(): NavLoc {
+    if (view === "project" && detailId) return { k: "project", id: detailId };
+    if (view === "projects" || view === "artifacts" || view === "customize") return { k: "view", view };
+    return conversationId ? { k: "chat", id: conversationId } : { k: "newchat" };  // view === "chats"
+  }
+  function pushNavIfDestinationChanges(target: NavLoc) {
+    if (navRestoringRef.current) return;
+    const from = currentLoc();
+    if (navLocKey(from) === navLocKey(target)) return;
+    setNavStack((s) => [...s, from]);
+  }
+  function applyView(v: View) { setView(v); setDetailId(null); if (v === "artifacts") void loadGalleryArtifacts(); }  // B4h: refresh the gallery on open
+  function go(v: View) {
+    const target: NavLoc = v === "chats" ? (conversationId ? { k: "chat", id: conversationId } : { k: "newchat" }) : { k: "view", view: v };
+    pushNavIfDestinationChanges(target);
+    applyView(v);
+  }
+  // Nav-History (VEP-1): pop one internal location and re-navigate to it. The re-navigation is guarded
+  // (navRestoringRef) so the nav fns' own pushes are suppressed. No-op when the stack is empty (the host
+  // then lets the Back fall through and exit Theo — VEP-2).
+  function goBack() {
+    if (navStack.length === 0) return;
+    const top = navStack[navStack.length - 1];
+    setNavStack((s) => s.slice(0, -1));
+    navRestoringRef.current = true;
+    try {
+      if (top.k === "view") go(top.view);
+      else if (top.k === "chat") void selectRecent(top.id);
+      else if (top.k === "project") openProject(top.id);
+      else newChat();
+    } finally {
+      navRestoringRef.current = false;
+    }
+  }
   function clearComposer() { setAttachments([]); }
   // Stop-generating: abort any in-flight stream first (userStoppedRef stays false → the send() catch
   // takes the DISCARD path, not the keep-partial path — the fresh thread replaces the list anyway).
   // This also covers selectRecent / startInProject / deleteConversation / the host newChatNonce, which
   // all funnel through newChat() to reset the thread.
-  function newChat() { abortRef.current?.abort(); setMessages([]); setConversationId(null); setChatProject(null); setOpenArt(null); theoClient.resetArtifacts(); setArtifacts([]); clearComposer(); go("chats"); }  // B4h: fresh thread = fresh in-memory artifact set
+  function newChat() { pushNavIfDestinationChanges({ k: "newchat" }); abortRef.current?.abort(); setMessages([]); setConversationId(null); setChatProject(null); setOpenArt(null); theoClient.resetArtifacts(); setArtifacts([]); clearComposer(); applyView("chats"); }  // B4h: fresh thread = fresh in-memory artifact set. VEP-1: single-owned history via applyView (not the pushing go)
   // B4c/B4d: AWAIT the project's full load (metadata + knowledge, held in chatProject) before switching
   // to chat, so the first turn's system prompt (buildSystemPrompt(…, chatProject)) always includes it.
   // A fire-and-forget load could otherwise race the first send — the "Start a chat" button stays enabled.
   async function startInProject(id: string) {
+    pushNavIfDestinationChanges({ k: "newchat" });   // VEP-1: record the leaving location (e.g. the project home) for Back
     abortRef.current?.abort();                  // stop-generating: switching chats aborts any in-flight stream (discard path; this fn resets the thread inline, not via newChat())
     setChatProject(null);                       // clear first — never carry a prior project if load fails
     const ok = await loadChatProject(id);
@@ -378,17 +471,26 @@ export function useTheoState() {
   // project-home list. The chat's own project context is loaded separately via loadChatProject
   // (startInProject / reload-restore), so it never depends on this list entry.
   function openProject(id: string) {
+    pushNavIfDestinationChanges({ k: "project", id });   // VEP-1: record the leaving location for Back
     projectChatsReq.current = id;      // mark this as the current chats request
     setProjectChatsState(null);        // clear any prior project's list immediately (no stale flash/rows)
     setDetailId(id); setView("project");
     void refreshProjectKnowledge(id); void loadProjectChats(id);
-    // B5c: owner-only invite management — load members + the roster picker source only when the caller
-    // owns the project (theo_list_project_members is owner-only; a shared-with-me detail skips it).
-    // Key + clear members immediately (like the chats list) so a prior project's members never flash.
+    // SPW 2c-iv: load this project's published conversations (any participant sees them). Keyed + cleared
+    // immediately like the chats list so a prior project's shared list never flashes. The roster
+    // (loadPeople) is loaded UNCONDITIONALLY below so published-chat authors resolve to names even on a
+    // shared-with-me project (a member viewing another author's shared chat).
+    publishedConvsReq.current = id;
+    setPublishedConvsState(null);
+    void loadPublishedProjectConversations(id);
+    void loadPeople();
+    // B5c: owner-only invite management — load members only when the caller owns the project
+    // (theo_list_project_members is owner-only; a shared-with-me detail skips it). Key + clear members
+    // immediately (like the chats list) so a prior project's members never flash.
     projectMembersReq.current = id;
     setProjectMembersState(null);
     const p = projects.find((x) => x.id === id);
-    if (p?.isOwner) { void loadProjectMembers(id); void loadPeople(); }
+    if (p?.isOwner) { void loadProjectMembers(id); }
   }
 
   // ── B8e attachments ───────────────────────────────────────────────────────
@@ -453,23 +555,30 @@ export function useTheoState() {
     const msgs: Message[] = d.messages.map((m) => {
       const atts = m.role === "user" ? bySeq.get(m.seq) : undefined;
       const cites = Array.isArray(m.citations) ? m.citations : [];
+      // SPW 2c-ii: carry the author OID onto each painted message for the multi-party byline.
+      const author = typeof m.created_by === "string" && m.created_by ? { created_by: m.created_by } : {};
       if (m.role === "assistant") {
         const { display } = theoClient.ingestReply(m.content);   // parse+upsert artifacts; markers → placeholders
         const media = m.media && typeof m.media === "object" ? m.media : null;   // Chat Media Persistence: restore fetched images/videos on reload
         return {
-          role: "assistant", content: display,
+          role: "assistant", content: display, ...author,
           ...(cites.length ? { runs: [{ text: display, citations: cites.map((c) => ({ url: c.url ?? "", title: c.title ?? "", cited_text: c.cited_text })) }] } : {}),
           ...(media && media.image ? { image: media.image } : {}),
           ...(media && media.video ? { video: media.video } : {}),
         };
       }
-      return { role: m.role, content: m.content, ...(atts && atts.length ? { attachments: atts } : {}) };
+      return { role: m.role, content: m.content, ...author, ...(atts && atts.length ? { attachments: atts } : {}) };
     });
     setArtifacts(theoClient.listArtifacts());
+    // SPW 2c-iii-fe: capture the open conversation's owner + publish state (theo_get_conversation, §2.1)
+    // so the header can gate the owner-only publish control + reflect the shared state. Keyed to `id`.
+    const c = d.conversation;
+    setOpenConvMeta({ id, created_by: typeof c?.created_by === "string" ? c.created_by : null, published_to_project: c?.published_to_project === true });
     setMessages(msgs); setConversationId(id);
   }
 
   async function selectRecent(id: string) {
+    pushNavIfDestinationChanges({ k: "chat", id });   // VEP-1: record the leaving location for Back
     abortRef.current?.abort();  // stop-generating: opening another chat aborts any in-flight stream (discard path; this fn resets the thread inline, not via newChat())
     setError(""); setChatProject(null); setOpenArt(null); setView("chats"); setDetailId(null); clearComposer();
     // Instant paint from the CONFIRMED-principal cache (the mount flow bound the principal first). The
@@ -479,6 +588,19 @@ export function useTheoState() {
     try {
       const d = await theoClient.getConversation(id);
       setCachedConversation(id, d);   // persist the revalidated first page (Theo Snapshot Storage Exception)
+      // SPW 2c-iv fix: a chat opened from a project's list (esp. the "Shared in this project" list, or a
+      // teammate's shared chat) may not be in the mount-loaded Recents window — without a Recents row the
+      // header title menu (currentConversation) is blank. Upsert this opened conversation's summary so the
+      // title/menu render (and it shows in the sidebar). Existing rows are left in place (starred/order
+      // preserved; theo_get_conversation omits `starred`, so never overwrite an existing row's value).
+      if (d.conversation) {
+        const c = d.conversation;
+        const summary: ConversationSummary = {
+          id: c.id, title: c.title, model: c.model, project_id: c.project_id, app_key: c.app_key,
+          created_at: c.created_at, updated_at: c.updated_at, last_opened_at: c.last_opened_at, starred: c.starred,
+        };
+        setRecentsList((prev) => (prev.some((r) => r.id === id) ? prev : [summary, ...prev]));
+      }
       // B4d: restore the project when reopening a chat that belongs to one (the reloaded conversation
       // carries project_id). loadChatProject fetches the project's metadata + knowledge into the
       // self-contained `chatProject` (NOT the `projects` list), and is AWAITed, so the restored chat's
@@ -522,7 +644,10 @@ export function useTheoState() {
     setError("");
     const userContent = text || "Please review the attached file(s).";
     const sentAtts: SentAttachment[] = ready.map((a) => ({ name: a.name, kind: a.kind, contentType: a.contentType, byteSize: a.byteSize, previewText: a.previewText }));
-    const next: Message[] = [...messages, { role: "user", content: userContent, ...(sentAtts.length ? { attachments: sentAtts } : {}) }];
+    // SPW 2c-ii: seed the optimistic local user turn with the confirmed self OID so a just-sent turn in
+    // a shared thread is attributed immediately (byline + multiParty) without waiting for a reload.
+    const selfOid = people.find((p) => p.isSelf)?.id;
+    const next: Message[] = [...messages, { role: "user", content: userContent, ...(selfOid ? { created_by: selfOid } : {}), ...(sentAtts.length ? { attachments: sentAtts } : {}) }];
     const keptAttachments = attachments;              // restore on error so the user can retry
     // B9 streaming: append an empty assistant placeholder; tokens stream into it live. The composer
     // clears immediately; ChatView shows the rotating status word until the first token lands.
@@ -1003,11 +1128,46 @@ export function useTheoState() {
       if (id === conversationId) { const p = projects.find((x) => x.id === projectId) ?? null; setChatProject(p); }
     } catch { setError("Couldn't add the chat to that project."); }
   }
+  // SPW 2c-iii-fe (VA-T12 B): publish / unpublish the open conversation to its project. Optimistic —
+  // theoClient.publish/unpublishConversation return void (no server echo), so on success we keep the
+  // flipped value; on failure we roll back. Per-conversation in-flight guard (same discipline as
+  // setProjectVisibility) so overlapping clicks can't leave a stale publish state. If the conversation's
+  // project home is currently open, its shared list is refreshed so the row appears/disappears live.
+  async function togglePublishConversation(id: string, publish: boolean) {
+    if (publishReq.current.has(id)) return;
+    publishReq.current.add(id);
+    setPublishPending(id);
+    setOpenConvMeta((m) => (m && m.id === id ? { ...m, published_to_project: publish } : m));
+    try {
+      if (publish) await theoClient.publishConversation(id);
+      else await theoClient.unpublishConversation(id);
+      const pid = chatProject?.id ?? null;
+      if (pid && publishedConvsReq.current === pid) void loadPublishedProjectConversations(pid);
+    } catch {
+      setError(publish ? "Couldn't publish this chat to the project." : "Couldn't unpublish this chat.");
+      setOpenConvMeta((m) => (m && m.id === id ? { ...m, published_to_project: !publish } : m));
+    } finally {
+      publishReq.current.delete(id);
+      setPublishPending((p) => (p === id ? null : p));
+    }
+  }
+
+  // Nav-History seam (VEP-1): the derived nav state consumed by TheoMain (Back button) + reported to the
+  // host (onNavState). navContextTitle = the open chat's title when it is inside a project, else null.
+  const canGoBack = navStack.length > 0;
+  const navDepth = navStack.length;
+  const navContextTitle = (view === "chats" && conversationId && chatProject)
+    ? (recentsList.find((c) => c.id === conversationId)?.title ?? null)
+    : null;
 
   return {
     // state
     view, collapsed, search, projects, projectChats, artifacts, galleryArtifacts, detail, chatProject, art, openArt, messages, draft, attachments, attachmentsAvailable, loading, restoring, error, queued,
     conversationId, currentConversation: recentsList.find((c) => c.id === conversationId) ?? null,
+    // Nav-History seam (VEP-1): back-stack state + goBack (TheoSurface reports depth/title to the host; TheoMain renders the Back button).
+    canGoBack, navDepth, navContextTitle, goBack,
+    // SPW 2c-iii-fe/2c-iv: publish state for the open chat + the open project's published-chat list.
+    chatPublished, chatCanPublish, publishedConvs,
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
     reviewMode: hasReviewContext(appContext), // Sigma review context armed → review-assistant landing/chip
     sigmaMode: appContext.app_key === "sigma", // #5 v2: in Sigma (with or without a review) → review persona/landing
@@ -1021,6 +1181,7 @@ export function useTheoState() {
     addFiles, addPastedText, removeAttachment,
     toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, patchDescription, setKdraft, addKnowledge, addKnowledgeFile, removeKnowledge,
     renameProject, deleteProject, setProjectVisibility, visPending, renameConversation, deleteConversation, setConversationStarred, addConversationToProject,
+    togglePublishConversation, publishPending,
     projectMembers, people, shareMember, unshareMember, memberPending,
     selectStyle: setStyleKey, setCustom, save, copyArt,
     selectVersion: (v: number) => setOpenArt(openArt ? { id: openArt.id, v } : null),

@@ -9,10 +9,10 @@
 import { useState } from "react";
 import type { CSSProperties } from "react";
 import { C, SANS } from "../theme";
-import { IcStar, IcCompose, IcTrash, IcProjects } from "./icons";
+import { IcStar, IcCompose, IcTrash, IcProjects, IcShare } from "./icons";
 import type { ConversationSummary, Project } from "../types";
 
-export function ConvMenuItems({ conversation, projects, onToggleStar, onAddToProject, onDelete, onStartRename, close }: {
+export function ConvMenuItems({ conversation, projects, onToggleStar, onAddToProject, onDelete, onStartRename, close, published, canPublish, onTogglePublish }: {
   conversation: ConversationSummary;
   projects: Project[];
   onToggleStar: (id: string, starred: boolean) => void;
@@ -20,6 +20,12 @@ export function ConvMenuItems({ conversation, projects, onToggleStar, onAddToPro
   onDelete: (id: string) => void;
   onStartRename: () => void;
   close: () => void;
+  // SPW 2c-iii-fe (VA-T12 B): the publish toggle. OPTIONAL because only the chat-header menu (ChatMenu)
+  // holds the open conversation's owner/published state; the sidebar row menu (RowMenu) passes none, so
+  // the item renders ONLY in the header (gated on onTogglePublish && canPublish below).
+  published?: boolean;                                       // current publish_to_project state
+  canPublish?: boolean;                                      // owner AND project-linked → the item is shown
+  onTogglePublish?: (id: string, publish: boolean) => void;  // publish (true) / unpublish (false)
 }) {
   const [view, setView] = useState<"main" | "projects">("main");
   const [hover, setHover] = useState<string | null>(null);
@@ -77,6 +83,15 @@ export function ConvMenuItems({ conversation, projects, onToggleStar, onAddToPro
         onClick={() => setView("projects")}>
         <IcProjects s={16} /> Add to project <span style={{ marginLeft: "auto", color: C.ink3, paddingLeft: 12 }}>›</span>
       </button>
+      {/* SPW 2c-iii-fe (VA-T12 B): publish/unpublish this conversation to its project. Only the header
+          menu passes onTogglePublish + canPublish (owner + project-linked), so this is hidden in the
+          sidebar row menu and on a non-owner / non-project chat. */}
+      {onTogglePublish && canPublish && (
+        <button style={item("publish")} onMouseEnter={() => setHover("publish")} onMouseLeave={() => setHover(null)}
+          onClick={() => { close(); onTogglePublish(conversation.id, !published); }}>
+          <IcShare s={16} /> {published ? "Unpublish" : "Publish to project"}
+        </button>
+      )}
       <div style={{ height: 1, background: C.line2, margin: "6px 4px" }} />
       <button style={item("del", true)} onMouseEnter={() => setHover("del")} onMouseLeave={() => setHover(null)}
         onClick={() => { close(); if (window.confirm(`Delete chat "${title}"? This permanently removes the conversation and its messages.`)) onDelete(conversation.id); }}>

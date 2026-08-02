@@ -11,7 +11,7 @@
 // this delegates to the in-repo 1A mock so the standalone vault-theo dev harness keeps working.
 import type {
   Artifact, ArtifactSummary, AttachmentUpload, ConversationAttachment, ConversationDetail, ConversationSummary, FileDownload, InlineImage, InlineImageItem, InlineVideo, GatewayRequest, GatewayResponse,
-  KDraft, Knowledge, NpDraft, Person, Project, ProjectMember,
+  KDraft, Knowledge, NpDraft, Person, Project, ProjectMember, PublishedConversation,
 } from "../types";
 import {
   sendMessage as mockSend, listConversations as mockList, getConversation as mockGet,
@@ -30,6 +30,8 @@ import {
   setProjectVisibility as mockSetProjectVisibility,
   shareProject as mockShareProject, unshareProject as mockUnshareProject,
   listProjectMembers as mockListProjectMembers, listPeople as mockListPeople,
+  publishConversation as mockPublishConversation, unpublishConversation as mockUnpublishConversation,
+  listPublishedProjectConversations as mockListPublishedProjectConversations,
 } from "./gateway.mock";
 
 type TokenProvider = () => Promise<string | null>;
@@ -562,6 +564,73 @@ export async function listProjectMembers(projectId: string): Promise<ProjectMemb
   if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
   const arr = json?.data?.members;
   return Array.isArray(arr) ? arr.filter((m) => typeof m.member_oid === "string" && m.member_oid).map(toMember) : [];
+}
+
+// SPW Phase 2: publish a conversation to its linked project (theo_publish_conversation; conversation-
+// owner-only server-side; requires the conversation be project-linked). Idempotent. Unconfigured → mock.
+export async function publishConversation(conversationId: string): Promise<void> {
+  if (!apiBase && !tokenProvider) return mockPublishConversation(conversationId);
+  const headers = await authHeaders();
+  const res = await fetch(`${projectsBase}/api/theo_publish_conversation`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ conversation_id: conversationId }),
+  });
+  let json: { error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+}
+
+// SPW Phase 2: revert a published conversation to private (theo_unpublish_conversation; owner-only;
+// idempotent). Unconfigured → mock.
+export async function unpublishConversation(conversationId: string): Promise<void> {
+  if (!apiBase && !tokenProvider) return mockUnpublishConversation(conversationId);
+  const headers = await authHeaders();
+  const res = await fetch(`${projectsBase}/api/theo_unpublish_conversation`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify({ conversation_id: conversationId }),
+  });
+  let json: { error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+}
+
+interface RawPublishedConversation {
+  id?: string; title?: string | null; created_by?: string;
+  created_at?: string; updated_at?: string;
+  published_at?: string | null; published_by?: string | null;
+}
+function toPublishedConversation(r: RawPublishedConversation): PublishedConversation {
+  return {
+    id: r.id ?? "",
+    title: typeof r.title === "string" ? r.title : null,
+    created_by: r.created_by ?? "",
+    created_at: r.created_at ?? "",
+    updated_at: r.updated_at ?? "",
+    published_at: typeof r.published_at === "string" ? r.published_at : null,
+    published_by: typeof r.published_by === "string" ? r.published_by : null,
+  };
+}
+
+// SPW Phase 2: the conversations PUBLISHED to a project (theo_list_project_conversations?projectId;
+// visible to any participant server-side). Unconfigured → mock. Distinct from listProjectConversations
+// (the caller's OWN chats in a project, theo_list_conversations?projectId).
+export async function listPublishedProjectConversations(projectId: string): Promise<PublishedConversation[]> {
+  if (!apiBase && !tokenProvider) return mockListPublishedProjectConversations(projectId);
+  const headers = await authHeaders();
+  const res = await fetch(`${projectsBase}/api/theo_list_project_conversations?projectId=${encodeURIComponent(projectId)}`, {
+    method: "GET",
+    credentials: "same-origin",
+    headers,
+  });
+  let json: { data?: { conversations?: RawPublishedConversation[] }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Theo gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
+  const arr = json?.data?.conversations;
+  return Array.isArray(arr) ? arr.filter((c) => typeof c.id === "string" && c.id).map(toPublishedConversation) : [];
 }
 
 interface RawPerson {

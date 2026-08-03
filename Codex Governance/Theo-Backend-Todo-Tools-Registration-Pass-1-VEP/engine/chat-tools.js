@@ -145,7 +145,8 @@ const CHAT_TOOLS = [
     description:
       'Create a TODO / task item so you can SHOW the user your work and track what needs doing. Call this ' +
       'when you commit to a follow-up, capture an action the user asked you to remember, or lay out steps ' +
-      'you will work through. The app displays the TODO in the user\'s task list automatically. Set `agent` ' +
+      'you will work through. After creating it, briefly confirm to the user what you captured (your text ' +
+      'reply is how they see it — there is no separate task-list view yet). Set `agent` ' +
       'to "theo". Include `project_id` ONLY when the task belongs to a specific project currently in context; ' +
       'omit it for a personal / standalone TODO. Keep `title` short and action-oriented; put any longer notes ' +
       'in `detail`. The owner is always the signed-in user (handled automatically); do not pass any identity.',

@@ -29,7 +29,7 @@ Currency-anchor form: git blob SHA (Conformance §8 fallback). Absolute paths in
 - vault-theo standards @ HEAD `b5318cf`: THEO_GOLDEN_HANDLER_STANDARD.md `f8f0e5ea36447502e35fb87b373c94e376f05cbb`; CLAUDE_CODE_THEO_BACKEND_GOVERNOR_STANDARD.md `e44cdd85d3d0e5df332dc754cdec731e2e68022e`; THEO_EXECUTION_ORCHESTRATION_STANDARD.md `565559b699c1309f8e750b0dbbac859c13d807c8`; THEO_ARCHITECTURE_AND_STRUCTURE.md `07451ce9d912830b3c15fedf74761d00c59f97b2`; THEO_GROUNDING_CONFORMANCE_STANDARD.md `7c0d902bdff3b6c0af475b483e31ed796214e57b`.
 - vault-theo-tools @ current HEAD (blob verified): VAULT_THEO_TOOLS_PLATFORM.md `3d1e958735da4db8ec23fc8dea98faf904415932`.
 - primary-reference (GET-verified from func-stream Kudu this turn): `PRIMARY_REFERENCE.chat-tools.DEPLOYED.js` `8850c347205430b937d5117a8446d8549ec02efc`.
-- this package (proposed): `engine/chat-tools.js` `c11d9de36e31339fc4279518ad4830a1256c27a2` (= deployed base + four additive TODO entries).
+- this package (proposed): `engine/chat-tools.js` `5daea3e61de1968088511b4b0ca5b8db152feb5c` (= deployed base + four additive TODO entries).
 
 ### Full Baseline doc set (Conformance §4 backend) — grounded this turn
 Governor, Conformance (this GCR/Rule-Anchor/lint), Codex Review, Golden Handler (§2 primary-ref, §4 contract shape), Orchestration (DR-T11), Architecture (tool-dispatch), vault-theo-tools Platform (§4 recipe). Schema / API Spec — **N/A** (no DB/schema/handler change; a registry entry pointing at already-deployed handlers). The paired handlers' API-Spec/catalog Role-C rows are recorded with the store package (Pkg-1) once the tools are usable end-to-end (§2 G-3).
@@ -69,14 +69,14 @@ Primary Reference = the deployed `chat-tools.js` (func-stream, blob `8850c347`, 
 No DEVIATION rows. `node --check` PASS.
 
 ## §5 Post-deploy verification (Claude Code, on APPROVAL)
-Deploy `engine/chat-tools.js` to `vaultgpt-func-stream` (Kudu VFS PUT `/site/wwwroot/src/engine/chat-tools.js`, GET-back byte-identical to `c11d9de3`, restart). Then:
+Deploy `engine/chat-tools.js` to `vaultgpt-func-stream` (Kudu VFS PUT `/site/wwwroot/src/engine/chat-tools.js`, GET-back byte-identical to `5daea3e6`, restart). Then:
 1. Sanity: `node --check` on the deployed file (via a Kudu GET + local check) — the module loads; `CHAT_TOOL_SCHEMAS` now includes the four TODO tools.
 2. Live model turn (as `wmansfield@vault-tax.com` through the Theo streaming path): ask Theo to "add a TODO to confirm the §1446(f) withholding" → assert a `theo_create_todo` `tool_use` is dispatched and a TODO row is created (verify via `theo_list_todos` or the deployed store); then "list my TODOs" → the item is returned. (End-to-end model-callability; the handlers themselves are already golden-verified.)
 3. Regression: a normal chat turn + a `theo_find_image` turn behave unchanged.
 
 ## §6 Deploy (Pass-3, on APPROVAL) — Kudu VFS to `vaultgpt-func-stream` (Golden §5.5)
 1. Resolve the SCM host (`az functionapp show -n vaultgpt-func-stream -g Vault-Tax --query enabledHostNames`).
-2. Kudu VFS GET the current `/site/wwwroot/src/engine/chat-tools.js` (rollback baseline; expect blob `8850c347`). PUT the proposed `engine/chat-tools.js` (`If-Match:*`; expect 204). GET-back + diff (expect blob `c11d9de3`). `az functionapp restart -n vaultgpt-func-stream -g Vault-Tax`.
+2. Kudu VFS GET the current `/site/wwwroot/src/engine/chat-tools.js` (rollback baseline; expect blob `8850c347`). PUT the proposed `engine/chat-tools.js` (`If-Match:*`; expect 204). GET-back + diff (expect blob `5daea3e6`). `az functionapp restart -n vaultgpt-func-stream -g Vault-Tax`.
 3. Run §5 verification.
 4. Role-C (with the Dottie half): catalog + API-Spec rows → DEPLOYED once both agents can call the tools.
 

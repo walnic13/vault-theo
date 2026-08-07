@@ -2,7 +2,7 @@
 // L155–237) but routes every backend-bound call through `theoClient` (the single service
 // boundary). Browser storage only via the Theo Snapshot Storage Exception (Governor item 3) — the
 // per-principal instant-paint snapshot in ./services/theoSnapshot; everything else React/in-memory.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { theoClient } from "./services/theoClient";
 import { getCachedRecents, setCachedRecents, getCachedConversation, setCachedConversation, getCachedSelf, setCachedSelf, isPrincipalBound, bindPrincipal } from "./services/theoSnapshot";
 import { stripArtifactRefs } from "./lib/artifacts";
@@ -67,6 +67,8 @@ function hasReviewContext(ctx: AppContext): boolean {
   const files = ac.files && typeof ac.files === "object" ? (ac.files as Record<string, unknown>) : null;
   return isUuid(ac.sigma_review_id) && !!files && isFilePointer(files.input) && isFilePointer(files.output);
 }
+// §6D(3): the context a right-panel agent sees in GENERAL mode — none (a context-free launch).
+const EMPTY_APP_CONTEXT: AppContext = { app_key: null, app_context: null };
 
 export function useTheoState() {
   const seeded: Settings = theoClient.readSettings();
@@ -100,6 +102,11 @@ export function useTheoState() {
   const [np, setNp] = useState<NpDraft>({ name: "", desc: "", instructions: "" });
   const [kdraft, setKdraft] = useState<KDraft>({ title: "", content: "" });
   const [appContext, setAppContext] = useState<AppContext>(() => theoClient.getAppContext());
+  // §6D(3) Agent mode (app-aware vs general). Mode DEFAULTS contextually — app-aware when the host has
+  // published an app context (app_key present), general otherwise — but is user-switchable via the mode
+  // chip. `userMode` (null = follow the contextual default) holds an explicit override; the effective
+  // mode + context are derived below. General mode ignores the published context entirely (app_key→null).
+  const [userMode, setUserMode] = useState<"app-aware" | "general" | null>(null);
   // #5.3b: the Theo project a Sigma review's chats live in, KEYED to its review id (rid) so a stale
   // project can never be used for a different review. reviewArmRef is the request-key guard.
   const [reviewProject, setReviewProject] = useState<{ rid: string; id: string } | null>(null);
@@ -203,8 +210,16 @@ export function useTheoState() {
 
   // #5.3b: derive the current review id + the project id PROVEN to belong to it (rid-matched). A stale
   // (other-review) reviewProject resolves activeReviewProjectId to null, so recents/re-arm never use it.
-  const reviewAc = appContext.app_context;
-  const currentRid = hasReviewContext(appContext) && reviewAc && typeof reviewAc.sigma_review_id === "string" ? reviewAc.sigma_review_id : null;
+  // §6D(3): the effective mode + context. Default app-aware iff a context is published (app_key present);
+  // user override (chip) wins. General mode substitutes EMPTY_APP_CONTEXT so ALL downstream review logic
+  // (persona, per-review project, review agent, landing) behaves exactly as a context-free launch.
+  const agentMode: "app-aware" | "general" = userMode ?? (appContext.app_key ? "app-aware" : "general");
+  const effectiveAppContext = useMemo(
+    () => (agentMode === "general" ? EMPTY_APP_CONTEXT : appContext),
+    [agentMode, appContext],
+  );
+  const reviewAc = effectiveAppContext.app_context;
+  const currentRid = hasReviewContext(effectiveAppContext) && reviewAc && typeof reviewAc.sigma_review_id === "string" ? reviewAc.sigma_review_id : null;
   const activeReviewProjectId = reviewProject && reviewProject.rid === currentRid ? reviewProject.id : null;
   // Arm: on every review-id change, immediately drop any other review's project (fail-closed), then
   // get-or-create this review's project and apply ONLY if we're still on the same review (reviewArmRef).
@@ -217,7 +232,7 @@ export function useTheoState() {
       .then((p) => { if (reviewArmRef.current === currentRid && p) setReviewProject({ rid: currentRid, id: p.id }); })
       .catch(() => { /* failed arm → leave unset; recents stay fail-closed until a later arm succeeds */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentRid, appContext]);
+  }, [currentRid, effectiveAppContext]);
   // Re-arm: put a FRESH empty review chat into the (proven-current) review project — covers initial open,
   // the Sigma per-review newChatNonce, and the user's "New chat". Never mid-conversation, once already in
   // the project (no loop), or for a stale project (activeReviewProjectId is null during an A→B window).
@@ -285,6 +300,13 @@ export function useTheoState() {
       setRestoring(false);
       return;
     }
+    // §6D(3): an APP-AWARE launch (a published app context, mode not switched to general) must NOT
+    // restore an unrelated personal chat — the agent is that app's assistant. Drop the gate; the review
+    // re-arm (above) opens the scoped review chat, or the greeting shows with the app persona.
+    if (effectiveAppContext.app_key) {
+      setRestoring(false);
+      return;
+    }
     // Staleness cap (Walter 2026-07-28): the >4h "start fresh on the greeting" reset is MOBILE-ONLY.
     // On DESKTOP the workspace never expires — always restore the last chat regardless of how long has
     // passed, so the user comes back to exactly where they left off (Walter: on desktop the space
@@ -300,7 +322,7 @@ export function useTheoState() {
     // restore the last-touched chat, THEN drop the gate → the splash lands directly on that chat (no
     // greeting flash). `finally` so a failed restore still clears the gate rather than hanging on splash.
     void selectRecent(recentsList[0].id).finally(() => setRestoring(false));
-  }, [recentsLoaded, recentsList, conversationId, messages.length, draft, attachments.length]);
+  }, [recentsLoaded, recentsList, conversationId, messages.length, draft, attachments.length, effectiveAppContext.app_key]);
 
   // B4c: load the signed-in user's projects (live → theo_list_projects; mock fallback). Called by
   // TheoSurface's mount effect right after configureGateway (same reason as loadRecents — so the
@@ -669,7 +691,7 @@ export function useTheoState() {
     let convId: string | null = null;
     // Fail-closed routing: a COMPLETE review payload (app_key='sigma' + review_id + files) → the K-1
     // review agent (sigma_review_agent_stream); anything else → the general chat path. Decided per-send.
-    const useReviewAgent = hasReviewContext(appContext);
+    const useReviewAgent = hasReviewContext(effectiveAppContext);
     // Patch the last message (the streaming assistant turn) in place as deltas arrive.
     const patchLastAssistant = (patch: Partial<Message>) =>
       setMessages((m) => {
@@ -682,10 +704,10 @@ export function useTheoState() {
       });
     try {
       const req = {
-        model: MODEL, max_tokens: 1500, system: buildSystemPrompt(styleKey, custom, chatProject, selfFullName, appContext.app_key),
+        model: MODEL, max_tokens: 1500, system: buildSystemPrompt(styleKey, custom, chatProject, selfFullName, effectiveAppContext.app_key),
         messages: next.map((m) => ({ role: m.role, content: stripArtifactRefs(m.content) })),
         ...(conversationId ? { conversation_id: conversationId } : {}),
-        app_key: appContext.app_key, app_context: appContext.app_context,
+        app_key: effectiveAppContext.app_key, app_context: effectiveAppContext.app_context,
         ...(ready.length ? { attachment_ids: ready.map((a) => a.id as string) } : {}),
         ...(chatProject ? { project_id: chatProject.id } : {}),   // D4: project-scoped knowledge RAG (D3 retrieval seam)
       };
@@ -1169,8 +1191,11 @@ export function useTheoState() {
     // SPW 2c-iii-fe/2c-iv: publish state for the open chat + the open project's published-chat list.
     chatPublished, chatCanPublish, publishedConvs,
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
-    reviewMode: hasReviewContext(appContext), // Sigma review context armed → review-assistant landing/chip
-    sigmaMode: appContext.app_key === "sigma", // #5 v2: in Sigma (with or without a review) → review persona/landing
+    reviewMode: hasReviewContext(effectiveAppContext), // §6D(3): review-assistant landing/chip only in app-aware mode
+    sigmaMode: effectiveAppContext.app_key === "sigma", // #5 v2 / §6D(3): Sigma persona only in app-aware mode
+    // §6D(3) Agent mode: the effective mode, whether a mode switch is even offered (the host published a
+    // context to be aware of), and the switcher (chip). General ⇒ the agent ignores the app context.
+    agentMode, appContextAvailable: appContext.app_key != null,
     // Voice I/O (VA-T8)
     voiceAvailable, recording, transcribing, recordingSeconds, playingIdx, synthesizingIdx,
 
@@ -1178,6 +1203,10 @@ export function useTheoState() {
     // setters / handlers
     go, toggleCollapse: () => setCollapsed((v) => !v), setSearch, setDraft, newChat, startInProject, openProject,
     clearChatProject: () => setChatProject(null), send, stop, cancelQueued, ingestAppContext, selectRecent, loadRecents, loadProjects, loadGalleryArtifacts,
+    // §6D(3): switch the right-panel agent between app-aware and general (the mode chip). Start a fresh
+    // chat so the new mode lands cleanly — app-aware re-arms the review chat; general shows a fresh
+    // general chat — rather than leaving the prior mode's thread open under the new mode.
+    setAgentMode: (m: "app-aware" | "general") => { setUserMode(m); newChat(); },
     addFiles, addPastedText, removeAttachment,
     toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, patchDescription, setKdraft, addKnowledge, addKnowledgeFile, removeKnowledge,
     renameProject, deleteProject, setProjectVisibility, visPending, renameConversation, deleteConversation, setConversationStarred, addConversationToProject,

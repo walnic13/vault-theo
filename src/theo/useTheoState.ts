@@ -70,7 +70,7 @@ function hasReviewContext(ctx: AppContext): boolean {
 // §6D(3): the context a right-panel agent sees in GENERAL mode — none (a context-free launch).
 const EMPTY_APP_CONTEXT: AppContext = { app_key: null, app_context: null };
 
-export function useTheoState() {
+export function useTheoState(launchAppContext?: AppContext) {
   const seeded: Settings = theoClient.readSettings();
   const [view, setView] = useState<View>("chats");
   const [collapsed, setCollapsed] = useState(false);
@@ -101,12 +101,16 @@ export function useTheoState() {
   const [npOpen, setNpOpen] = useState(false);
   const [np, setNp] = useState<NpDraft>({ name: "", desc: "", instructions: "" });
   const [kdraft, setKdraft] = useState<KDraft>({ title: "", content: "" });
-  const [appContext, setAppContext] = useState<AppContext>(() => theoClient.getAppContext());
-  // §6D(3) Agent mode (app-aware vs general). Mode DEFAULTS contextually — app-aware when the host has
-  // published an app context (app_key present), general otherwise — but is user-switchable via the mode
-  // chip. `userMode` (null = follow the contextual default) holds an explicit override; the effective
-  // mode + context are derived below. General mode ignores the published context entirely (app_key→null).
-  const [userMode, setUserMode] = useState<"app-aware" | "general" | null>(null);
+  const [appContext, setAppContext] = useState<AppContext>(() => launchAppContext ?? theoClient.getAppContext());
+  // §6D(3) Agent mode (app-aware vs general) — LATCHED AT LAUNCH, never recomputed from live context.
+  // The default is contextual ONLY at launch: app-aware iff the LAUNCH context (the value passed in at
+  // mount) had an app_key, general otherwise. Thereafter the mode changes ONLY via the user's mode chip
+  // (setAgentMode) — a later appContext update from the host (the shell offering context to an already-
+  // open tab) MUST NOT flip the mode (App Host §6D(3): context availability ≠ mode). General mode ignores
+  // the published context entirely (effectiveAppContext below substitutes EMPTY_APP_CONTEXT).
+  const [agentMode, setAgentModeState] = useState<"app-aware" | "general">(
+    () => ((launchAppContext ?? theoClient.getAppContext()).app_key ? "app-aware" : "general"),
+  );
   // #5.3b: the Theo project a Sigma review's chats live in, KEYED to its review id (rid) so a stale
   // project can never be used for a different review. reviewArmRef is the request-key guard.
   const [reviewProject, setReviewProject] = useState<{ rid: string; id: string } | null>(null);
@@ -210,10 +214,10 @@ export function useTheoState() {
 
   // #5.3b: derive the current review id + the project id PROVEN to belong to it (rid-matched). A stale
   // (other-review) reviewProject resolves activeReviewProjectId to null, so recents/re-arm never use it.
-  // §6D(3): the effective mode + context. Default app-aware iff a context is published (app_key present);
-  // user override (chip) wins. General mode substitutes EMPTY_APP_CONTEXT so ALL downstream review logic
-  // (persona, per-review project, review agent, landing) behaves exactly as a context-free launch.
-  const agentMode: "app-aware" | "general" = userMode ?? (appContext.app_key ? "app-aware" : "general");
+  // §6D(3): the effective context. In GENERAL mode the published context is substituted with
+  // EMPTY_APP_CONTEXT so ALL downstream review logic (persona, per-review project, review agent, landing)
+  // behaves exactly as a context-free launch. In APP-AWARE mode it is the live appContext (so a review
+  // opened AFTER launch, while already app-aware, updates the target — mode stays app-aware either way).
   const effectiveAppContext = useMemo(
     () => (agentMode === "general" ? EMPTY_APP_CONTEXT : appContext),
     [agentMode, appContext],
@@ -1203,10 +1207,11 @@ export function useTheoState() {
     // setters / handlers
     go, toggleCollapse: () => setCollapsed((v) => !v), setSearch, setDraft, newChat, startInProject, openProject,
     clearChatProject: () => setChatProject(null), send, stop, cancelQueued, ingestAppContext, selectRecent, loadRecents, loadProjects, loadGalleryArtifacts,
-    // §6D(3): switch the right-panel agent between app-aware and general (the mode chip). Start a fresh
-    // chat so the new mode lands cleanly — app-aware re-arms the review chat; general shows a fresh
-    // general chat — rather than leaving the prior mode's thread open under the new mode.
-    setAgentMode: (m: "app-aware" | "general") => { setUserMode(m); newChat(); },
+    // §6D(3): explicit user switch of the right-panel agent between app-aware and general (the mode
+    // chip) — the ONLY thing that changes the launch-latched mode. Start a fresh chat so the new mode
+    // lands cleanly — app-aware re-arms the review chat; general shows a fresh general chat — rather
+    // than leaving the prior mode's thread open under the new mode.
+    setAgentMode: (m: "app-aware" | "general") => { setAgentModeState(m); newChat(); },
     addFiles, addPastedText, removeAttachment,
     toggleNp: () => setNpOpen((v) => !v), setNp, createProject, patchInstructions, patchDescription, setKdraft, addKnowledge, addKnowledgeFile, removeKnowledge,
     renameProject, deleteProject, setProjectVisibility, visPending, renameConversation, deleteConversation, setConversationStarred, addConversationToProject,

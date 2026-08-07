@@ -85,7 +85,11 @@ export interface TheoSurfaceProps {
 }
 
 export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessToken, suppressNarrowHeader, newChatNonce, onNavigate, onNavState, backNonce, onSidebarCollapsed }: TheoSurfaceProps) {
-  const t = useTheoState();
+  // §6D(3): pass the LAUNCH app-context into the hook so the agent mode is LATCHED at mount (app-aware
+  // iff a context is present at launch), not recomputed from later prop updates. The ingest effect below
+  // still threads live context UPDATES into the surface (chip label, an in-app-aware review change), but
+  // it never re-derives the mode — only the user's mode chip does.
+  const t = useTheoState(appContext);
   const { ingestAppContext, loadRecents, loadProjects, loadGalleryArtifacts, loadPeople } = t;
 
   // Wire the live model gateway to the shell's token provider (mock → live), then load Recents,

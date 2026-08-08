@@ -14,6 +14,7 @@ import {
   sendReviewAgentStream as gatewaySendReviewAgentStream, configureGateway as gatewayConfigure,
   listConversations as gatewayList, getConversation as gatewayGet,
   listProjectConversations as gatewayListProjectConversations,
+  getReview as gatewayGetReview,
   listConversationAttachments as gatewayListConvAttachments,
   createAttachmentUpload as gatewayCreateUpload, uploadToBlob as gatewayUploadToBlob,
   finalizeAttachment as gatewayFinalize, deleteAttachment as gatewayDeleteAttachment,
@@ -95,6 +96,11 @@ export const theoClient = {
   },
   getConversation(id: string): Promise<ConversationDetail> {
     return gatewayGet(id);
+  },
+  // §GL Vault Governance Loop (author side): fetch a Sigma review's checks (func-sigma sigma_get_review)
+  // so Theo can enumerate exceptions and build the governance note handed to Dottie. Read-only.
+  getReview(reviewId: string, opts?: { signal?: AbortSignal }): Promise<{ checks: Array<Record<string, unknown>>; fund_name?: string }> {
+    return gatewayGetReview(reviewId, opts);
   },
   // B4e: a project's conversations (theo_list_conversations?projectId) — backs the project-home chat list.
   listProjectConversations(projectId: string): Promise<ConversationSummary[]> {

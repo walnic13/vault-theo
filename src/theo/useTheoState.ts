@@ -247,6 +247,52 @@ export function useTheoState(launchAppContext?: AppContext) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeReviewProjectId, messages.length, chatProject?.id]);
 
+  // ── Vault Governance Loop (author side; Loop §GL3/§GL7) ───────────────────────────────────────
+  // buildDottieNote: enumerate the current review's EXCEPTIONS (func-sigma sigma_get_review, as the user)
+  // and assemble the GovernanceNote Theo hands to Dottie (§6D(4), target_agent:'dottie'). No app_key in
+  // the claim (§6D(4) — the shell stamps it). Returns null when there is no review or no exceptions.
+  async function buildDottieNote(): Promise<Record<string, unknown> | null> {
+    const rid = currentRid;
+    if (!rid) return null;
+    let checks: Array<Record<string, unknown>> = [];
+    try { const r = await theoClient.getReview(rid); checks = r.checks; } catch { return null; }
+    const items = checks
+      .filter((c) => c && c.status === "exception")
+      .map((c) => ({ gate: "sigma.exception_clearance", ref: { control_id: typeof c.control_id === "string" ? c.control_id : "" } }))
+      .filter((it) => it.ref.control_id);
+    if (items.length === 0) return null;
+    const fund = reviewAc && typeof reviewAc.fund_name === "string" && reviewAc.fund_name.trim() ? (reviewAc.fund_name as string) : "this review";
+    return {
+      kind: "governance_note",
+      target: { review_id: rid },
+      gates: ["sigma.exception_clearance"],
+      theo_note: `Please independently adjudicate ${items.length} exception clearance${items.length === 1 ? "" : "s"} on ${fund}.`,
+      items,
+    };
+  }
+  // Verdict-set ingest: when Dottie returns a GovernanceVerdictSet (the shell threads it back into
+  // app_context.governance_claim with a governance_nonce; App Host §6D(4) return leg), record its summary
+  // so the header can show a cleared/changes chip. App-aware only (reviewAc blanks in general mode);
+  // nonce-guarded (mirrors reviewArmRef). Advisory — nothing authoritative is mutated.
+  const govClaim = reviewAc && typeof reviewAc.governance_claim === "object" && reviewAc.governance_claim
+    ? (reviewAc.governance_claim as Record<string, unknown>) : null;
+  const govNonce = reviewAc && typeof reviewAc.governance_nonce === "number" ? (reviewAc.governance_nonce as number) : null;
+  const [governanceVerdict, setGovernanceVerdict] = useState<{ approved: number; caution: number; rejected: number; cleared: boolean } | null>(null);
+  const govNonceRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (govNonce == null || govNonceRef.current === govNonce) return;
+    if (!govClaim || govClaim.kind !== "governance_verdict_set") return;
+    govNonceRef.current = govNonce;
+    const summary = govClaim.summary && typeof govClaim.summary === "object" ? (govClaim.summary as Record<string, unknown>) : {};
+    setGovernanceVerdict({
+      approved: typeof summary.approved === "number" ? (summary.approved as number) : 0,
+      caution: typeof summary.caution === "number" ? (summary.caution as number) : 0,
+      rejected: typeof summary.rejected === "number" ? (summary.rejected as number) : 0,
+      cleared: govClaim.cleared === true,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [govNonce]);
+
   // recents: global outside review mode; scoped to the review's project once resolved; EMPTY (fail
   // closed) while a review is armed but its project is still resolving — never global under a review.
   const recents = recentsList.filter((c) => c.title.toLowerCase().includes(search.toLowerCase()) && (!currentRid ? true : (activeReviewProjectId ? c.project_id === activeReviewProjectId : false)));
@@ -480,7 +526,7 @@ export function useTheoState(launchAppContext?: AppContext) {
   // takes the DISCARD path, not the keep-partial path — the fresh thread replaces the list anyway).
   // This also covers selectRecent / startInProject / deleteConversation / the host newChatNonce, which
   // all funnel through newChat() to reset the thread.
-  function newChat() { pushNavIfDestinationChanges({ k: "newchat" }); abortRef.current?.abort(); setMessages([]); setConversationId(null); setChatProject(null); setOpenArt(null); theoClient.resetArtifacts(); setArtifacts([]); clearComposer(); applyView("chats"); }  // B4h: fresh thread = fresh in-memory artifact set. VEP-1: single-owned history via applyView (not the pushing go)
+  function newChat() { pushNavIfDestinationChanges({ k: "newchat" }); abortRef.current?.abort(); setMessages([]); setConversationId(null); setChatProject(null); setOpenArt(null); theoClient.resetArtifacts(); setArtifacts([]); clearComposer(); setGovernanceVerdict(null); applyView("chats"); }  // B4h: fresh thread = fresh in-memory artifact set. §GL: a fresh thread drops any Dottie verdict summary (and setAgentMode funnels through here, so switching to general clears it — §6D(3)). VEP-1: single-owned history via applyView (not the pushing go)
   // B4c/B4d: AWAIT the project's full load (metadata + knowledge, held in chatProject) before switching
   // to chat, so the first turn's system prompt (buildSystemPrompt(…, chatProject)) always includes it.
   // A fire-and-forget load could otherwise race the first send — the "Start a chat" button stays enabled.
@@ -1197,6 +1243,9 @@ export function useTheoState(launchAppContext?: AppContext) {
     styleKey, custom, saved, copied, npOpen, np, kdraft, recents, activeStyle, appContext,
     reviewMode: hasReviewContext(effectiveAppContext), // §6D(3): review-assistant landing/chip only in app-aware mode
     sigmaMode: effectiveAppContext.app_key === "sigma", // #5 v2 / §6D(3): Sigma persona only in app-aware mode
+    // §GL Vault Governance Loop (author side): assemble the Dottie note (fetch exceptions) + the returned
+    // verdict summary (null until Dottie hands one back). The header's Hand-to-Dottie/verdict chip use these.
+    buildDottieNote, governanceVerdict,
     // §6D(3) Agent mode: the effective mode, whether a mode switch is even offered (the host published a
     // context to be aware of), and the switcher (chip). General ⇒ the agent ignores the app context.
     agentMode, appContextAvailable: appContext.app_key != null,

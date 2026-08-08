@@ -61,16 +61,23 @@ let chatBase: string = normalizeBase((import.meta.env as Record<string, unknown>
 // to `apiBase` (which does not host the endpoint). Used ONLY by addProjectKnowledgeFile.
 const DEFAULT_PROJECTS_BASE = "https://vaultgpt-func-projects.azurewebsites.net";
 let projectsBase: string = normalizeBase((import.meta.env as Record<string, unknown>).VITE_PROJECTS_FUNCTIONS_URL) || DEFAULT_PROJECTS_BASE;
+// §GL Vault Governance Loop (author side): sigma_get_review (enumerate a review's EXCEPTIONS to build the
+// GovernanceNote handed to Dottie) lives on func-sigma, NOT the monolith `apiBase`. Baked via
+// VITE_SIGMA_FUNCTIONS_URL (or injected via configureGateway), mirroring streamBase/chatBase; defaults to
+// the known func-sigma host so the call never falls back to `apiBase`. Used ONLY by getReview (read-only).
+const DEFAULT_SIGMA_BASE = "https://vaultgpt-func-sigma.azurewebsites.net";
+let sigmaBase: string = normalizeBase((import.meta.env as Record<string, unknown>).VITE_SIGMA_FUNCTIONS_URL) || DEFAULT_SIGMA_BASE;
 
 // Configured once by the federated TheoSurface mount with the Origin shell's token provider (and,
 // optionally, the monolith Functions base URL and the streaming sidecar base URL). Supplying a token
 // provider switches this gateway mock → live.
-export function configureGateway(opts: { getAccessToken?: TokenProvider | null; baseUrl?: string | null; streamBaseUrl?: string | null; chatBaseUrl?: string | null; projectsBaseUrl?: string | null }): void {
+export function configureGateway(opts: { getAccessToken?: TokenProvider | null; baseUrl?: string | null; streamBaseUrl?: string | null; chatBaseUrl?: string | null; projectsBaseUrl?: string | null; sigmaBaseUrl?: string | null }): void {
   if (opts.getAccessToken !== undefined) tokenProvider = opts.getAccessToken;
   if (opts.baseUrl != null) apiBase = normalizeBase(opts.baseUrl);
   if (opts.streamBaseUrl != null) streamBase = normalizeBase(opts.streamBaseUrl);
   if (opts.chatBaseUrl != null) chatBase = normalizeBase(opts.chatBaseUrl);
   if (opts.projectsBaseUrl != null) projectsBase = normalizeBase(opts.projectsBaseUrl);
+  if (opts.sigmaBaseUrl != null) sigmaBase = normalizeBase(opts.sigmaBaseUrl);
 }
 
 // True once a live backend is wired (token provider or a Functions base URL). Attachments require it.
@@ -323,6 +330,27 @@ export async function listProjectConversations(projectId: string): Promise<Conve
     throw new Error(json?.error?.message || `Theo gateway error (HTTP ${res.status}).`);
   }
   return Array.isArray(json?.data?.conversations) ? json.data.conversations : [];
+}
+
+// §GL Vault Governance Loop (author side): fetch a Sigma review + its checks (func-sigma sigma_get_review,
+// as the signed-in user on the shared EasyAuth audience) so Theo can enumerate the review's EXCEPTIONS and
+// build the governance note's items. Read-only; no mutation. Returns the checks array (the caller filters
+// status==='exception') + the fund name. No mock fallback — governance is a live-only flow.
+export async function getReview(reviewId: string, opts?: { signal?: AbortSignal }): Promise<{ checks: Array<Record<string, unknown>>; fund_name?: string }> {
+  const headers = await authHeaders();
+  const res = await fetch(`${sigmaBase}/api/sigma_get_review?reviewId=${encodeURIComponent(reviewId)}`, {
+    method: "GET",
+    credentials: "same-origin",
+    headers,
+    signal: opts?.signal,
+  });
+  let json: { data?: { review?: Record<string, unknown>; checks?: Array<Record<string, unknown>> }; error?: { message?: string } } | null = null;
+  try { json = await res.json(); } catch { throw new Error(`Sigma gateway returned a non-JSON response (HTTP ${res.status}).`); }
+  if (!res.ok) throw new Error(json?.error?.message || `Sigma gateway error (HTTP ${res.status}).`);
+  const checks = Array.isArray(json?.data?.checks) ? (json!.data!.checks as Array<Record<string, unknown>>) : [];
+  const review = json?.data?.review && typeof json.data.review === "object" ? (json.data.review as Record<string, unknown>) : null;
+  const fund_name = review && typeof review.fund_name === "string" ? (review.fund_name as string) : undefined;
+  return { checks, fund_name };
 }
 
 // B3b — fetch one conversation + its ordered messages (with persisted citations; backs reload). Unconfigured → mock.

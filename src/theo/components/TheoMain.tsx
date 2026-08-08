@@ -30,9 +30,12 @@ export interface TheoMainProps {
   // narrow viewports (≤767.98px) so the Origin host provides the single mobile top bar (no stacked
   // double header). CSS-only, applied via the STYLE_BLOCK media rule in TheoSurface. Wide unchanged.
   suppressNarrowHeader?: boolean;
+  // §GL Vault Governance Loop (author side): Theo's "Hand to Dottie" affordance hands a GovernanceNote to
+  // Dottie via this callback (App Host §6D(4), target_agent:'dottie'). Optional; absent (standalone) ⇒ hidden.
+  onRequestAgentHandoff?: (handoff: { target_agent: string; claim: Record<string, unknown> }) => void;
 }
 
-export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
+export function TheoMain({ t, mode, suppressNarrowHeader, onRequestAgentHandoff }: TheoMainProps) {
   function renderAssistant(content: string): ReactNode {
     return splitAssistant(content).map((part, i) => {
       if (part.kind === "artifact") {
@@ -86,6 +89,25 @@ export function TheoMain({ t, mode, suppressNarrowHeader }: TheoMainProps) {
                 {t.agentMode === "app-aware" ? (appLabel ?? "App assistant") : "General"}
                 <span style={{ color: C.ink3, fontSize: 10 }}>⇄</span>
               </button>
+            )}
+            {/* §GL Vault Governance Loop (author side): in app-aware review mode, a "⚖ Hand to Dottie"
+                affordance enumerates the review's exceptions (buildDottieNote) and hands the note to Dottie
+                (App Host §6D(4)). Shown only when hosted (onRequestAgentHandoff wired) + app-aware. */}
+            {onRequestAgentHandoff && t.reviewMode && t.agentMode === "app-aware" && (
+              <button
+                onClick={() => { void (async () => { const note = await t.buildDottieNote(); if (note) onRequestAgentHandoff({ target_agent: "dottie", claim: note }); })(); }}
+                title="Hand this review's exceptions to Dottie for an independent check"
+                style={{ fontSize: 12, fontWeight: 600, color: C.ink2, background: C.coralTint, border: "none", borderRadius: 999, padding: "3px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+              >
+                ⚖ Hand to Dottie
+              </button>
+            )}
+            {/* §GL return leg: once Dottie hands a verdict set back, a compact chip summarises it (cleared
+                vs N change(s)); advisory — the human counter-sign remains the gate. */}
+            {t.governanceVerdict && (
+              <span style={{ fontSize: 12, fontWeight: 600, color: t.governanceVerdict.cleared ? C.ink2 : C.coralDk, background: t.governanceVerdict.cleared ? C.coralTint : C.coralSoft, borderRadius: 999, padding: "3px 10px", display: "flex", alignItems: "center", gap: 5 }}>
+                Dottie: {t.governanceVerdict.cleared ? "cleared" : `${t.governanceVerdict.rejected + t.governanceVerdict.caution} change${t.governanceVerdict.rejected + t.governanceVerdict.caution === 1 ? "" : "s"}`}
+              </span>
             )}
             {t.chatProject && <span style={{ fontSize: 12, color: C.ink2, background: C.coralTint, borderRadius: 999, padding: "3px 10px", display: "flex", alignItems: "center", gap: 6 }}>{t.chatProject.name}<span onClick={t.clearChatProject} style={{ cursor: "pointer", display: "flex" }}><IcClose s={12} /></span></span>}
             {/* SPW 2c-iii-fe (VA-T12 B): a published chat shows a "Shared in {project}" chip so the shared

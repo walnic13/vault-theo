@@ -82,9 +82,13 @@ export interface TheoSurfaceProps {
   // `collapsed` so the Origin host can shrink the 1/10 panel to icon-strip width (mirrors onNavState).
   // Optional — a host that does not wire it (or standalone) is unaffected.
   onSidebarCollapsed?: (collapsed: boolean) => void;
+  // §GL Vault Governance Loop (author side; App Host §6D(4)): Theo's "Hand to Dottie" affordance calls this
+  // to open Dottie with a GovernanceNote (target_agent:'dottie'). Optional — a standalone/unhosted surface
+  // has no shell to route through; absent ⇒ the affordance is hidden.
+  onRequestAgentHandoff?: (handoff: { target_agent: string; claim: Record<string, unknown> }) => void;
 }
 
-export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessToken, suppressNarrowHeader, newChatNonce, onNavigate, onNavState, backNonce, onSidebarCollapsed }: TheoSurfaceProps) {
+export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessToken, suppressNarrowHeader, newChatNonce, onNavigate, onNavState, backNonce, onSidebarCollapsed, onRequestAgentHandoff }: TheoSurfaceProps) {
   // §6D(3): pass the LAUNCH app-context into the hook so the agent mode is LATCHED at mount (app-aware
   // iff a context is present at launch), not recomputed from later prop updates. The ingest effect below
   // still threads live context UPDATES into the surface (chip label, an in-app-aware review change), but
@@ -178,7 +182,7 @@ export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessTo
       <>
         <style>{STYLE_BLOCK}</style>
         {createPortal(nav, navSlot)}
-        {createPortal(<TheoMain t={t} mode="panel" suppressNarrowHeader={suppressNarrowHeader} />, mainSlot)}
+        {createPortal(<TheoMain t={t} mode="panel" suppressNarrowHeader={suppressNarrowHeader} onRequestAgentHandoff={onRequestAgentHandoff} />, mainSlot)}
       </>
     );
   }
@@ -189,7 +193,7 @@ export default function TheoSurface({ appContext, navSlot, mainSlot, getAccessTo
       <style>{STYLE_BLOCK}</style>
       {nav}
       <main style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-        <TheoMain t={t} mode="full" suppressNarrowHeader={suppressNarrowHeader} />
+        <TheoMain t={t} mode="full" suppressNarrowHeader={suppressNarrowHeader} onRequestAgentHandoff={onRequestAgentHandoff} />
       </main>
       {showDevInjector() && <DevContextInjector onInject={ingestAppContext} />}
     </div>
